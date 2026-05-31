@@ -1,4 +1,4 @@
-import { Provider } from "@/provider/provider"
+﻿import { Provider } from "@/provider/provider"
 import { NamedError } from "@cody/core/util/error"
 import { NotFoundError } from "@/storage/storage"
 import { Session } from "@/session/session"
@@ -14,6 +14,7 @@ import * as ServerBackend from "./backend"
 import { isAllowedCorsOrigin, type CorsOptions } from "./cors"
 import { isPtyConnectPath, PTY_CONNECT_TICKET_QUERY } from "./shared/pty-ticket"
 import { isPublicUIPath } from "./shared/public-ui"
+import * as Jwt from "./auth/jwt"
 
 const log = Log.create({ service: "server" })
 
@@ -44,11 +45,30 @@ export const AuthMiddleware: MiddlewareHandler = (c, next) => {
   // Allow CORS preflight requests to succeed without auth.
   // Browser clients sending Authorization headers will preflight with OPTIONS.
   if (c.req.method === "OPTIONS") return next()
+
+  // Public auth endpoints — no auth required
+  if (c.req.method === "POST" && c.req.path === "/api/auth/login") return next()
+
+  // Skip auth when no server password is configured
   const password = Flag.CODY_SERVER_PASSWORD
   if (!password) return next()
+
+  // Public UI assets
   if (isPublicUIPath(c.req.method, c.req.path)) return next()
   if (c.req.method === "POST" && c.req.path === "/global/git-check") return next()
   if (isPtyConnectPath(c.req.path) && c.req.query(PTY_CONNECT_TICKET_QUERY)) return next()
+
+  // Check for JWT Bearer token as alternative to Basic Auth
+  const authHeader = c.req.header("Authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      Jwt.verify(authHeader.slice(7))
+      return next()
+    } catch {
+      // Invalid JWT — fall through to Basic Auth
+    }
+  }
+
   const username = Flag.CODY_SERVER_USERNAME ?? "cody-x"
 
   if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
