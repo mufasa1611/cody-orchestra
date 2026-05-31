@@ -1,0 +1,22 @@
+﻿{
+    "$schema":  "https://json.schemastore.org/package.json",
+    "name":  "cody-connect",
+    "version":  "0.2.1",
+    "description":  "Cody Pro Remote PC Agent - connect your PC to cody.kingkung.men",
+    "type":  "module",
+    "license":  "MIT",
+    "bin":  {
+                "cody-connect":  "connect.mjs"
+            },
+    "engines":  {
+                    "bun":  "\u003e=1.0.0",
+                    "node":  "\u003e=18.0.0"
+                },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/mufasa1611/cody-x.git"
+                   },
+    "files":  [
+                  "connect.mjs"
+              ]
+}

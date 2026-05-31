@@ -1,0 +1,685 @@
+---
+title: Konfiguracija
+description: Korištenje Cody JSON konfiguracije.
+---
+
+Možete konfigurirati Cody koristeći JSON konfiguracijski fajl.
+
+---
+
+## Format
+
+Cody podržava i **JSON** i **JSONC** (JSON sa komentarima) formate.
+
+```jsonc title="cody.jsonc"
+{
+  "$schema": "https://cody.dev/config.json",
+  "model": "anthropic/claude-sonnet-4-5",
+  "autoupdate": true,
+  "server": {
+    "port": 4096,
+  },
+}
+```
+
+---
+
+## Lokacije
+
+Možete postaviti svoju konfiguraciju na nekoliko različitih lokacija i one imaju drugačiji redoslijed prioriteta.
+
+:::note
+Konfiguracijski fajlovi se **spajaju**, ne zamjenjuju.
+:::
+
+Konfiguracijski fajlovi se spajaju, ne zamjenjuju. Kombiniraju se postavke sa sljedećih konfiguracijskih lokacija. Kasnije konfiguracije poništavaju prethodne samo za konfliktne ključeve. Nekonfliktne postavke iz svih konfiguracija su sačuvane.
+
+Na primjer, ako vaša globalna konfiguracija postavlja `autoupdate: true`, a vaša projektna konfiguracija postavlja `model: "anthropic/claude-sonnet-4-5"`, konačna konfiguracija će uključivati ​​obje postavke.
+
+---
+
+### Redoslijed prioriteta
+
+Izvori konfiguracije se učitavaju ovim redoslijedom (kasniji izvori poništavaju ranije):
+
+1. **Udaljena konfiguracija** (od `.well-known/cody`) - organizacijske postavke
+2. **Globalna konfiguracija** (`~/.config/cody/cody.json`) - korisničke preferencije
+3. **Prilagođena konfiguracija** (`CODY_CONFIG` env var) - prilagođena preinačenja
+4. **Konfiguracija projekta** (`cody.json` u projektu) - postavke specifične za projekat
+5. **`.cody` direktoriji** - agenti, komande, dodaci
+6. **Inline konfiguracija** (`CODY_CONFIG_CONTENT` env var) - runtime preinačenja
+
+To znači da konfiguracije projekta mogu nadjačati globalne zadane postavke, a globalne konfiguracije mogu nadjačati postavke udaljene organizacije.
+
+:::note
+Direktoriji `.cody` i `~/.config/cody` koriste **imena u množini** za poddirektorije: `agents/`, `commands/`, `modes/`, `plugins/`, `skills/`, `tools/` i `themes/`. Pojedinačna imena (npr. `agent/`) su također podržana za kompatibilnost unatrag.
+:::
+
+---
+
+### Udaljeno (Remote)
+
+Organizacije mogu pružiti zadanu konfiguraciju preko `.well-known/cody` krajnje tačke. Ovo se automatski preuzima kada se autentifikujete kod provajdera koji to podržava.
+
+Prvo se učitava udaljena konfiguracija koja služi kao osnovni sloj. Svi ostali izvori konfiguracije (globalni, projektni) mogu nadjačati ove zadane postavke.
+
+Na primjer, ako vaša organizacija nudi MCP servere koji su po defaultu onemogućeni:
+
+```json title="Remote config from .well-known/cody"
+{
+  "mcp": {
+    "jira": {
+      "type": "remote",
+      "url": "https://jira.example.com/mcp",
+      "enabled": false
+    }
+  }
+}
+```
+
+Možete omogućiti određene servere u vašoj lokalnoj konfiguraciji:
+
+```json title="cody.json"
+{
+  "mcp": {
+    "jira": {
+      "type": "remote",
+      "url": "https://jira.example.com/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+---
+
+### Globalno
+
+Postavite svoju globalnu Cody konfiguraciju u `~/.config/cody/cody.json`. Koristite globalnu konfiguraciju za korisničke preferencije kao što su provajderi, modeli i dozvole.
+
+Za postavke specifične za TUI, koristite `~/.config/cody/tui.json`.
+
+Globalna konfiguracija poništava zadane postavke udaljene organizacije.
+
+---
+
+### Projekt
+
+Dodajte `cody.json` u korijen projekta. Konfiguracija projekta ima najveći prioritet među standardnim konfiguracijskim datotekama - ona nadjačava globalne i udaljene konfiguracije.
+
+Za TUI postavke specifične za projekat, dodajte `tui.json` pored njega.
+
+:::tip
+Postavite specifičnu konfiguraciju projekta u korijen vašeg projekta.
+:::
+
+Kada se Cody pokrene, traži konfiguracijsku datoteku u trenutnom direktoriju ili prelazi do najbližeg Git direktorija.
+
+Ovo je također sigurno provjeriti u Git i koristi istu shemu kao globalna.
+
+---
+
+### Prilagođena konfiguracija
+
+Navedite prilagođenu putanju konfiguracijske datoteke koristeći varijablu okruženja `CODY_CONFIG`.
+
+```bash
+export CODY_CONFIG=/path/to/my/custom-config.json
+cody run "Hello world"
+```
+
+Prilagođena konfiguracija se učitava između globalne i projektne konfiguracije po redoslijedu prioriteta.
+
+---
+
+### Prilagođeni direktorij
+
+Navedite prilagođeni konfiguracijski direktorij koristeći `CODY_CONFIG_DIR` varijablu okruženja. U ovom direktoriju će se tražiti agenti, komande, modovi i dodaci baš kao standardni `.cody` direktorij, i trebali bi pratiti istu strukturu.
+
+```bash
+export CODY_CONFIG_DIR=/path/to/my/config-directory
+cody run "Hello world"
+```
+
+Prilagođeni direktorij se učitava nakon direktorija globalne konfiguracije i `.cody`, tako da **može nadjačati** njihove postavke.
+
+---
+
+## Šema
+
+Konfiguracijski fajl ima šemu koja je definirana u [**`cody.ai/config.json`**](https://cody.dev/config.json).
+
+TUI konfiguracija koristi [**`cody.ai/tui.json`**](https://cody.ai/tui.json).
+
+Vaš editor bi trebao biti u mogućnosti da validira i autodovršava na osnovu šeme.
+
+---
+
+### TUI
+
+Koristite namjenski `tui.json` (ili `tui.jsonc`) fajl za postavke specifične za TUI.
+
+```json title="tui.json"
+{
+  "$schema": "https://cody.ai/tui.json",
+  "scroll_speed": 3,
+  "scroll_acceleration": {
+    "enabled": true
+  },
+  "diff_style": "auto"
+}
+```
+
+Koristite `CODY_TUI_CONFIG` da pokažete na prilagođeni TUI konfiguracijski fajl.
+
+Stari `theme`, `keybinds`, i `tui` ključevi u `cody.json` su zastarjeli i automatski će se migrirati kada je to moguće.
+
+[Saznajte više o korištenju TUI ovdje](/docs/tui#configure).
+
+---
+
+### Server
+
+Možete konfigurirati postavke servera za naredbe `cody serve` i `cody web` putem opcije `server`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "server": {
+    "port": 4096,
+    "hostname": "0.0.0.0",
+    "mdns": true,
+    "mdnsDomain": "myproject.local",
+    "cors": ["http://localhost:5173"]
+  }
+}
+```
+
+Dostupne opcije:
+
+- `port` - Port za slušanje.
+- `hostname` - Hostname za slušanje. Kada je `mdns` omogućen i nije postavljeno ime hosta, podrazumevano je `0.0.0.0`.
+- `mdns` - Omogući mDNS otkrivanje servisa. Ovo omogućava drugim uređajima na mreži da otkriju vaš Cody server.
+- `mdnsDomain` - Prilagođeno ime domene za mDNS servis. Zadano je `cody.local`. Korisno za pokretanje više instanci na istoj mreži.
+- `cors` - Dodatni origini koji omogućavaju CORS kada koristite HTTP server iz klijenta baziranog na pretraživaču. Vrijednosti moraju biti puni origin (shema + host + opcijski port), npr. `https://app.example.com`.
+
+[Saznajte više o serveru ovdje](/docs/server).
+
+---
+
+### Alati
+
+Možete upravljati alatima koje LLM može koristiti putem opcije `tools`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "tools": {
+    "write": false,
+    "bash": false
+  }
+}
+```
+
+[Saznajte više o alatima ovdje](/docs/tools).
+
+---
+
+### Model
+
+Možete konfigurirati dobavljače i modele koje želite koristiti u svojoj Cody konfiguraciji kroz opcije `provider`, `model` i `small_model`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "provider": {},
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-haiku-4-5"
+}
+```
+
+Opcija `small_model` konfigurira poseban model za lagane zadatke poput generiranja naslova. Podrazumevano, Cody pokušava da koristi jeftiniji model ako je dostupan od vašeg provajdera, inače se vraća na vaš glavni model.
+
+Opcije provajdera mogu uključivati ​​`timeout` i `setCacheKey`:
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "timeout": 600000,
+        "setCacheKey": true
+      }
+    }
+  }
+}
+```
+
+- `timeout` - Vrijeme čekanja zahtjeva u milisekundama (podrazumevano: 300000). Postavite na `false` da onemogućite.
+- `setCacheKey` - Osigurajte da je ključ keš memorije uvijek postavljen za određenog provajdera.
+
+Također možete konfigurirati [lokalne modele](/docs/models#local). [Saznajte više](/docs/models).
+
+---
+
+#### Opcije specifične za provajdere
+
+Neki provajderi podržavaju dodatne opcije konfiguracije osim generičkih postavki `timeout` i `apiKey`.
+
+##### Amazon Bedrock
+
+Amazon Bedrock podržava konfiguraciju specifičnu za AWS:
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "provider": {
+    "amazon-bedrock": {
+      "options": {
+        "region": "us-east-1",
+        "profile": "my-aws-profile",
+        "endpoint": "https://bedrock-runtime.us-east-1.vpce-xxxxx.amazonaws.com"
+      }
+    }
+  }
+}
+```
+
+- `region` - AWS regija za Bedrock (zadano na `AWS_REGION` env var ili `us-east-1`)
+- `profile` - AWS imenovani profil iz `~/.aws/credentials` (zadano na `AWS_PROFILE` env var)
+- `endpoint` - URL prilagođene krajnje tačke za VPC krajnje tačke. Ovo je alias za generičku opciju `baseURL` koristeći terminologiju specifičnu za AWS. Ako su oba navedena, `endpoint` ima prednost.
+
+:::note
+Tokeni nosioca (`AWS_BEARER_TOKEN_BEDROCK` ili `/connect`) imaju prednost nad autentifikacijom zasnovanom na profilu. Pogledajte [prednost autentifikacije](/docs/providers#authentication-precedence) za detalje.
+:::
+
+[Saznajte više o konfiguraciji Amazon Bedrock](/docs/providers#amazon-bedrock).
+
+---
+
+### Teme
+
+Postavite vašu UI temu u `tui.json`.
+
+```json title="tui.json"
+{
+  "$schema": "https://cody.ai/tui.json",
+  "theme": "tokyonight"
+}
+```
+
+[Saznajte više ovdje](/docs/themes).
+
+---
+
+### Agenti
+
+Možete konfigurirati specijalizirane agente za određene zadatke putem opcije `agent`.
+
+```jsonc title="cody.jsonc"
+{
+  "$schema": "https://cody.dev/config.json",
+  "agent": {
+    "code-reviewer": {
+      "description": "Reviews code for best practices and potential issues",
+      "model": "anthropic/claude-sonnet-4-5",
+      "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
+      "tools": {
+        // Disable file modification tools for review-only agent
+        "write": false,
+        "edit": false,
+      },
+    },
+  },
+}
+```
+
+Također možete definirati agente koristeći markdown datoteke u `~/.config/cody/agents/` ili `.cody/agents/`. [Saznajte više ovdje](/docs/agents).
+
+---
+
+### Zadani agent
+
+Možete postaviti zadanog agenta koristeći opciju `default_agent`. Ovo određuje koji se agent koristi kada nijedan nije eksplicitno specificiran.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "default_agent": "plan"
+}
+```
+
+Zadani agent mora biti primarni agent (ne podagent). Ovo može biti ugrađeni agent kao što je `"build"` ili `"plan"`, ili [prilagođeni agent](/docs/agents) koji ste definirali. Ako navedeni agent ne postoji ili je podagent, Cody će se vratiti na `"build"` s upozorenjem.
+
+Ova postavka se primjenjuje na sva sučelja: TUI, CLI (`cody run`), desktop aplikaciju i GitHub Action.
+
+---
+
+### Dijeljenje
+
+Možete konfigurirati funkciju [share](/docs/share) putem opcije `share`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "share": "manual"
+}
+```
+
+Ovo prihvata:
+
+- `"manual"` - Dozvoli ručno dijeljenje putem naredbi (podrazumevano)
+- `"auto"` - Automatski dijelite nove razgovore
+- `"disabled"` - Onemogući dijeljenje u potpunosti
+
+Podrazumevano, dijeljenje je postavljeno na ručni način rada gdje trebate eksplicitno dijeliti razgovore pomoću naredbe `/share`.
+
+---
+
+### Naredbe
+
+Možete konfigurirati prilagođene naredbe za ponavljanje zadataka putem opcije `command`.
+
+```jsonc title="cody.jsonc"
+{
+  "$schema": "https://cody.dev/config.json",
+  "command": {
+    "test": {
+      "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
+      "description": "Run tests with coverage",
+      "agent": "build",
+      "model": "anthropic/claude-haiku-4-5",
+    },
+    "component": {
+      "template": "Create a new React component named $ARGUMENTS with TypeScript support.\nInclude proper typing and basic structure.",
+      "description": "Create a new component",
+    },
+  },
+}
+```
+
+Također možete definirati naredbe koristeći markdown fajlove u `~/.config/cody/commands/` ili `.cody/commands/`. [Saznajte više ovdje](/docs/commands).
+
+---
+
+### Prečice tipki
+
+Prilagodite prečice tipki u `tui.json`.
+
+```json title="tui.json"
+{
+  "$schema": "https://cody.ai/tui.json",
+  "keybinds": {}
+}
+```
+
+[Saznajte više ovdje](/docs/keybinds).
+
+---
+
+### Automatsko ažuriranje
+
+Cody će automatski preuzeti sva nova ažuriranja kada se pokrene. Ovo možete onemogućiti opcijom `autoupdate`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "autoupdate": false
+}
+```
+
+Ako ne želite ažuriranja, ali želite biti obaviješteni kada nova verzija bude dostupna, postavite `autoupdate` na `"notify"`.
+Imajte na umu da ovo funkcionira samo ako nije instalirano pomoću upravitelja paketa kao što je Homebrew.
+
+---
+
+### Formateri
+
+Možete konfigurirati formatere koda putem opcije `formatter`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "formatter": {
+    "prettier": {
+      "disabled": true
+    },
+    "custom-prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "environment": {
+        "NODE_ENV": "development"
+      },
+      "extensions": [".js", ".ts", ".jsx", ".tsx"]
+    }
+  }
+}
+```
+
+[Saznajte više o formaterima](/docs/formatters) ovdje.
+
+---
+
+### Dozvole
+
+Prema zadanim postavkama, Cody **dopušta sve operacije** bez potrebe za eksplicitnim dopuštenjem. Ovo možete promijeniti koristeći opciju `permission`.
+
+Na primjer, da osigurate da alati `edit` i `bash` zahtijevaju odobrenje korisnika:
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  }
+}
+```
+
+[Saznajte više o dozvolama](/docs/permissions) ovdje.
+
+---
+
+### Sažimanje
+
+Možete kontrolirati ponašanje sažimanja konteksta putem opcije `compaction`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 10000
+  }
+}
+```
+
+- `auto` - Automatski sažimanje sesije kada je kontekst pun (podrazumevano: `true`).
+- `prune` - Uklonite stare izlaze alata da sačuvate tokene (podrazumevano: `true`).
+- `reserved` - Token buffer za sažimanje. Ostavlja dovoljno prostora da se izbjegne prelijevanje tokom sažimanja
+
+---
+
+### Promatrač (Watcher)
+
+Možete konfigurirati obrasce ignoriranja promatrača datoteka putem opcije `watcher`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "watcher": {
+    "ignore": ["node_modules/**", "dist/**", ".git/**"]
+  }
+}
+```
+
+Obrasci prate glob sintaksu. Koristite ovo da isključite bučne direktorije iz pregleda datoteka.
+
+---
+
+### MCP serveri
+
+Možete konfigurirati MCP servere koje želite koristiti putem opcije `mcp`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "mcp": {}
+}
+```
+
+[Saznajte više ovdje](/docs/mcp-servers).
+
+---
+
+### Dodaci
+
+[Plugins](/docs/plugins) proširuju Cody sa prilagođenim alatima, kukicama i integracijama.
+
+Postavite datoteke dodataka u `.cody/plugins/` ili `~/.config/cody/plugins/`. Također možete učitati dodatke iz npm-a preko opcije `plugin`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "plugin": ["cody-helicone-session", "@my-org/custom-plugin"]
+}
+```
+
+[Saznajte više ovdje](/docs/plugins).
+
+---
+
+### Uputstva
+
+Možete konfigurirati upute za model koji koristite putem opcije `instructions`.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
+}
+```
+
+Ovo uzima niz putanja i glob uzoraka do datoteka instrukcija. [Saznajte više o pravilima ovdje](/docs/rules).
+
+---
+
+### Onemogućeni provajderi
+
+Možete onemogućiti dobavljače koji se automatski učitavaju preko opcije `disabled_providers`. Ovo je korisno kada želite spriječiti učitavanje određenih provajdera čak i ako su njihovi vjerodajnici dostupni.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "disabled_providers": ["openai", "gemini"]
+}
+```
+
+:::note
+`disabled_providers` ima prioritet nad `enabled_providers`.
+:::
+
+Opcija `disabled_providers` prihvata niz ID-ova provajdera. Kada je provajder onemogućen:
+
+- Neće se učitati čak i ako su varijable okruženja postavljene.
+- Neće se učitati čak i ako su API ključevi konfigurirani putem `/connect` naredbe.
+- Modeli dobavljača se neće pojaviti na listi za odabir modela.
+
+---
+
+### Omogućeni provajderi
+
+Možete odrediti listu dozvoljenih dobavljača putem opcije `enabled_providers`. Kada se podesi, samo navedeni provajderi će biti omogućeni, a svi ostali će biti zanemareni.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "enabled_providers": ["anthropic", "openai"]
+}
+```
+
+Ovo je korisno kada želite da ograničite Cody da koristi samo određene provajdere umjesto da ih onemogućavate jednog po jednog.
+
+:::note
+`disabled_providers` ima prioritet nad `enabled_providers`.
+:::
+
+Ako se provajder pojavljuje i u `enabled_providers` i `disabled_providers`, `disabled_providers` ima prioritet za kompatibilnost unatrag.
+
+---
+
+### Eksperimentalno
+
+Ključ `experimental` sadrži opcije koje su u aktivnom razvoju.
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "experimental": {}
+}
+```
+
+:::caution
+Eksperimentalne opcije nisu stabilne. Mogu se promijeniti ili ukloniti bez prethodne najave.
+:::
+
+---
+
+## Varijable
+
+Možete koristiti zamjenu varijabli u vašim konfiguracijskim datotekama da biste referencirali varijable okruženja i sadržaj datoteke.
+
+---
+
+### Varijable okruženja
+
+Koristite `{env:VARIABLE_NAME}` za zamjenu varijabli okruženja:
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "model": "{env:CODY_MODEL}",
+  "provider": {
+    "anthropic": {
+      "models": {},
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Ako varijabla okruženja nije postavljena, bit će zamijenjena praznim nizom.
+
+---
+
+### Datoteke
+
+Koristite `{file:path/to/file}` da zamijenite sadržaj fajla:
+
+```json title="cody.json"
+{
+  "$schema": "https://cody.dev/config.json",
+  "instructions": ["./custom-instructions.md"],
+  "provider": {
+    "openai": {
+      "options": {
+        "apiKey": "{file:~/.secrets/openai-key}"
+      }
+    }
+  }
+}
+```
+
+Putanja fajla mogu biti:
+
+- U odnosu na direktorij konfiguracijskih datoteka
+- Ili apsolutne staze koje počinju sa `/` ili `~`
+
+Ovo je korisno za:
+
+- Pohranjivanje osjetljivih podataka poput API ključeva u odvojenim datotekama.
+- Uključujući velike datoteke instrukcija bez zatrpavanja vaše konfiguracije.
+- Dijeljenje zajedničkih isječaka konfiguracije u više konfiguracijskih datoteka.

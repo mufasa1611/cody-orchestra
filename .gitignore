@@ -1,0 +1,56 @@
+﻿.DS_Store
+node_modules
+.worktrees
+.sst
+.env
+.env.proxy
+.env.local
+.idea
+.vscode
+.codex
+.cody-pro-backups/
+.cody/generated/
+.cody/node_modules/
+.cody/package.json
+.cody/package-lock.json
+.cody/bun.lock
+.cody/references/
+.cody/plans/
+*~
+playground
+tmp
+dist
+ts-dist
+.turbo
+**/.serena
+.serena/
+/result
+refs
+Session.vim
+/cody.json
+a.out
+target
+.scripts
+.direnv/
+
+# Local dev files
+cody-dev
+UPCOMING_CHANGELOG.md
+logs/
+*.bun-build
+tsconfig.tsbuildinfo
+
+# Local Cody Pro planning notes
+CODY_PLAN.md
+CODY_STATUS.md
+CODY_TODO.md
+CODY_TEST_LOG.md
+CODY_LEGACY_AUDIT.md
+
+# Backup files
+*.bak
+# Personal planning
+personalize-todo-list.md
+
+# Log files
+*.log

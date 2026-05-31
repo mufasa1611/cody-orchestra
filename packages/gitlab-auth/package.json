@@ -1,0 +1,50 @@
+{
+  "name": "@cody/gitlab-auth",
+  "version": "2.0.2",
+  "description": "GitLab OAuth authentication plugin for Cody",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/vglafirov/opencode-gitlab-auth.git",
+    "directory": "packages/gitlab-auth"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cody",
+    "gitlab",
+    "gitlab-duo",
+    "oauth",
+    "oauth2",
+    "authentication",
+    "auth",
+    "login",
+    "pkce"
+  ],
+  "dependencies": {
+    "@fastify/rate-limit": "^10.2.0",
+    "@cody/plugin": "workspace:*",
+    "fastify": "^5.2.0",
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

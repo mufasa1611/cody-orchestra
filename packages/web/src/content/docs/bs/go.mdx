@@ -1,0 +1,188 @@
+---
+title: Go
+description: Povoljna pretplata za otvorene modele za programiranje.
+---
+
+import config from "../../../../config.mjs"
+export const console = config.console
+export const email = `mailto:${config.email}`
+
+Cody Go je povoljna pretplata — **$5 za vaš prvi mjesec**, a zatim **$10/mjesečno** — koja vam pruža pouzdan pristup popularnim otvorenim modelima za programiranje.
+
+:::note
+Cody Go je trenutno u beta fazi.
+:::
+
+Go radi kao bilo koji drugi provajder u Cody-u. Pretplatite se na Cody Go i
+dobijete svoj API ključ. On je **potpuno opcionalan** i ne morate ga koristiti da
+biste koristili Cody.
+
+Dizajniran je prvenstveno za međunarodne korisnike, sa modelima hostovanim u SAD-u, EU i Singapuru za stabilan globalni pristup.
+
+---
+
+## Pozadina
+
+Otvoreni modeli su postali zaista dobri. Sada dostižu performanse bliske
+vlasničkim modelima za zadatke programiranja. A pošto ih mnogi provajderi mogu nuditi
+konkurentno, obično su znatno jeftiniji.
+
+Međutim, dobiti pouzdan pristup s niskom latencijom do njih može biti teško. Provajderi
+variraju u pogledu kvaliteta i dostupnosti.
+
+:::tip
+Testirali smo odabranu grupu modela i provajdera koji dobro rade sa Cody-om.
+:::
+
+Da bismo to popravili, uradili smo nekoliko stvari:
+
+1. Testirali smo odabranu grupu otvorenih modela i razgovarali s njihovim timovima o tome kako da ih
+   najbolje pokrenemo.
+2. Zatim smo sarađivali s nekoliko provajdera kako bismo bili sigurni da se oni ispravno
+   poslužuju.
+3. Na kraju smo benchmarkovali kombinaciju modela/provajdera i osmislili
+   listu koju rado preporučujemo.
+
+Cody Go vam daje pristup ovim modelima za **$5 za vaš prvi mjesec**, a zatim **$10/mjesečno**.
+
+---
+
+## Kako funkcioniše
+
+Cody Go radi kao bilo koji drugi provajder u Cody-u.
+
+1. Prijavite se na **<a href={console}>Cody Zen</a>**, pretplatite se na Go i
+   kopirajte svoj API ključ.
+2. Pokrenite komandu `/connect` u TUI-ju, odaberite `Cody Go` i zalijepite
+   svoj API ključ.
+3. Pokrenite `/models` u TUI-ju da vidite listu modela dostupnih kroz Go.
+
+:::note
+Samo jedan član po radnom prostoru (workspace) može se pretplatiti na Cody Go.
+:::
+
+Trenutna lista modela uključuje:
+
+- **GLM-5**
+- **GLM-5.1**
+- **Kimi K2.5**
+- **Kimi K2.6**
+- **MiMo-V2.5**
+- **MiMo-V2.5-Pro**
+- **MiniMax M2.5**
+- **Qwen3.5 Plus**
+- **Qwen3.6 Plus**
+- **MiniMax M2.7**
+- **DeepSeek V4 Pro**
+- **DeepSeek V4 Flash**
+
+Lista modela se može mijenjati dok testiramo i dodajemo nove.
+
+---
+
+## Ograničenja upotrebe
+
+Cody Go uključuje sljedeća ograničenja:
+
+- **Ograničenje od 5 sati** — $12 potrošnje
+- **Sedmično ograničenje** — $30 potrošnje
+- **Mjesečno ograničenje** — $60 potrošnje
+
+Ograničenja su definisana u dolarskoj vrijednosti. To znači da vaš stvarni broj zahtjeva zavisi od modela koji koristite. Jeftiniji modeli poput MiniMax M2.5 omogućavaju više zahtjeva, dok skuplji modeli poput GLM-5.1 omogućavaju manje.
+
+Tabela ispod pruža procijenjeni broj zahtjeva na osnovu tipičnih obrazaca korištenja Go pretplate:
+
+| Model              | zahtjeva na 5 sati | zahtjeva sedmično | zahtjeva mjesečno |
+| ------------------ | ------------------ | ----------------- | ----------------- |
+| GLM-5.1            | 880                | 2,150             | 4,300             |
+| GLM-5              | 1,150              | 2,880             | 5,750             |
+| Kimi K2.5          | 1,850              | 4,630             | 9,250             |
+| Kimi K2.6          | 1,150              | 2,880             | 5,750             |
+| MiMo-V2.5 (≤ 256K) | 2,150              | 5,450             | 10,900            |
+| MiMo-V2.5-Pro      | 1,290              | 3,225             | 6,450             |
+| MiniMax M2.7       | 3,400              | 8,500             | 17,000            |
+| MiniMax M2.5       | 6,300              | 15,900            | 31,800            |
+| Qwen3.6 Plus       | 3,300              | 8,200             | 16,300            |
+| Qwen3.5 Plus       | 10,200             | 25,200            | 50,500            |
+| DeepSeek V4 Pro    | 3,450              | 8,550             | 17,150            |
+| DeepSeek V4 Flash  | 31,650             | 79,050            | 158,150           |
+
+Procjene se zasnivaju na zapaženim prosječnim obrascima zahtjeva:
+
+- GLM-5/5.1 — 700 ulaznih (input), 52,000 keširanih, 150 izlaznih (output) tokena po zahtjevu
+- Kimi K2.5/K2.6 — 870 ulaznih, 55,000 keširanih, 200 izlaznih tokena po zahtjevu
+- DeepSeek V4 Pro — 750 ulaznih, 82,000 keširanih, 290 izlaznih tokena po zahtjevu
+- DeepSeek V4 Flash — 790 ulaznih, 68,000 keširanih, 280 izlaznih tokena po zahtjevu
+- MiniMax M2.7/M2.5 — 300 ulaznih, 55,000 keširanih, 125 izlaznih tokena po zahtjevu
+- Qwen3.5 Plus — 410 ulaznih, 47,000 keširanih, 140 izlaznih tokena po zahtjevu
+- Qwen3.6 Plus — 500 ulaznih, 57,000 keširanih, 190 izlaznih tokena po zahtjevu
+- MiMo-V2.5 — 1000 ulaznih, 60,000 keširanih, 140 izlaznih tokena po zahtjevu
+- MiMo-V2.5-Pro — 350 ulaznih, 41,000 keširanih, 250 izlaznih tokena po zahtjevu
+
+Svoju trenutnu potrošnju možete pratiti u **<a href={console}>konzoli</a>**.
+
+:::tip
+Ako dostignete ograničenje upotrebe, možete nastaviti koristiti besplatne modele.
+:::
+
+Ograničenja upotrebe mogu se promijeniti kako budemo učili iz rane upotrebe i povratnih informacija.
+
+---
+
+### Upotreba preko ograničenja
+
+Ako također imate kredite na svom Zen balansu, možete omogućiti **Use balance**
+opciju u konzoli. Kada je omogućeno, Go će preći na vaš Zen balans
+nakon što dostignete ograničenja upotrebe umjesto blokiranja zahtjeva.
+
+---
+
+## Endpointi
+
+Također možete pristupiti Go modelima putem sljedećih API endpointa.
+
+| Model             | Model ID          | Endpoint                                         | AI SDK Paket                |
+| ----------------- | ----------------- | ------------------------------------------------ | --------------------------- |
+| GLM-5.1           | glm-5.1           | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| GLM-5             | glm-5             | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.5         | kimi-k2.5         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.6         | kimi-k2.6         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Pro   | deepseek-v4-pro   | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Flash | deepseek-v4-flash | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5         | mimo-v2.5         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5-Pro     | mimo-v2.5-pro     | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiniMax M2.7      | minimax-m2.7      | `https://cody.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| MiniMax M2.5      | minimax-m2.5      | `https://cody.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.6 Plus      | qwen3.6-plus      | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/alibaba`           |
+| Qwen3.5 Plus      | qwen3.5-plus      | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/alibaba`           |
+
+[Model id](/docs/config/#models) u vašoj Cody konfiguraciji
+koristi format `cody-go/<model-id>`. Na primjer, za Kimi K2.6, koristili biste
+`cody-go/kimi-k2.6` u svojoj konfiguraciji.
+
+---
+
+### Modeli
+
+Pun spisak dostupnih modela i njihovih metapodataka možete preuzeti na:
+
+```
+https://cody.ai/zen/go/v1/models
+```
+
+---
+
+## Privatnost
+
+Plan je prvenstveno namijenjen međunarodnim korisnicima, a modeli su smješteni u US, EU i Singaporeu radi stabilnog globalnog pristupa. Naši pružaoci usluga primjenjuju politiku nultog zadržavanja podataka i ne koriste vaše podatke za treniranje modela.
+
+---
+
+## Ciljevi
+
+Napravili smo Cody Go da bismo:
+
+1. Učinili AI programiranje **dostupnim** većem broju ljudi putem povoljne pretplate.
+2. Pružili **pouzdan** pristup najboljim otvorenim modelima za programiranje.
+3. Odabrali modele koji su **testirani i benchmarkovani** za upotrebu od strane agenata za programiranje.
+4. Osigurali da **nema zaključavanja (no lock-in)**, omogućavajući vam da uz Cody koristite i bilo kojeg drugog provajdera.
