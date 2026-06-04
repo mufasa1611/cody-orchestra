@@ -25,6 +25,7 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
@@ -32,6 +33,7 @@ import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { fetchForServer } from "@/utils/server"
 
 export function SessionSidePanel(props: {
   canReview: () => boolean
@@ -48,6 +50,7 @@ export function SessionSidePanel(props: {
 }) {
   const layout = useLayout()
   const platform = usePlatform()
+  const server = useServer()
   const settings = useSettings()
   const sync = useSync()
   const file = useFile()
@@ -57,6 +60,12 @@ export function SessionSidePanel(props: {
 
   const [connected, setConnected] = createSignal(false)
   let intervalId: ReturnType<typeof setInterval> | undefined
+
+  const agentFetch = () => {
+    const current = server.current
+    if (!current) throw new Error("Server is not available")
+    return fetchForServer(current.http, platform.fetch ?? globalThis.fetch)
+  }
 
   onMount(() => {
     checkAgentStatus()
@@ -69,7 +78,7 @@ export function SessionSidePanel(props: {
 
   const checkAgentStatus = async () => {
     try {
-      const res = await fetch("/agent/status")
+      const res = await agentFetch()("/agent/status")
       if (res.ok) {
         const data = await res.json()
         setConnected(data.connected)
@@ -79,7 +88,7 @@ export function SessionSidePanel(props: {
 
   const disconnect = async () => {
     try {
-      const res = await fetch("/agent/disconnect", { method: "POST" })
+      const res = await agentFetch()("/agent/disconnect", { method: "POST" })
       if (res.ok) {
         setConnected(false)
         showToast({ title: "Remote PC disconnected", variant: "success" })
