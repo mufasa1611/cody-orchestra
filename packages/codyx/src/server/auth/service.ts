@@ -46,6 +46,24 @@ function ensureSchema(): void {
     db.run(`CREATE INDEX IF NOT EXISTS "session_user_idx" ON "session" ("user_id")`)
   }
 
+  const workspaceTable = db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workspace'`)
+  if (workspaceTable.length > 0) {
+    const columns = db.all(`PRAGMA table_info("workspace")`) as { name: string }[]
+    if (!columns.some((c) => c.name === "user_id")) {
+      db.run(`ALTER TABLE "workspace" ADD "user_id" text`)
+    }
+    db.run(`CREATE INDEX IF NOT EXISTS "workspace_user_idx" ON "workspace" ("user_id")`)
+  }
+
+  const projectTable = db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project'`)
+  if (projectTable.length > 0) {
+    const columns = db.all(`PRAGMA table_info("project")`) as { name: string }[]
+    if (!columns.some((c) => c.name === "user_id")) {
+      db.run(`ALTER TABLE "project" ADD "user_id" text`)
+    }
+    db.run(`CREATE INDEX IF NOT EXISTS "project_user_idx" ON "project" ("user_id")`)
+  }
+
   const permissionTable = db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'permission'`)
   if (permissionTable.length > 0) {
     const permColumns = db.all(`PRAGMA table_info("permission")`) as { name: string }[]

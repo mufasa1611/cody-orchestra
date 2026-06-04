@@ -17,18 +17,35 @@ export function authFromToken(token: string | null) {
   }
 }
 
+export function authHeadersForServer(server: ServerConnection.HttpBase): HeadersInit | undefined {
+  if (server.token) {
+    return { Authorization: `Bearer ${server.token}` }
+  }
+  if (!server.password) return
+  return {
+    Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`,
+  }
+}
+
+export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeof globalThis.fetch = globalThis.fetch) {
+  return (path: string | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    const auth = authHeadersForServer(server)
+    if (auth) {
+      for (const [key, value] of Object.entries(auth)) headers.set(key, value)
+    }
+    const url = path instanceof URL ? path : new URL(path, server.url)
+    return fetcher(url, { ...init, headers })
+  }
+}
+
 export function createSdkForServer({
   server,
   ...config
 }: Omit<NonNullable<Parameters<typeof createCodyClient>[0]>, "baseUrl"> & {
   server: ServerConnection.HttpBase
 }) {
-  const auth = (() => {
-    if (!server.password) return
-    return {
-      Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`,
-    }
-  })()
+  const auth = authHeadersForServer(server)
 
   return createCodyClient({
     ...config,

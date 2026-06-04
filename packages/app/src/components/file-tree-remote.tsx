@@ -2,6 +2,9 @@
 import { Icon } from "@cody/ui/icon"
 import { FileIcon } from "@cody/ui/file-icon"
 import { Collapsible } from "@cody/ui/collapsible"
+import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
+import { fetchForServer } from "@/utils/server"
 
 interface RemoteFileNode {
   name: string
@@ -28,10 +31,14 @@ function formatDate(ms?: number): string {
   })
 }
 
-async function fetchDir(path: string): Promise<RemoteFileNode[]> {
-  const url = new URL("/agent/fs/list", window.location.origin)
+async function fetchDir(
+  path: string,
+  fetcher: ReturnType<typeof fetchForServer>,
+  baseUrl: string,
+): Promise<RemoteFileNode[]> {
+  const url = new URL("/agent/fs/list", baseUrl)
   url.searchParams.set("path", path)
-  const res = await fetch(url, { headers: { Accept: "application/json" } })
+  const res = await fetcher(url, { headers: { Accept: "application/json" } })
   if (!res.ok) throw new Error("Failed to list directory: " + res.statusText)
   const data = await res.json()
   const files: RemoteFileNode[] = data.files ?? []
@@ -46,11 +53,13 @@ async function fetchDir(path: string): Promise<RemoteFileNode[]> {
 function FileTreeRemoteNode(props: {
   node: RemoteFileNode
   depth: number
+  fetcher: ReturnType<typeof fetchForServer>
+  baseUrl: string
 }) {
   const [expanded, setExpanded] = createSignal(false)
   const [items] = createResource(
     () => (expanded() ? props.node.path : null),
-    (path) => fetchDir(path),
+    (path) => fetchDir(path, props.fetcher, props.baseUrl),
   )
 
   const handleClick = () => {
@@ -108,7 +117,14 @@ function FileTreeRemoteNode(props: {
           }
         >
           <For each={items()}>
-            {(child) => <FileTreeRemoteNode node={child} depth={props.depth + 1} />}
+            {(child) => (
+              <FileTreeRemoteNode
+                node={child}
+                depth={props.depth + 1}
+                fetcher={props.fetcher}
+                baseUrl={props.baseUrl}
+              />
+            )}
           </For>
         </Show>
       </Show>
@@ -119,7 +135,18 @@ function FileTreeRemoteNode(props: {
 export default function FileTreeRemote(props: {
   initialPath?: string
 }) {
-  const [root] = createResource(() => fetchDir(props.initialPath ?? "/"))
+  const server = useServer()
+  const platform = usePlatform()
+  const current = () => server.current?.http
+  const fetcher = () => {
+    const http = current()
+    if (!http) throw new Error("Server is not available")
+    return fetchForServer(http, platform.fetch ?? globalThis.fetch)
+  }
+  const [root] = createResource(
+    () => current()?.url,
+    (baseUrl) => fetchDir(props.initialPath ?? "/", fetcher(), baseUrl),
+  )
 
   return (
     <div data-component="filetree-remote" class="flex flex-col gap-0.5">
@@ -132,7 +159,14 @@ export default function FileTreeRemote(props: {
         }
       >
         <For each={root()}>
-          {(node) => <FileTreeRemoteNode node={node} depth={0} />}
+          {(node) => (
+            <FileTreeRemoteNode
+              node={node}
+              depth={0}
+              fetcher={fetcher()}
+              baseUrl={current()?.url ?? window.location.origin}
+            />
+          )}
         </For>
       </Show>
     </div>

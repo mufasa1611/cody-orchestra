@@ -3,10 +3,15 @@ import { Button } from "@cody/ui/button"
 import { Icon } from "@cody/ui/icon"
 import { showToast } from "@cody/ui/toast"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
+import { fetchForServer } from "@/utils/server"
 import FileTreeRemote from "./file-tree-remote"
 
 export const SettingsAgentConnect: Component = () => {
   const language = useLanguage()
+  const server = useServer()
+  const platform = usePlatform()
 
   const [pairingCode, setPairingCode] = createSignal<string | null>(null)
   const [codeExpiresAt, setCodeExpiresAt] = createSignal<number | null>(null)
@@ -17,9 +22,15 @@ export const SettingsAgentConnect: Component = () => {
 
   let intervalId: ReturnType<typeof setInterval> | undefined
 
+  const agentFetch = () => {
+    const current = server.current
+    if (!current) throw new Error("Server is not available")
+    return fetchForServer(current.http, platform.fetch ?? globalThis.fetch)
+  }
+
   const checkStatus = async () => {
     try {
-      const res = await fetch("/agent/status")
+      const res = await agentFetch()("/agent/status")
       if (res.ok) {
         const data = await res.json()
         setConnected(data.connected)
@@ -42,7 +53,7 @@ export const SettingsAgentConnect: Component = () => {
   const generateCode = async () => {
     setGenerating(true)
     try {
-      const res = await fetch("/agent/pair", { method: "POST" })
+      const res = await agentFetch()("/agent/pair", { method: "POST" })
       if (res.ok) {
         const data = await res.json()
         setPairingCode(data.code)
@@ -60,7 +71,7 @@ export const SettingsAgentConnect: Component = () => {
 
   const disconnect = async () => {
     try {
-      const res = await fetch("/agent/disconnect", { method: "POST" })
+      const res = await agentFetch()("/agent/disconnect", { method: "POST" })
       if (res.ok) {
         setConnected(false)
         setPairedAt(null)
@@ -68,6 +79,29 @@ export const SettingsAgentConnect: Component = () => {
       }
     } catch {
       showToast({ title: "Failed to disconnect", variant: "error" })
+    }
+  }
+
+  const downloadLauncher = async (kind: "bat" | "ps1") => {
+    const code = pairingCode()
+    if (!code) return
+    const endpoint = kind === "ps1" ? "/agent/download/launcher.ps1" : "/agent/download/launcher"
+    const url = new URL(endpoint, server.current?.http.url ?? window.location.origin)
+    url.searchParams.set("code", code)
+    try {
+      const res = await agentFetch()(url)
+      if (!res.ok) throw new Error(res.statusText)
+      const blob = await res.blob()
+      const href = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = href
+      a.download = "connect-pc-" + code + "." + kind
+      document.body.append(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(href)
+    } catch {
+      showToast({ title: "Failed to download launcher", variant: "error" })
     }
   }
 
@@ -175,16 +209,16 @@ export const SettingsAgentConnect: Component = () => {
               <details class="text-12-regular text-text-weak mt-1">
                 <summary class="cursor-pointer hover:text-text-secondary">Don't have Node.js? Download a launcher</summary>
                 <div class="flex gap-2 mt-2">
-                  <a
-                    href={"/agent/download/launcher?code=" + pairingCode()}
+                  <button
+                    type="button"
+                    onClick={() => downloadLauncher("bat")}
                     class="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-12-semibold hover:bg-blue-700 transition-colors"
-                    download={"connect-pc-" + pairingCode() + ".bat"}
-                  >Download .bat (Windows)</a>
-                  <a
-                    href={"/agent/download/launcher.ps1?code=" + pairingCode()}
+                  >Download .bat (Windows)</button>
+                  <button
+                    type="button"
+                    onClick={() => downloadLauncher("ps1")}
                     class="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-600 text-white text-12-semibold hover:bg-purple-700 transition-colors"
-                    download={"connect-pc-" + pairingCode() + ".ps1"}
-                  >Download .ps1 (PowerShell)</a>
+                  >Download .ps1 (PowerShell)</button>
                 </div>
               </details>
             </Show>
