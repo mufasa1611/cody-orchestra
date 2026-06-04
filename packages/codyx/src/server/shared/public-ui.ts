@@ -19,5 +19,6 @@ export function isPublicUIPath(method: string, pathname: string) {
   if (pathname.startsWith("/assets/")) return true
   if (pathname === "/favicon.ico" || pathname.startsWith("/favicon")) return true
   if (pathname === "/apple-touch-icon.png" || pathname.startsWith("/apple-touch-icon-")) return true
+  if (/^\/[A-Za-z0-9_-]+\/session(?:\/[^/?#]+)?\/?$/.test(pathname)) return true
   return false
 }
