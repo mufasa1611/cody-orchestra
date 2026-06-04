@@ -1,12 +1,14 @@
 ﻿// @refresh reload
 
 import * as Sentry from "@sentry/solid"
+import { createSignal, onMount, Show } from "solid-js"
 import { render } from "solid-js/web"
 import { AppBaseProviders, AppInterface } from "@/app"
 import { type Platform, PlatformProvider } from "@/context/platform"
 import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
 import { handleNotificationClick } from "@/utils/notification-click"
+import LoginPage, { clearToken, getStoredToken, storeToken } from "@/pages/login"
 import { authFromToken } from "@/utils/server"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
@@ -153,29 +155,107 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   })
 }
 
-if (root instanceof HTMLElement) {
-  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
-  clearAuthToken()
-  const server: ServerConnection.Http = {
+function WebRoot() {
+  const [authed, setAuthed] = createSignal(false)
+  const [server, setServer] = createSignal<ServerConnection.Http | null>(null)
+  const [ready, setReady] = createSignal(false)
+
+  const validateToken = async (token: string) => {
+    const res = await fetch(getCurrentUrl() + "/api/auth/me", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null)
+    return res?.status === 200
+  }
+
+  const buildServer = (token?: string, creds?: { username: string; password: string }): ServerConnection.Http => ({
     type: "http",
-    authToken: !!auth,
+    authToken: !!token || !!creds,
     http: {
       url: getCurrentUrl(),
-      ...auth,
+      token,
+      ...creds,
     },
+  })
+
+  const onLogin = (token: string) => {
+    storeToken(token)
+    setServer(buildServer(token))
+    setAuthed(true)
   }
-  render(
-    () => (
-      <PlatformProvider value={platform}>
-        <AppBaseProviders>
-          <AppInterface
-            defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-            servers={[server]}
-            disableHealthCheck
-          />
-        </AppBaseProviders>
-      </PlatformProvider>
-    ),
-    root,
+
+  onMount(() => {
+    const storedToken = getStoredToken()
+    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+    clearAuthToken()
+
+    if (auth) {
+      setServer(buildServer(undefined, auth))
+      setAuthed(true)
+      setReady(true)
+      return
+    }
+
+    if (storedToken) {
+      validateToken(storedToken)
+        .then((valid) => {
+          if (valid) {
+            setServer(buildServer(storedToken))
+            setAuthed(true)
+            return
+          }
+          clearToken()
+          setServer(buildServer())
+          setAuthed(false)
+        })
+        .catch(() => {
+          clearToken()
+          setServer(buildServer())
+          setAuthed(false)
+        })
+        .finally(() => {
+          setReady(true)
+        })
+      return
+    }
+
+    fetch(getCurrentUrl() + "/global/health", { method: "GET" })
+      .then((res) => {
+        if (res.status === 401) {
+          setServer(buildServer())
+          setAuthed(false)
+        } else {
+          setServer(buildServer())
+          setAuthed(true)
+        }
+        setReady(true)
+      })
+      .catch(() => {
+        setServer(buildServer())
+        setAuthed(true)
+        setReady(true)
+      })
+  })
+
+  return (
+    <PlatformProvider value={platform}>
+      <AppBaseProviders>
+        <Show when={ready() ? server() : null} keyed>
+          {(currentServer) => (
+            <Show when={authed()} fallback={<LoginPage onLogin={onLogin} />}>
+              <AppInterface
+                defaultServer={ServerConnection.Key.make(getDefaultUrl())}
+                servers={[currentServer]}
+                disableHealthCheck
+              />
+            </Show>
+          )}
+        </Show>
+      </AppBaseProviders>
+    </PlatformProvider>
   )
+}
+
+if (root instanceof HTMLElement) {
+  render(() => <WebRoot />, root)
 }
