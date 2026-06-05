@@ -12,6 +12,8 @@ import { usePlatform } from "@/context/platform"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { useServer } from "@/context/server"
+import { authUserFromJwt } from "@/utils/server"
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 
 type TauriDesktopWindow = {
@@ -45,6 +47,7 @@ export function Titlebar() {
   const command = useCommand()
   const language = useLanguage()
   const settings = useSettings()
+  const server = useServer()
   const theme = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
@@ -91,6 +94,11 @@ export function Titlebar() {
   const canForward = createMemo(() => history.index < history.stack.length - 1)
   const hasProjects = createMemo(() => layout.projects.list().length > 0)
   const nav = createMemo(() => import.meta.env.VITE_CODY_CHANNEL !== "beta" || settings.general.showNavigation())
+  const username = createMemo(() => {
+    const current = server.current
+    if (!current) return
+    return current.http.username || authUserFromJwt(current.http.token)?.username
+  })
 
   const back = () => {
     const next = backPath(history)
@@ -324,6 +332,16 @@ export function Titlebar() {
           data-tauri-drag-region
           onMouseDown={drag}
         >
+          <Show when={username()}>
+            {(name) => (
+              <div
+                class="mr-1 flex h-6 min-w-0 max-w-36 items-center rounded-md border border-border-weak-base bg-surface-base px-2 text-12-medium text-text-weak"
+                title={`Signed in as ${name()}`}
+              >
+                <span class="truncate">{name()}</span>
+              </div>
+            )}
+          </Show>
           <div id="cody-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
           <Show when={windows()}>
             {!tauriApi() && <div class="shrink-0" style={{ width: windowsControlsWidth() }} />}
