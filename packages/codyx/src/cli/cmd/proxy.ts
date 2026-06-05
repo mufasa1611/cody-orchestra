@@ -17,10 +17,14 @@ const PORTS = [
 
 let currentState = 0
 
-function rotate() {
+async function rotate() {
   currentState = (currentState + 1) % PORTS.length
   const state = PORTS[currentState]
-  UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Rotated to State ${currentState}: ${state.type === 'direct' ? 'Direct' : 'Tor on port ' + state.port}`)
+  const stateStr = state.type === 'direct' ? 'Direct' : 'Tor on port ' + state.port;
+  UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Rotated to State ${currentState}: ${stateStr}`);
+  
+  const ip = await getCurrentIP(state);
+  UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (${state.type.toUpperCase()})`);
   
   if (state.type === "tor") {
     // Signal NEWNYM to get a new IP
@@ -106,6 +110,54 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
     UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Client Socket Error: ${e.message}`)
     if (!socksSocket.destroyed) socksSocket.destroy()
   })
+}
+
+
+async function getCurrentIP(state: typeof PORTS[0]): Promise<string> {
+  return new Promise((resolve) => {
+    const options = {
+      host: "api.ipify.org",
+      port: 80,
+      path: "/",
+      method: "GET",
+    };
+
+    if (state.type === "direct") {
+      http.get("http://api.ipify.org", (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => resolve(data.trim()));
+      }).on("error", () => resolve("Error fetching IP"));
+    } else {
+      // SOCKS5 request for IP
+      const socksSocket = net.connect(state.port, "127.0.0.1", () => {
+        socksSocket.write(Buffer.from([0x05, 0x01, 0x00]));
+      });
+
+      socksSocket.on("data", (data) => {
+        if (data[0] === 0x05 && data[1] === 0x00) {
+          // Greeting OK, send connect to api.ipify.org:80
+          const req = Buffer.concat([
+            Buffer.from([0x05, 0x01, 0x00, 0x03, 13]),
+            Buffer.from("api.ipify.org"),
+            Buffer.from([0x00, 80])
+          ]);
+          socksSocket.write(req);
+        } else if (data[0] === 0x05 && data[1] === 0x00 && data.length > 2) {
+          // Connected, send HTTP GET
+          socksSocket.write("GET / HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n");
+        } else {
+          const str = data.toString();
+          if (str.includes("HTTP/1.1 200")) {
+            const body = str.split("\r\n\r\n")[1];
+            if (body) resolve(body.trim());
+          }
+        }
+      });
+      socksSocket.on("error", () => resolve("Error via TOR"));
+      setTimeout(() => resolve("Timeout"), 5000);
+    }
+  });
 }
 
 export const ProxyCommand = effectCmd({
