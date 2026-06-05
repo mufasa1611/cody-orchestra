@@ -134,7 +134,16 @@ export const authorizationLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
     const requireAccountAuth = accountAuthRequired()
-    if (!ServerAuth.required(config) && !requireAccountAuth) return Authorization.of((effect) => effect)
+    if (!ServerAuth.required(config) && !requireAccountAuth) {
+      return Authorization.of((effect) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const jwtSub = hasValidJwt(request)
+          if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
+          return yield* effect
+        })
+      )
+    }
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
