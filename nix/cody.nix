@@ -14,7 +14,7 @@
   node_modules ? callPackage ./node-modules.nix { },
 }:
 stdenvNoCC.mkDerivation (finalAttrs: {
-  pname = "cody";
+  pname = "codyx";
   inherit (node_modules) version src;
   inherit node_modules;
 
@@ -45,7 +45,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   buildPhase = ''
     runHook preBuild
 
-    cd ./packages/cody
+    cd ./packages/codyx
     bun --bun ./script/build.ts --single --skip-install
     bun --bun ./script/schema.ts schema.json
 
@@ -55,10 +55,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 dist/cody-*/bin/cody $out/bin/cody
+    install -Dm755 dist/codyx-*/bin/codyx $out/bin/codyx
     install -Dm644 schema.json $out/share/cody/schema.json
 
-    wrapProgram $out/bin/cody \
+    wrapProgram $out/bin/codyx \
       --prefix PATH : ${
         lib.makeBinPath (
           [
@@ -74,9 +74,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   postInstall = lib.optionalString (stdenvNoCC.buildPlatform.canExecute stdenvNoCC.hostPlatform) ''
     # trick yargs into also generating zsh completions
-    installShellCompletion --cmd cody \
-      --bash <($out/bin/cody completion) \
-      --zsh <(SHELL=/bin/zsh $out/bin/cody completion)
+    installShellCompletion --cmd codyx \
+      --bash <($out/bin/codyx completion) \
+      --zsh <(SHELL=/bin/zsh $out/bin/codyx completion)
   '';
 
   nativeInstallCheckInputs = [
@@ -95,7 +95,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     description = "The open source coding agent";
     homepage = "https://cody.dev/";
     license = lib.licenses.mit;
-    mainProgram = "cody";
+    mainProgram = "codyx";
     inherit (node_modules.meta) platforms;
   };
 })

@@ -692,11 +692,19 @@ export const SessionRoutes = lazy(() =>
           return c.json(messages)
         }
 
-        const page = await MessageV2.page({
-          sessionID,
-          limit: query.limit,
-          before: query.before,
-        })
+        const page = await runRequest(
+          "SessionRoutes.messages.page",
+          c,
+          Effect.gen(function* () {
+            const session = yield* Session.Service
+            yield* session.get(sessionID)
+            return yield* Effect.sync(() => MessageV2.page({
+              sessionID,
+              limit: query.limit!,
+              before: query.before,
+            }))
+          }),
+        )
         if (page.cursor) {
           const url = new URL(c.req.url)
           url.searchParams.set("limit", query.limit.toString())

@@ -12,7 +12,7 @@ function falsy(key: string) {
 }
 
 // Channels that default to the new effect-httpapi server backend. The legacy
-// hono backend remains the default for stable (`prod`/`latest`) installs.
+// hono backend remains the default for stable (prod/latest) installs.
 const HTTPAPI_DEFAULT_ON_CHANNELS = new Set(["dev", "beta", "local"])
 
 function number(key: string) {
@@ -54,8 +54,15 @@ export const Flag = {
   CODY_DISABLE_CLAUDE_CODE_SKILLS,
   CODY_DISABLE_EXTERNAL_SKILLS: truthy("CODY_DISABLE_EXTERNAL_SKILLS"),
   CODY_FAKE_VCS: process.env["CODY_FAKE_VCS"],
-  CODY_SERVER_PASSWORD: process.env["CODY_SERVER_PASSWORD"],
-  CODY_SERVER_USERNAME: process.env["CODY_SERVER_USERNAME"],
+  get CODY_SERVER_PASSWORD() {
+    return process.env["CODY_SERVER_PASSWORD"]
+  },
+  get CODY_SERVER_USERNAME() {
+    return process.env["CODY_SERVER_USERNAME"]
+  },
+  get CODY_JWT_SECRET() {
+    return process.env["CODY_JWT_SECRET"]
+  },
   CODY_ENABLE_QUESTION_TOOL: truthy("CODY_ENABLE_QUESTION_TOOL"),
 
   // Experimental
@@ -88,7 +95,7 @@ export const Flag = {
 
   CODY_WORKSPACE_ID: process.env["CODY_WORKSPACE_ID"],
   // Defaults to true on dev/beta/local channels so internal users exercise the
-  // new effect-httpapi server backend. Stable (`prod`/`latest`) installs stay
+  // new effect-httpapi server backend. Stable (prod/latest) installs stay
   // on the legacy hono backend until the rollout is complete. An explicit env
   // var ("true"/"1" or "false"/"0") always wins, providing an opt-in for
   // stable users and an escape hatch for dev/beta users.

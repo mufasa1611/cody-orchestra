@@ -54,3 +54,15 @@ personalize-todo-list.md
 
 # Log files
 *.log
+
+# Noise: Chrome debug directories
+.chrome*
+
+# Noise: test results
+test-results/
+
+# Noise: ad-hoc db check/fix scripts
+_check_db*
+_fix_db*
+check-db.ts
+_check_journal*
