@@ -183,7 +183,7 @@ export const ProxyCommand = effectCmd({
       }
     })
 
-    server.listen(8888, "127.0.0.1", () => {
+    server.listen(8888, "0.0.0.0", () => {
       UI.println(UI.Style.TEXT_INFO_BOLD + "[Proxy] Proxy listening on http://127.0.0.1:8888")
       UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Current State: Direct (Home IP)`)
     })
