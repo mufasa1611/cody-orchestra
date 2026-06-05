@@ -8,7 +8,7 @@ import * as path from "path"
 import { Global } from "@cody/core/global"
 
 const PORTS = [
-  { type: "direct", port: 0 },
+  { type: "direct", port: 0, ctrl: 0 },
   { type: "tor", port: 9050, ctrl: 9051 },
   { type: "tor", port: 9052, ctrl: 9053 },
   { type: "tor", port: 9054, ctrl: 9055 },
