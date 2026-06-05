@@ -24,7 +24,7 @@ function rotate() {
   
   if (state.type === "tor") {
     // Signal NEWNYM to get a new IP
-    const client = net.connect({ port: state.ctrl!, host: "127.0.0.1" }, () => {
+    const client = net.connect({ port: state.ctrl, host: "127.0.0.1" }, () => {
       client.write('AUTHENTICATE ""\r\n')
       client.write('SIGNAL NEWNYM\r\n')
       client.write('QUIT\r\n')
@@ -36,7 +36,10 @@ function rotate() {
 }
 
 function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket, head: Buffer, proxyPort: number) {
-  const { port, hostname } = new URL(`http://${req.url}`)
+  const parts = req.url!.split(':')
+  const hostname = parts[0]
+  const port = parts[1] || "443"
+  UI.println(UI.Style.TEXT_NORMAL + `[Proxy] TOR [${proxyPort}] -> ${hostname}:${port}`)
   
   const socksSocket = net.connect(proxyPort, "127.0.0.1", () => {
     // SOCKS5 greeting: Version 5, 1 Auth Method (No Auth)
@@ -55,7 +58,7 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
       
       // Send SOCKS5 connect request
       const portBuf = Buffer.alloc(2)
-      portBuf.writeUInt16BE(parseInt(port || "443", 10), 0)
+      portBuf.writeUInt16BE(parseInt(port, 10), 0)
       
       let hostBuf: Buffer
       let hostType: number
@@ -94,50 +97,15 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
     }
   })
 
-  socksSocket.on("error", () => {
+  socksSocket.on("error", (e) => {
+    UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] SOCKS Socket Error: ${e.message}`)
     if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
   })
   
-  clientSocket.on("error", () => {
+  clientSocket.on("error", (e) => {
+    UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Client Socket Error: ${e.message}`)
     if (!socksSocket.destroyed) socksSocket.destroy()
   })
-}
-
-function tailLogAndWatchFor429() {
-  // Try server.log and standard output files
-  const logPaths = [
-    path.join(process.cwd(), "server.log"),
-    path.join(Global.Path.data, "cody-x.db") // Just a placeholder dir to find right place
-  ]
-  
-  let targetLog = path.join(process.cwd(), "server.log")
-  
-  // Create an explicit HTTP endpoint for the app to trigger rotation just in case
-  // but also implement a polling watcher.
-  let pos = 0
-  if (fs.existsSync(targetLog)) {
-    pos = fs.statSync(targetLog).size
-  }
-
-  setInterval(() => {
-    if (!fs.existsSync(targetLog)) return
-    const stat = fs.statSync(targetLog)
-    if (stat.size < pos) {
-      pos = stat.size // File was truncated
-    }
-    if (stat.size > pos) {
-      const stream = fs.createReadStream(targetLog, { start: pos, end: stat.size })
-      let data = ""
-      stream.on("data", (chunk) => { data += chunk })
-      stream.on("end", () => {
-        pos = stat.size
-        if (data.includes("429") || data.includes("Rate limit exceeded") || data.includes("FreeUsageLimitError")) {
-          UI.println(UI.Style.TEXT_WARNING_BOLD + "[Proxy] Detected rate limit error in logs. Triggering rotation.")
-          rotate()
-        }
-      })
-    }
-  }, 1000)
 }
 
 export const ProxyCommand = effectCmd({
@@ -147,8 +115,6 @@ export const ProxyCommand = effectCmd({
   handler: Effect.fn("Cli.proxy")(function* () {
     UI.println(UI.Style.TEXT_INFO_BOLD + "[Proxy] Starting cody-x autonomous proxy rotator on port 8888...")
     
-    tailLogAndWatchFor429()
-    
     const server = http.createServer((req, res) => {
       // Allow manual trigger via simple HTTP request
       if (req.url === "/__cody_rotate") {
@@ -157,22 +123,55 @@ export const ProxyCommand = effectCmd({
         res.end("Rotated")
         return
       }
-      res.writeHead(403)
-      res.end("Direct HTTP proxying not supported, use CONNECT.")
+      
+      // Basic HTTP Proxying (non-CONNECT)
+      try {
+        const state = PORTS[currentState]
+        const url = new URL(req.url!, `http://${req.headers.host}`)
+        UI.println(UI.Style.TEXT_NORMAL + `[Proxy] HTTP [${state.type}] -> ${url.href}`)
+
+        if (state.type === "direct") {
+            const proxyReq = http.request(url.href, {
+                method: req.method,
+                headers: req.headers
+            }, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode!, proxyRes.headers)
+                proxyRes.pipe(res)
+            })
+            req.pipe(proxyReq)
+            proxyReq.on("error", (e) => {
+                UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] HTTP Direct Error: ${e.message}`)
+                res.writeHead(502)
+                res.end()
+            })
+        } else {
+            res.writeHead(403)
+            res.end("Plain HTTP over TOR not yet fully implemented, use HTTPS.")
+        }
+      } catch (e: any) {
+        res.writeHead(400)
+        res.end(e.message)
+      }
     })
 
     server.on("connect", (req, clientSocket, head) => {
       const state = PORTS[currentState]
       
+      const parts = req.url!.split(':')
+      const hostname = parts[0]
+      const port = parseInt(parts[1] || "443", 10)
+
       if (state.type === "direct") {
-        const { port, hostname } = new URL(`http://${req.url}`)
-        const serverSocket = net.connect(parseInt(port || "443", 10), hostname, () => {
+        UI.println(UI.Style.TEXT_NORMAL + `[Proxy] DIRECT -> ${hostname}:${port}`)
+
+        const serverSocket = net.connect(port, hostname, () => {
           clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
           if (head && head.length > 0) serverSocket.write(head)
           serverSocket.pipe(clientSocket)
           clientSocket.pipe(serverSocket)
         })
-        serverSocket.on("error", () => {
+        serverSocket.on("error", (e) => {
+          UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Direct Connect Error: ${e.message}`)
           if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
         })
         clientSocket.on("error", () => {
@@ -184,7 +183,7 @@ export const ProxyCommand = effectCmd({
     })
 
     server.listen(8888, "0.0.0.0", () => {
-      UI.println(UI.Style.TEXT_INFO_BOLD + "[Proxy] Proxy listening on http://127.0.0.1:8888")
+      UI.println(UI.Style.TEXT_INFO_BOLD + "[Proxy] Proxy listening on http://0.0.0.0:8888")
       UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Current State: Direct (Home IP)`)
     })
 
