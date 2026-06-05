@@ -85,13 +85,17 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   }
 
-  const username = Flag.CODY_SERVER_USERNAME ?? "cody-x"
+    const username = Flag.CODY_SERVER_USERNAME ?? "cody-x"
 
   if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
 
-  if (!password) { console.log("401 from AuthMiddleware", c.req.raw.headers); return c.newResponse(JSON.stringify({ error: "Authentication required" }), 401) }
+  // If a password is set, strictly enforce Basic Auth
+  if (password) {
+    return basicAuth({ username, password })(c, next)
+  }
 
-  return basicAuth({ username, password })(c, next)
+  // If no password is set, allow the request to proceed (handlers will check JWT/UserRef if needed)
+  return next()
 }
 
 export function LoggerMiddleware(backendAttributes: ServerBackend.Attributes): MiddlewareHandler {
