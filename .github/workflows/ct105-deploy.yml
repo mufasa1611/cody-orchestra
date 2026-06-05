@@ -1,0 +1,34 @@
+name: ct105 deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ct105-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy CT105
+    runs-on: [self-hosted, ct105]
+    if: github.repository == 'mufasa1611/cody-orchestra'
+    steps:
+      - name: Checkout deploy scripts
+        uses: actions/checkout@v4
+
+      - name: Deploy pushed commit
+        env:
+          CODY_DEPLOY_SHA: ${{ github.sha }}
+          CODY_DEPLOY_BRANCH: master
+          CODY_DEPLOY_REPO_DIR: /opt/cody-orchestra
+          CODY_DEPLOY_SERVICE: cody-orchestra.service
+        run: bash script/deploy-ct105.sh
+
+      - name: Show deployed service status
+        if: always()
+        run: |
+          cd /opt/cody-orchestra
+          git log --oneline -3
+          systemctl status cody-orchestra.service --no-pager -l | head -40
