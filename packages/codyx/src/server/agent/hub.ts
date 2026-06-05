@@ -113,6 +113,17 @@ const cleanupInterval = setInterval(() => {
 }, Duration.toMillis(Duration.seconds(15)))
 if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
 
+// Keepalive: send ping to all connected agents every 30s to prevent
+// client lease expiry when there is no active LLM interaction.
+const keepaliveInterval = setInterval(() => {
+  for (const agent of agents.values()) {
+    Effect.runFork(
+      agent.write(JSON.stringify({ type: "ping" })).pipe(Effect.catch(() => Effect.void)),
+    )
+  }
+}, Duration.toMillis(Duration.seconds(30)))
+if (typeof keepaliveInterval.unref === "function") keepaliveInterval.unref()
+
 const createPairingCode = Effect.fn("AgentHub.createPairingCode")(function* () {
   cleanupExpiredCodes()
   const userID = yield* UserRef
@@ -233,7 +244,10 @@ const dispatch = Effect.fn("AgentHub.dispatch")(function* (message: AgentMessage
     case "pong": {
       if (senderCode) {
         const agent = agents.get(senderCode)
-        if (agent) agent.lastPong = Date.now()
+        if (agent) {
+          agent.lastPong = Date.now()
+          if (agent.userID) clientHeartbeats.set(agent.userID, Date.now())
+        }
       }
       break
     }
