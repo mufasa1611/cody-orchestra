@@ -1,4 +1,4 @@
-﻿import { Provider } from "@/provider/provider"
+import { Provider } from "@/provider/provider"
 import { NamedError } from "@cody/core/util/error"
 import { NotFoundError } from "@/storage/storage"
 import { Session } from "@/session/session"
@@ -47,6 +47,9 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   // Browser clients sending Authorization headers will preflight with OPTIONS.
   if (c.req.method === "OPTIONS") return next()
 
+  // CLI/TUI bypass — allow all requests from the local CLI identified by the x-cody-directory header.
+  if (c.req.header("x-cody-directory") || c.req.header("x-cody-cli-local")) return next()
+
   // Public auth endpoints — no auth required
   if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register")) return next()
 
@@ -58,7 +61,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   })()
 
-  // Skip auth only when neither legacy server auth nor WebUI account auth is configured.
+  // Skip auth only when neither legacy server auth nor WebUI account auth is configured.     
   const password = Flag.CODY_SERVER_PASSWORD
   const jwtSecret = Flag.CODY_JWT_SECRET
   if (!password && !jwtSecret && !accountAuthRequired) {
@@ -69,7 +72,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   // Public UI assets
   if (isPublicUIPath(c.req.method, c.req.path)) return next()
   if (c.req.method === "POST" && c.req.path === "/global/git-check") return next()
-  if (isPtyConnectPath(c.req.path) && c.req.query(PTY_CONNECT_TICKET_QUERY)) return next()
+  if (isPtyConnectPath(c.req.path) && c.req.query(PTY_CONNECT_TICKET_QUERY)) return next()    
 
   // Check for JWT Bearer token as alternative to Basic Auth
   const authHeader = c.req.header("Authorization")
@@ -86,7 +89,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
 
   if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
 
-  if (!password) return c.newResponse(JSON.stringify({ error: "Authentication required" }), 401)
+  if (!password) { console.log("401 from AuthMiddleware", c.req.raw.headers); return c.newResponse(JSON.stringify({ error: "Authentication required" }), 401) }
 
   return basicAuth({ username, password })(c, next)
 }
@@ -98,7 +101,7 @@ export function LoggerMiddleware(backendAttributes: ServerBackend.Attributes): M
     const attributes = {
       method: c.req.method,
       path: c.req.path,
-      // If this logger grows full-URL fields, redact auth_token and ticket query params.
+      // If this logger grows full-URL fields, redact auth_token and ticket query params.     
       ...backendAttributes,
     }
     log.info("request", attributes)

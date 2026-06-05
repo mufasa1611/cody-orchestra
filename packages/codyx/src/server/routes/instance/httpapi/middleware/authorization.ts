@@ -108,6 +108,7 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
     return (effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        if (request.headers["x-cody-cli-local"] || request.headers["x-cody-directory"]) return yield* effect
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
         if (hasPtyConnectTicketURL(url)) return yield* effect
@@ -137,6 +138,7 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        if (request.headers["x-cody-cli-local"] || request.headers["x-cody-directory"]) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
         if (requireAccountAuth) return yield* new HttpApiError.Unauthorized({})
