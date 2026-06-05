@@ -134,10 +134,10 @@ export const SettingsAgentConnect: Component = () => {
   const copyCommand = async () => {
     const code = pairingCode()
     if (code) {
-      const cmd = `CODY_WS_URL="${wsUrl()}" bunx --yes cody-connect ${code}`
+      const cmd = `bunx --yes cody-connect ${code} --ws "${wsUrl()}"`
       await navigator.clipboard.writeText(cmd)
       setCopied(true)
-      showToast({ title: "Command copied! Paste it in your PC terminal.", variant: "success" })
+      showToast({ title: "Command copied. Paste it in any terminal.", variant: "success" })
       setTimeout(() => setCopied(false), 3000)
     }
   }
@@ -208,9 +208,9 @@ export const SettingsAgentConnect: Component = () => {
                   Step 2: Run this on your PC
                 </p>
                 <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
-                  <span class="text-text-on-success-base text-13-mono">$</span>
+                  <span class="text-text-on-success-base text-13-mono">&gt;</span>
                   <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    CODY_WS_URL="{wsUrl()}" bunx --yes cody-connect {pairingCode()}
+                    bunx --yes cody-connect {pairingCode()} --ws &quot;{wsUrl()}&quot;
                   </code>
                   <Button
                     variant="ghost"
@@ -222,7 +222,7 @@ export const SettingsAgentConnect: Component = () => {
                   </Button>
                 </div>
                 <p class="text-12-regular text-text-weak mt-2">
-                  {copied() ? "Copied! Paste in your PC terminal." : "Click the copy button, then paste in your PC's terminal."}
+                  {copied() ? "Copied. Paste in any terminal." : "This command works in Windows CMD, PowerShell, Linux, and macOS terminals."}
                 </p>
               </div>
 

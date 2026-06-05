@@ -29,8 +29,8 @@ const handleScriptDownload = Effect.fn("AgentDownload.handleScriptDownload")(fun
 const handleLauncherDownload = Effect.fn("AgentDownload.handleLauncherDownload")(function* (request: HttpServerRequest.HttpServerRequest) {
   const url = new URL(request.url, "http://localhost")
   const code = url.searchParams.get("code") || ""
-  const wsUrl = url.searchParams.get("ws") || "wss://cody.kingkung.men/ws/agent"
-  const serverUrl = url.searchParams.get("server") || "https://cody.kingkung.men"
+  const wsUrl = url.searchParams.get("ws") || "wss://codyx.kingkung.men/ws/agent"
+  const serverUrl = url.searchParams.get("server") || "https://codyx.kingkung.men"
 
   const bat = `@echo off
 setlocal enabledelayedexpansion
@@ -41,7 +41,6 @@ echo ============================================
 echo.
 
 set "CODE=${code}"
-set "WS_URL=${wsUrl}"
 set "SERVER=${serverUrl}"
 set "SCRIPT=%TEMP%\\cody-x-connect-${code}.mjs"
 
@@ -58,7 +57,6 @@ echo OK
 
 REM Try Bun first (faster), then Node; auto-install Bun if missing
 echo [2/2] Connecting to cody-x...
-set "CODY_WS_URL=%WS_URL%"
 set "BUN_PATH="
 where bun >nul 2>nul
 if !ERRORLEVEL! EQU 0 (
@@ -69,7 +67,7 @@ if !ERRORLEVEL! EQU 0 (
 
 if defined BUN_PATH (
   echo Using Bun...
-  !BUN_PATH! "%SCRIPT%" "%CODE%"
+  !BUN_PATH! "%SCRIPT%" "%CODE%" --ws "${wsUrl}"
   if !ERRORLEVEL! EQU 0 goto :done
   echo Bun failed, trying Node.js...
 ) else (
@@ -78,7 +76,7 @@ if defined BUN_PATH (
   if exist "%USERPROFILE%\.bun\bin\bun.exe" (
     set "BUN_PATH=%USERPROFILE%\.bun\bin\bun.exe"
     echo Bun installed! Connecting...
-    !BUN_PATH! "%SCRIPT%" "%CODE%"
+    !BUN_PATH! "%SCRIPT%" "%CODE%" --ws "${wsUrl}"
     if !ERRORLEVEL! EQU 0 goto :done
   ) else (
     echo Bun auto-install failed.
@@ -88,7 +86,7 @@ if defined BUN_PATH (
 where node >nul 2>nul
 if !ERRORLEVEL! EQU 0 (
   echo Using Node.js...
-  node "%SCRIPT%" "%CODE%"
+  node "%SCRIPT%" "%CODE%" --ws "${wsUrl}"
   if !ERRORLEVEL! EQU 0 goto :done
 )
 
@@ -113,14 +111,13 @@ pause
 const handlePs1Download = Effect.fn("AgentDownload.handlePs1Download")(function* (request: HttpServerRequest.HttpServerRequest) {
   const url = new URL(request.url, "http://localhost")
   const code = url.searchParams.get("code") || ""
-  const wsUrl = url.searchParams.get("ws") || "wss://cody.kingkung.men/ws/agent"
-  const serverUrl = url.searchParams.get("server") || "https://cody.kingkung.men"
+  const wsUrl = url.searchParams.get("ws") || "wss://codyx.kingkung.men/ws/agent"
+  const serverUrl = url.searchParams.get("server") || "https://codyx.kingkung.men"
 
   const ps1 = `#!/usr/bin/env pwsh
 # cody-x — Remote PC Agent
 
 $code = "${code}"
-$wsUrl = "${wsUrl}"
 $server = "${serverUrl}"
 $script = Join-Path $env:TEMP "cody-x-connect-${code}.mjs"
 
@@ -144,7 +141,6 @@ try {
 
 # Connect
 Write-Host "[2/2] Connecting to cody-x..." -ForegroundColor Cyan
-$env:CODY_WS_URL = $wsUrl
 
 # Try Bun first (faster), then Node; auto-install Bun if missing
 $bunPath = (Get-Command bun -ErrorAction SilentlyContinue).Source
@@ -155,7 +151,7 @@ if (-not $bunPath) {
 
 if ($bunPath) {
   Write-Host "Using Bun..."
-  & $bunPath $script $code
+  & $bunPath $script $code --ws "${wsUrl}"
   if ($LASTEXITCODE -eq 0) { exit 0 }
   Write-Host "Bun failed, trying Node.js..." -ForegroundColor Yellow
 } else {
@@ -166,7 +162,7 @@ if ($bunPath) {
     $newBun = "$env:USERPROFILE\.bun\bin\bun.exe"
     if (Test-Path $newBun) {
       Write-Host "Bun installed! Connecting..." -ForegroundColor Green
-      & $newBun $script $code
+      & $newBun $script $code --ws "${wsUrl}"
       if ($LASTEXITCODE -eq 0) { exit 0 }
     } else {
       Write-Host "Bun auto-install failed." -ForegroundColor Red
@@ -178,7 +174,7 @@ if ($bunPath) {
 
 if (Get-Command node -ErrorAction SilentlyContinue) {
   Write-Host "Using Node.js..."
-  node $script $code
+  node $script $code --ws "${wsUrl}"
   if ($LASTEXITCODE -eq 0) { exit 0 }
 }
 

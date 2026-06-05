@@ -1,15 +1,40 @@
 #!/usr/bin/env bun
 
 // codyx Remote Agent
-// Usage: bunx cody-connect <PAIRING_CODE>
-// Connects to cody.kingkung.men WebSocket hub and serves local filesystem
+// Usage: bunx cody-connect <PAIRING_CODE> [--ws <WEBSOCKET_URL>]
+// Connects to the codyx WebSocket hub and serves local filesystem
 
 import fs from "fs"
 import path from "path"
 import { execSync } from "child_process"
 
-const WS_URL = process.env.CODY_WS_URL || "wss://cody.kingkung.men/ws/agent"
-const mode = process.argv[2]
+const DEFAULT_WS_URL = "wss://codyx.kingkung.men/ws/agent"
+
+function parseArgs(argv) {
+  let code
+  let wsUrl = process.env.CODY_WS_URL || DEFAULT_WS_URL
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === "--ws" || arg === "--url") {
+      wsUrl = argv[++i] || wsUrl
+      continue
+    }
+    if (arg.startsWith("--ws=")) {
+      wsUrl = arg.slice("--ws=".length)
+      continue
+    }
+    if (arg.startsWith("--url=")) {
+      wsUrl = arg.slice("--url=".length)
+      continue
+    }
+    if (!code) code = arg
+  }
+
+  return { code, wsUrl }
+}
+
+const { code: mode, wsUrl: WS_URL } = parseArgs(process.argv.slice(2))
 
 // --- Uninstall ---
 
@@ -25,10 +50,13 @@ if (mode === "--uninstall" || mode === "--cleanup") {
 }
 
 if (!mode || mode.startsWith("--")) {
-  console.error("Usage: bunx cody-connect <PAIRING_CODE>")
+  console.error("Usage: bunx cody-connect <PAIRING_CODE> [--ws <WEBSOCKET_URL>]")
   console.error("       bunx cody-connect --uninstall")
   console.error("")
-  console.error("Get a pairing code from cody.kingkung.men > Settings > Connect My PC")
+  console.error("Get a pairing code from codyx.kingkung.men > Settings > Connect My PC")
+  console.error("")
+  console.error("Example:")
+  console.error(`  bunx --yes cody-connect ABC123 --ws ${DEFAULT_WS_URL}`)
   if (mode === "--help") console.log("  --uninstall  Remove all installed files, Bun, and cloned repo")
   process.exit(mode === "--help" ? 0 : 1)
 }

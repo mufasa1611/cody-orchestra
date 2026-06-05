@@ -1,15 +1,40 @@
 #!/usr/bin/env node
 
 // codyx Remote Agent
-// Usage: node connect.mjs <PAIRING_CODE>
-// Connects to cody.kingkung.men WebSocket hub and serves local filesystem
+// Usage: node connect.mjs <PAIRING_CODE> [--ws <WEBSOCKET_URL>]
+// Connects to the codyx WebSocket hub and serves local filesystem
 
-const WS_URL = process.env.CODY_WS_URL || "wss://cody.kingkung.men/ws/agent"
-const code = process.argv[2]
+const DEFAULT_WS_URL = "wss://codyx.kingkung.men/ws/agent"
+
+function parseArgs(argv) {
+  let code
+  let wsUrl = process.env.CODY_WS_URL || DEFAULT_WS_URL
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === "--ws" || arg === "--url") {
+      wsUrl = argv[++i] || wsUrl
+      continue
+    }
+    if (arg.startsWith("--ws=")) {
+      wsUrl = arg.slice("--ws=".length)
+      continue
+    }
+    if (arg.startsWith("--url=")) {
+      wsUrl = arg.slice("--url=".length)
+      continue
+    }
+    if (!code) code = arg
+  }
+
+  return { code, wsUrl }
+}
+
+const { code, wsUrl: WS_URL } = parseArgs(process.argv.slice(2))
 
 if (!code) {
-  console.error("Usage: node connect.mjs <PAIRING_CODE>")
-  console.error("Get a pairing code from cody.kingkung.men → Settings → Connect My PC")
+  console.error("Usage: node connect.mjs <PAIRING_CODE> [--ws <WEBSOCKET_URL>]")
+  console.error("Get a pairing code from codyx.kingkung.men > Settings > Connect My PC")
   process.exit(1)
 }
 
