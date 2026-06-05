@@ -2,7 +2,7 @@
 
 // === Agent → Hub messages ===
 export type AgentMessage =
-  | { type: "pair"; code: string }
+  | { type: "pair"; code: string; platform?: string; hostname?: string }
   | { type: "result"; id: number; data: unknown }
   | { type: "error"; id: number; error: string }
   | { type: "pong" }
@@ -24,10 +24,13 @@ export interface CreatePairingResponse {
 
 export interface AgentStatusResponse {
   connected: boolean
+  code?: string
   pairedAt?: number
   expiresAt?: number
   remotePlatform?: string
   remoteHostname?: string
+  activeCommands?: number
+  lastPong?: number
 }
 
 export interface RemoteFileNode {

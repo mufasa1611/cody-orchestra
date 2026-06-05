@@ -6,7 +6,8 @@
 
 import fs from "fs"
 import path from "path"
-import { execSync } from "child_process"
+import os from "os"
+import { exec, execSync } from "child_process"
 
 const DEFAULT_WS_URL = "wss://codyx.kingkung.men/ws/agent"
 
@@ -131,6 +132,21 @@ function uninstallAll() {
 // --- WebSocket Agent ---
 
 let ws, reconnectTimer, running = true
+const activeChildren = new Set()
+
+function killActiveChildren(reason = "disconnect") {
+  for (const child of Array.from(activeChildren)) {
+    try {
+      child.kill("SIGTERM")
+      setTimeout(() => {
+        try {
+          if (!child.killed) child.kill("SIGKILL")
+        } catch {}
+      }, 1000).unref?.()
+    } catch {}
+  }
+  if (activeChildren.size) console.log(`Stopped ${activeChildren.size} active command(s) because of ${reason}`)
+}
 
 async function startAgent(code) {
   if (!running) return
@@ -146,7 +162,12 @@ async function startAgent(code) {
     ws = new globalThis.WebSocket(WS_URL)
     ws.onopen = () => {
       console.log("Connected! Sending pairing code...")
-      ws.send(JSON.stringify({ type: "pair", code }))
+      ws.send(JSON.stringify({
+        type: "pair",
+        code,
+        platform: process.platform,
+        hostname: os.hostname(),
+      }))
     }
 
     ws.onmessage = async (event) => {
@@ -160,6 +181,7 @@ async function startAgent(code) {
 
     ws.onclose = (event) => {
       console.log(`Disconnected (code: ${event.code}), reconnecting in 5s...`)
+      killActiveChildren("websocket close")
       if (running) reconnectTimer = setTimeout(() => startAgent(code), 5000)
     }
 
@@ -197,6 +219,7 @@ async function handleMessage(msg) {
       break
     case "disconnect":
       console.log("Server requested disconnect")
+      killActiveChildren("server disconnect")
       ws.close()
       running = false
       process.exit(0)
@@ -274,20 +297,25 @@ async function executeCommand(command, args) {
     }
     case "exec": {
       const commandStr = args.command
-      try {
-        const output = execSync(commandStr, {
+      return await new Promise((resolve) => {
+        const child = exec(commandStr, {
           encoding: "utf-8",
           maxBuffer: 10 * 1024 * 1024,
           timeout: 30000,
+        }, (err, stdout, stderr) => {
+          activeChildren.delete(child)
+          if (err) {
+            resolve({
+              stdout: stdout || err.stdout || "",
+              stderr: stderr || err.stderr || err.message,
+              exitCode: typeof err.code === "number" ? err.code : 1,
+            })
+            return
+          }
+          resolve({ stdout: stdout || "", stderr: stderr || "", exitCode: 0 })
         })
-        return { stdout: output, stderr: "", exitCode: 0 }
-      } catch (err) {
-        return {
-          stdout: err.stdout || "",
-          stderr: err.stderr || err.message,
-          exitCode: err.status || 1,
-        }
-      }
+        activeChildren.add(child)
+      })
     }
     default:
       throw new Error(`Unknown command: ${command}`)
@@ -298,6 +326,7 @@ process.on("SIGINT", () => {
   console.log("\nShutting down...")
   running = false
   clearTimeout(reconnectTimer)
+  killActiveChildren("SIGINT")
   if (ws) ws.close()
   process.exit(0)
 })
@@ -305,6 +334,7 @@ process.on("SIGINT", () => {
 process.on("SIGTERM", () => {
   running = false
   clearTimeout(reconnectTimer)
+  killActiveChildren("SIGTERM")
   if (ws) ws.close()
   process.exit(0)
 })

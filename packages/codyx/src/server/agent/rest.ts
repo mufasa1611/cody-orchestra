@@ -81,7 +81,13 @@ export const AgentRoutes = lazy(() =>
                 schema: resolver(
                   z.object({
                     connected: z.boolean(),
+                    code: z.string().optional(),
                     pairedAt: z.number().optional(),
+                    expiresAt: z.number().optional(),
+                    remotePlatform: z.string().optional(),
+                    remoteHostname: z.string().optional(),
+                    activeCommands: z.number().optional(),
+                    lastPong: z.number().optional(),
                   }),
                 ),
               },

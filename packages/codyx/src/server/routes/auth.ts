@@ -2,6 +2,7 @@
 import * as Auth from "@/server/auth/service"
 import * as Jwt from "@/server/auth/jwt"
 import { rateLimit } from "@/server/auth/rate-limit"
+import { userWorkspaceRoot } from "@/server/auth/user-workspace"
 
 const authRoutes = new Hono()
 
@@ -17,6 +18,7 @@ authRoutes.post("/register", async (c) => {
       return c.json({ error: "Username and password required" }, 400)
     }
     const user = Auth.createUser(username, password)
+    userWorkspaceRoot(user.id)
     const token = Jwt.sign({ sub: user.id, username: user.username })
     return c.json({ token, user: { id: user.id, username: user.username, created_at: user.created_at } })
   } catch (err) {
@@ -36,6 +38,7 @@ authRoutes.post("/login", async (c) => {
       return c.json({ error: "Username and password required" }, 400)
     }
     const user = Auth.verifyCredentials(username, password)
+    userWorkspaceRoot(user.id)
     const token = Jwt.sign({ sub: user.id, username: user.username })
     return c.json({ token, user: { id: user.id, username: user.username, created_at: user.created_at } })
   } catch (err) {

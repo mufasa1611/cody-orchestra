@@ -40,7 +40,10 @@ export const agentWebSocketRoute = HttpRouter.use((router) =>
               }
 
               if (parsed.type === "pair" && !paired) {
-                const ok = yield* hub.connectAgent(parsed.code, write, closeSocket)
+                const ok = yield* hub.connectAgent(parsed.code, write, closeSocket, {
+                  platform: parsed.platform,
+                  hostname: parsed.hostname,
+                })
                 if (ok) {
                   paired = true
                   pairedCode = parsed.code

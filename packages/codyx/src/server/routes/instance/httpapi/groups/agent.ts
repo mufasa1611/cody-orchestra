@@ -1,5 +1,6 @@
 ﻿import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { Effect } from "effect"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware } from "../middleware/workspace-routing"
@@ -7,7 +8,9 @@ import { described } from "./metadata"
 
 const root = "/agent"
 
-const ListDirQuery = Schema.Struct({ path: Schema.optional(Schema.String) })
+const ListDirQuery = Schema.Struct({
+  path: Schema.String.pipe(Schema.optional, Schema.withDecodingDefault(Effect.succeed("/"))),
+})
 const ReadFileQuery = Schema.Struct({ path: Schema.String })
 const WriteFilePayload = Schema.Struct({ path: Schema.String, content: Schema.String, encoding: Schema.optional(Schema.String) })
 const ExecPayload = Schema.Struct({ command: Schema.String })
@@ -18,6 +21,10 @@ const AgentStatusSchema = Schema.Struct({
   code: Schema.optional(Schema.String),
   pairedAt: Schema.optional(Schema.Number),
   expiresAt: Schema.optional(Schema.Number),
+  remotePlatform: Schema.optional(Schema.String),
+  remoteHostname: Schema.optional(Schema.String),
+  activeCommands: Schema.optional(Schema.Number),
+  lastPong: Schema.optional(Schema.Number),
 })
 const RemoteFileNodeSchema = Schema.Struct({
   name: Schema.String,

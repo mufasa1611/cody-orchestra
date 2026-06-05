@@ -7,6 +7,17 @@ import type { AgentListDirResponse, AgentReadFileResponse } from "./types"
 
 const STAT_ERROR = "AgentFS.stat would fail remotely" as const
 
+function canUseLocalFallback(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return error.message === "No agent connected" || error.message === "Authentication required for remote PC access"
+}
+
+function fallbackIfNoAgent<A, E, R>(
+  fallback: () => Effect.Effect<A, E, R>,
+): (error: Error) => Effect.Effect<A, E, R> {
+  return (error) => (canUseLocalFallback(error) ? fallback() : Effect.die(error))
+}
+
 const remoteStat = (hub: AgentHub.Interface, path: string): Effect.Effect<FileSystem.File.Info> =>
   Effect.gen(function* () {
     if (path === "/" || path === "\\") {
@@ -30,7 +41,9 @@ const remoteStat = (hub: AgentHub.Interface, path: string): Effect.Effect<FileSy
     const parent = dirname(path)
     if (parent === path) return yield* Effect.die(STAT_ERROR)
     const name = basename(path)
-    const result = yield* hub.listDir(parent).pipe(Effect.catch(() => Effect.succeed(undefined)))
+    const result = yield* hub.listDir(parent).pipe(
+      Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+    )
     if (!result) return yield* Effect.die(STAT_ERROR)
     const list = result as AgentListDirResponse
     const entry = list.files?.find((f) => f.name === name)
@@ -61,11 +74,13 @@ export const layer = Layer.effect(
 
     const agentStat = Effect.fn("AgentFS.stat")(function* (path: string) {
       const fallback = () => fs.stat(path)
-      return yield* remoteStat(hub, path).pipe(Effect.catch(() => fallback()))
+      return yield* remoteStat(hub, path).pipe(Effect.catch(fallbackIfNoAgent(fallback)))
     })
 
     const agentReadFileString = Effect.fn("AgentFS.readFileString")(function* (path: string) {
-      const result = yield* hub.readFile(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.readFile(path).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) return yield* fs.readFileString(path)
       const r = result as AgentReadFileResponse
       if (r.encoding === "base64") return new TextDecoder().decode(Buffer.from(r.content, "base64"))
@@ -73,7 +88,9 @@ export const layer = Layer.effect(
     })
 
     const agentWriteFileString = Effect.fn("AgentFS.writeFileString")(function* (path: string, content: string) {
-      const result = yield* hub.writeFile(path, content).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.writeFile(path, content).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) return yield* fs.writeFileString(path, content)
     })
 
@@ -81,21 +98,27 @@ export const layer = Layer.effect(
       const parent = dirname(path)
       const name = basename(path)
       if (parent === path) return true
-      const result = yield* hub.listDir(parent).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.listDir(parent).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) return yield* fs.exists(path)
       const list = result as AgentListDirResponse
       return list.files?.some((f) => f.name === name) ?? false
     })
 
     const agentReadDirectory = Effect.fn("AgentFS.readDirectory")(function* (path: string) {
-      const result = yield* hub.listDir(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.listDir(path).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) return yield* fs.readDirectory(path)
       const list = result as AgentListDirResponse
       return list.files?.map((f) => f.name) ?? []
     })
 
     const agentReadFile = Effect.fn("AgentFS.readFile")(function* (path: string) {
-      const result = yield* hub.readFile(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.readFile(path).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) return yield* fs.readFile(path)
       const r = result as AgentReadFileResponse
       if (r.encoding === "base64") return Buffer.from(r.content, "base64")
@@ -158,7 +181,9 @@ export const layer = Layer.effect(
     })
 
     const readDirectoryEntries = Effect.fn("AgentFS.readDirectoryEntries")(function* (dirPath: string) {
-      const result = yield* hub.listDir(dirPath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.listDir(dirPath).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) {
         const names = yield* fs.readDirectory(dirPath)
         return names.map((n) => ({ name: n, type: "file" as const }))
@@ -191,7 +216,9 @@ export const layer = Layer.effect(
       mode?: number,
     ) {
       const str = typeof content === "string" ? content : new TextDecoder().decode(content)
-      const result = yield* hub.writeFile(p, str).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const result = yield* hub.writeFile(p, str).pipe(
+        Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
+      )
       if (!result) {
         yield* fs.makeDirectory(dirname(p), { recursive: true })
         yield* (typeof content === "string" ? fs.writeFileString(p, content) : fs.writeFile(p, content))

@@ -3,6 +3,8 @@ import { Command } from "@/command"
 import * as InstanceState from "@/effect/instance-state"
 import { Format } from "@/format"
 import { Global } from "@cody/core/global"
+import { UserRef } from "@/effect/instance-ref"
+import { userWorkspaceRoot } from "@/server/auth/user-workspace"
 import { LSP } from "@/lsp/lsp"
 import { Vcs } from "@/project/vcs"
 import { Skill } from "@/skill"
@@ -28,8 +30,10 @@ export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance"
 
     const getPath = Effect.fn("InstanceHttpApi.path")(function* () {
       const ctx = yield* InstanceState.context
+      const userID = yield* UserRef
+      const home = userID ? userWorkspaceRoot(userID) : Global.Path.home
       return {
-        home: Global.Path.home,
+        home,
         state: Global.Path.state,
         config: Global.Path.config,
         worktree: ctx.worktree,

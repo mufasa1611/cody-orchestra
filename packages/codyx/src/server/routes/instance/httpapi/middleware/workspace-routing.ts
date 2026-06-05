@@ -2,8 +2,10 @@ import { getAdapter } from "@/control-plane/adapters"
 import { WorkspaceID } from "@/control-plane/schema"
 import type { Target } from "@/control-plane/types"
 import { Workspace } from "@/control-plane/workspace"
+import { UserRef } from "@/effect/instance-ref"
 import { EffectBridge } from "@/effect/bridge"
 import { Session } from "@/session/session"
+import { userWorkspaceRoot, userWorkspaceRootFromAuthHeader } from "@/server/auth/user-workspace"
 import { HttpApiProxy } from "./proxy"
 import * as Fence from "@/server/shared/fence"
 import { getWorkspaceRouteSessionID, isLocalWorkspaceRoute, workspaceProxyURL } from "@/server/shared/workspace-routing"
@@ -57,9 +59,16 @@ function selectedWorkspaceID(url: URL, sessionWorkspaceID?: WorkspaceID): Worksp
   return sessionWorkspaceID ?? (workspaceParam ? WorkspaceID.make(workspaceParam) : undefined)
 }
 
-function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL): string {
-  return url.searchParams.get("directory") || request.headers["x-cody-directory"] || process.cwd()
-}
+const defaultDirectory = Effect.fn("WorkspaceRouting.defaultDirectory")(function* (
+  request: HttpServerRequest.HttpServerRequest,
+  url: URL,
+) {
+  const explicit = url.searchParams.get("directory") || request.headers["x-cody-directory"]
+  if (explicit) return explicit
+  const userID = yield* UserRef
+  if (userID) return userWorkspaceRoot(userID)
+  return userWorkspaceRootFromAuthHeader(request.headers.authorization ?? "") ?? process.cwd()
+})
 
 function shouldStayOnControlPlane(request: HttpServerRequest.HttpServerRequest, url: URL): boolean {
   return isLocalWorkspaceRoute(request.method, url.pathname) || url.pathname.startsWith("/console")
@@ -150,7 +159,8 @@ function planRequest(
       return yield* planWorkspaceRequest(request, url, workspace)
     }
 
-    return RequestPlan.Local({ directory: defaultDirectory(request, url), workspaceID: envWorkspaceID ?? workspaceID })
+    const directory = yield* defaultDirectory(request, url)
+    return RequestPlan.Local({ directory, workspaceID: envWorkspaceID ?? workspaceID })
   })
 }
 

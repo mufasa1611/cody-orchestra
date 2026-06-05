@@ -12,6 +12,7 @@ import { Vcs } from "@/project/vcs"
 import { Agent } from "@/agent/agent"
 import { Skill } from "@/skill"
 import { Global } from "@cody/core/global"
+import { userWorkspaceRootFromAuthHeader } from "@/server/auth/user-workspace"
 import { LSP } from "@/lsp/lsp"
 import { Command } from "@/command"
 import { QuestionRoutes } from "./question"
@@ -239,8 +240,9 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
         },
       }),
       async (c) => {
+        const home = userWorkspaceRootFromAuthHeader(c.req.header("authorization")) ?? Global.Path.home
         return c.json({
-          home: Global.Path.home,
+          home,
           state: Global.Path.state,
           config: Global.Path.config,
           worktree: Instance.worktree,

@@ -1,5 +1,6 @@
 ﻿import { Context, Deferred, Duration, Effect, Layer } from "effect"
 import { UserRef } from "@/effect/instance-ref"
+import * as Log from "@cody/core/util/log"
 import type { AgentMessage, HubMessage } from "./types"
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -12,6 +13,8 @@ const COMMAND_TIMEOUT_DURATION = Duration.seconds(30)
 interface PendingCommand {
   deferred: Deferred.Deferred<unknown, Error>
   code: string
+  command: string
+  startedAt: number
 }
 
 type AgentWriter = (data: string | Uint8Array) => Effect.Effect<void>
@@ -38,11 +41,25 @@ interface PairingCode {
 
 export interface Interface {
   readonly createPairingCode: Effect.Effect<string>
-  readonly connectAgent: (code: string, write: AgentWriter, close: Effect.Effect<void>) => Effect.Effect<boolean, Error>
+  readonly connectAgent: (
+    code: string,
+    write: AgentWriter,
+    close: Effect.Effect<void>,
+    metadata?: { platform?: string; hostname?: string },
+  ) => Effect.Effect<boolean, Error>
   readonly disconnectAgent: (code: string) => Effect.Effect<void>
   readonly touchClient: Effect.Effect<void>
   readonly dispatch: (message: AgentMessage, senderCode?: string) => Effect.Effect<void>
-  readonly getStatus: Effect.Effect<{ connected: boolean; code?: string; pairedAt?: number; expiresAt?: number }>
+  readonly getStatus: Effect.Effect<{
+    connected: boolean
+    code?: string
+    pairedAt?: number
+    expiresAt?: number
+    remotePlatform?: string
+    remoteHostname?: string
+    activeCommands?: number
+    lastPong?: number
+  }>
   readonly listDir: (path: string) => Effect.Effect<unknown, Error>
   readonly readFile: (path: string) => Effect.Effect<unknown, Error>
   readonly writeFile: (path: string, content: string) => Effect.Effect<unknown, Error>
@@ -56,6 +73,7 @@ const agents = new Map<string, PairedAgent>()
 const clientHeartbeats = new Map<string, number>()
 let nextCommandId = 1
 const pendingCommands = new Map<number, PendingCommand>()
+const log = Log.create({ service: "agent-hub" })
 
 function generateCode(): string {
   let code = ""
@@ -114,6 +132,7 @@ const createPairingCode = Effect.fn("AgentHub.createPairingCode")(function* () {
     used: false,
   })
 
+  log.info("pairing code created", { code, userID, expiresIn: Duration.toMillis(CODE_TTL_DURATION) })
   return code
 })
 
@@ -121,13 +140,23 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
   code: string,
   write: AgentWriter,
   close: Effect.Effect<void>,
+  metadata?: { platform?: string; hostname?: string },
 ) {
   const pairing = pairingCodes.get(code)
   if (!pairing || pairing.used || Date.now() > pairing.expiresAt) {
+    log.warn("pair rejected", { code, reason: !pairing ? "missing" : pairing.used ? "used" : "expired" })
     return false
   }
 
   pairing.used = true
+
+  if (pairing.userID) {
+    for (const existing of Array.from(agents.values())) {
+      if (existing.userID === pairing.userID) {
+        yield* disconnectAgent(existing.code)
+      }
+    }
+  }
 
   const agent: PairedAgent = {
     code,
@@ -136,10 +165,19 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
     close,
     connectedAt: Date.now(),
     expiresAt: Date.now() + Duration.toMillis(AGENT_MAX_CONNECTION_DURATION),
+    remotePlatform: metadata?.platform,
+    remoteHostname: metadata?.hostname,
   }
   if (pairing.userID) clientHeartbeats.set(pairing.userID, Date.now())
   agents.set(code, agent)
 
+  log.info("agent paired", {
+    code,
+    userID: pairing.userID,
+    remotePlatform: metadata?.platform,
+    remoteHostname: metadata?.hostname,
+    expiresAt: agent.expiresAt,
+  })
   return true
 })
 
@@ -147,6 +185,13 @@ const disconnectAgent = Effect.fn("AgentHub.disconnectAgent")(function* (code: s
   const agent = agents.get(code)
   if (agent) {
     agents.delete(code)
+    log.info("agent disconnecting", {
+      code,
+      userID: agent.userID,
+      remotePlatform: agent.remotePlatform,
+      remoteHostname: agent.remoteHostname,
+      pendingCommands: Array.from(pendingCommands.values()).filter((pending) => pending.code === code).length,
+    })
 
     // Notify the remote PC that it was disconnected
     yield* agent.write(JSON.stringify({ type: "disconnect" })).pipe(Effect.catch(() => Effect.void))
@@ -170,6 +215,13 @@ const dispatch = Effect.fn("AgentHub.dispatch")(function* (message: AgentMessage
       const pending = pendingCommands.get(message.id)
       if (pending) {
         pendingCommands.delete(message.id)
+        log.info("agent command completed", {
+          code: pending.code,
+          id: message.id,
+          command: pending.command,
+          ok: message.type === "result",
+          duration: Date.now() - pending.startedAt,
+        })
         if (message.type === "error") {
           yield* Deferred.fail(pending.deferred, new Error(message.error))
         } else {
@@ -192,9 +244,10 @@ const dispatch = Effect.fn("AgentHub.dispatch")(function* (message: AgentMessage
 
 const agentForCurrentUser = Effect.fn("AgentHub.agentForCurrentUser")(function* () {
   const userID = yield* UserRef
+  if (!userID) return yield* Effect.fail(new Error("Authentication required for remote PC access"))
   cleanupExpiredAgents()
   const agentsList = Array.from(agents.values())
-    .filter((agent) => (userID ? agent.userID === userID : true))
+    .filter((agent) => agent.userID === userID)
     .filter((agent) => !shouldDisconnectAgent(agent))
     .sort((a, b) => b.connectedAt - a.connectedAt)
   return agentsList[0]
@@ -215,10 +268,18 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
     const id = nextCommandId++
     const deferred = yield* Deferred.make<unknown, Error>()
 
-    pendingCommands.set(id, { deferred, code: agent.code })
+    pendingCommands.set(id, { deferred, code: agent.code, command, startedAt: Date.now() })
 
     const message: HubMessage = { type: "command", id, command, args }
     const encoded = JSON.stringify(message)
+    log.info("agent command started", {
+      code: agent.code,
+      userID: agent.userID,
+      id,
+      command,
+      remotePlatform: agent.remotePlatform,
+      remoteHostname: agent.remoteHostname,
+    })
 
     yield* agent.write(encoded).pipe(
       Effect.timeout(Duration.seconds(5)),
@@ -232,6 +293,7 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
       Effect.timeout(COMMAND_TIMEOUT_DURATION),
       Effect.catch(() => {
         pendingCommands.delete(id)
+        log.warn("agent command timed out", { code: agent.code, userID: agent.userID, id, command })
         return Effect.fail(new Error("Command timed out after " + Duration.toMillis(COMMAND_TIMEOUT_DURATION) + "ms"))
       }),
     )
@@ -241,7 +303,7 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
 
 const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
   yield* touchClient()
-  const agent = yield* agentForCurrentUser()
+  const agent = yield* agentForCurrentUser().pipe(Effect.catch(() => Effect.succeed(undefined)))
   if (!agent) {
     return { connected: false } as const
   }
@@ -250,12 +312,16 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
     code: agent.code,
     pairedAt: agent.connectedAt,
     expiresAt: agent.expiresAt,
+    remotePlatform: agent.remotePlatform,
+    remoteHostname: agent.remoteHostname,
+    activeCommands: Array.from(pendingCommands.values()).filter((pending) => pending.code === agent.code).length,
+    lastPong: agent.lastPong,
   } as const
 })
 
 const instance: Interface = {
   createPairingCode: createPairingCode(),
-  connectAgent: (code, write, close) => connectAgent(code, write, close),
+  connectAgent: (code, write, close, metadata) => connectAgent(code, write, close, metadata),
   disconnectAgent: (code) => disconnectAgent(code),
   touchClient: touchClient(),
   dispatch: (message, code) => dispatch(message, code),
