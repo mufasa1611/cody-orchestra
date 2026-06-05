@@ -16,7 +16,7 @@ function formatFileList(data: { files?: Array<{ name: string; type: string; size
 }
 
 const RemoteLsTool = Tool.define(
-  "remote_ls",
+  "cody-agent-list",
   Effect.gen(function* () {
     return {
       description: "List files and directories on the connected remote PC." + CommonDescription,
@@ -35,7 +35,7 @@ const RemoteLsTool = Tool.define(
 )
 
 const RemoteReadTool = Tool.define(
-  "remote_read",
+  "cody-agent-read",
   Effect.gen(function* () {
     return {
       description: "Read the contents of a file on the connected remote PC." + CommonDescription,
@@ -55,7 +55,7 @@ const RemoteReadTool = Tool.define(
 )
 
 const RemoteWriteTool = Tool.define(
-  "remote_write",
+  "cody-agent-write",
   Effect.gen(function* () {
     return {
       description: "Write content to a file on the connected remote PC." + CommonDescription,
@@ -75,7 +75,7 @@ const RemoteWriteTool = Tool.define(
 )
 
 const RemoteBashTool = Tool.define(
-  "remote_bash",
+  "cody-agent-exec",
   Effect.gen(function* () {
     return {
       description: "Execute a shell command on the connected remote PC." + CommonDescription,
