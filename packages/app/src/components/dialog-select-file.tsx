@@ -18,8 +18,11 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { decode64 } from "@/utils/base64"
 import { getRelativeTime } from "@/utils/time"
+import { useServer } from "@/context/server"
+import { usePlatform } from "@/context/platform"
+import { fetchForServer } from "@/utils/server"
 
-type EntryType = "command" | "file" | "session"
+type EntryType = "command" | "file" | "directory" | "session"
 
 type Entry = {
   id: string
@@ -37,6 +40,20 @@ type Entry = {
 }
 
 type DialogSelectFileMode = "all" | "files"
+type RemoteFileNode = { name: string; path: string; type: "file" | "directory"; size?: number; modifiedAt?: number }
+
+const parentPath = (path: string) => {
+  const current = path.trim()
+  if (!current || current === "/" || current === "\\") return
+  if (/^[A-Za-z]:[\\/]?$/.test(current)) return "/"
+
+  const trimmed = current.replace(/[\\/]+$/, "")
+  const slash = Math.max(trimmed.lastIndexOf("\\"), trimmed.lastIndexOf("/"))
+  if (slash < 0) return "/"
+  if (slash === 0) return "/"
+  if (/^[A-Za-z]:$/.test(trimmed.slice(0, slash))) return trimmed.slice(0, slash + 1)
+  return trimmed.slice(0, slash)
+}
 
 const ENTRY_LIMIT = 5
 const COMMON_COMMAND_IDS = [
@@ -269,10 +286,14 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   const navigate = useNavigate()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
+  const server = useServer()
+  const platform = usePlatform()
   const { params, tabs, view } = useSessionLayout()
   const filesOnly = () => props.mode === "files"
   const state = { cleanup: undefined as (() => void) | void, committed: false }
   const [grouped, setGrouped] = createSignal(false)
+  const [browsePath, setBrowsePath] = createSignal("/")
+  let listRef: { setFilter: (value: string) => void } | undefined
   const commandEntries = createCommandEntries({ filesOnly, command, language })
   const fileEntries = createFileEntries({ file, tabs, language })
 
@@ -306,12 +327,55 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   }
 
   const { sessions } = createSessionEntries({ workspaces, label, globalSDK, language })
+  const browseFiles = async () => {
+    const current = server.current?.http
+    if (!current) return []
+    const url = new URL("/agent/fs/list", current.url)
+    url.searchParams.set("path", browsePath())
+    const res = await fetchForServer(current, platform.fetch ?? globalThis.fetch)(url, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { files?: RemoteFileNode[] }
+    const category = language.t("palette.group.files")
+    const up = parentPath(browsePath())
+    const parent: Entry[] = up
+      ? [
+          {
+            id: `directory-up:${up}`,
+            type: "directory",
+            title: up,
+            description: "..",
+            category,
+            path: up,
+          },
+        ]
+      : []
+    const entries = (data.files ?? [])
+      .slice()
+      .sort((a, b) => {
+        if (a.type !== b.type) return a.type === "directory" ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+      .map((node): Entry => ({
+        id: `${node.type}:${node.path}`,
+        type: node.type,
+        title: node.path,
+        description: node.name,
+        category,
+        path: node.path,
+      }))
+    return [...parent, ...entries]
+  }
 
   const items = async (text: string) => {
     const query = text.trim()
     setGrouped(query.length > 0)
 
     if (!query && filesOnly()) {
+      const browse = await browseFiles()
+      if (browse.length > 0) return browse
+
       const loaded = file.tree.state("")?.loaded
       const pending = loaded ? Promise.resolve() : file.tree.list("")
       const next = uniqueEntries([...fileEntries.recent(), ...fileEntries.root()])
@@ -358,22 +422,35 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
 
   const handleSelect = (item: Entry | undefined) => {
     if (!item) return
-    state.committed = true
-    state.cleanup = undefined
-    dialog.close()
 
     if (item.type === "command") {
+      state.committed = true
+      state.cleanup = undefined
+      dialog.close()
       item.option?.onSelect?.("palette")
       return
     }
 
     if (item.type === "session") {
+      state.committed = true
+      state.cleanup = undefined
+      dialog.close()
       if (!item.directory || !item.sessionID) return
       navigate(`/${base64Encode(item.directory)}/session/${item.sessionID}`)
       return
     }
 
     if (!item.path) return
+    if (item.type === "directory") {
+      state.committed = false
+      setBrowsePath(item.path)
+      listRef?.setFilter("")
+      return
+    }
+
+    state.committed = true
+    state.cleanup = undefined
+    dialog.close()
     open(item.path)
   }
 
@@ -385,6 +462,9 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   return (
     <Dialog class="pt-3 pb-0 !max-h-[480px]" transition>
       <List
+        ref={(ref) => {
+          listRef = ref
+        }}
         search={{
           placeholder: filesOnly()
             ? language.t("session.header.searchFiles")
@@ -406,7 +486,7 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
             fallback={
               <div class="w-full flex items-center justify-between rounded-md pl-1">
                 <div class="flex items-center gap-x-3 grow min-w-0">
-                  <FileIcon node={{ path: item.path ?? "", type: "file" }} class="shrink-0 size-4" />
+                  <FileIcon node={{ path: item.path ?? "", type: item.type === "directory" ? "directory" : "file" }} class="shrink-0 size-4" />
                   <div class="flex items-center text-14-regular">
                     <span class="text-text-weak whitespace-nowrap overflow-hidden overflow-ellipsis truncate min-w-0">
                       {getDirectory(item.path ?? "")}

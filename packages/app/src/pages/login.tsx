@@ -70,6 +70,11 @@ export default function Login(props: { onLogin?: (token: string) => void }) {
   return (
     <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base gap-8 p-6">
       <div class="flex flex-col items-center gap-2">
+        <img
+          src="/mufasa.jpg"
+          alt="Mufasa"
+          class="w-52 h-24 object-cover rounded-md border border-border-weak-base"
+        />
         <Splash class="w-12 h-15" />
         <h1 class="text-18-medium text-text-strong mt-2">Cody</h1>
         <p class="text-14-regular text-text-weak">{isRegister() ? "Create your account" : "Sign in to your account"}</p>

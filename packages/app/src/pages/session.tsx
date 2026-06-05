@@ -713,10 +713,16 @@ export default function Page() {
   }
 
   const gitMutation = useMutation(() => ({
-    mutationFn: () => sdk.client.project.initGit(),
+    mutationFn: () => sdk.client.project.initGit({ directory: sdk.directory }),
     onSuccess: (x) => {
       if (!x.data) return
       upsert(x.data)
+      const sessionID = params.id
+      if (sessionID) void sync.session.diff(sessionID, { force: true })
+      showToast({
+        variant: "success",
+        title: language.t("session.review.noVcs.createGit.success"),
+      })
     },
     onError: (err) => {
       showToast({

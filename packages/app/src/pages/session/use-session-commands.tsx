@@ -222,7 +222,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
   const openFile = () => {
     void import("@/components/dialog-select-file").then((x) => {
-      dialog.show(() => <x.DialogSelectFile onOpenFile={showAllFiles} />)
+      dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
     })
   }
 

@@ -43,14 +43,20 @@ export default function Home() {
     navigate(`/${base64Encode(directory)}`)
   }
 
-  async function chooseProject() {
+  function openSession(directory: string) {
+    layout.projects.open(directory)
+    server.projects.touch(directory)
+    navigate(`/${base64Encode(directory)}/session`)
+  }
+
+  async function chooseProject(options?: { session?: boolean }) {
     function resolve(result: string | string[] | null) {
       if (Array.isArray(result)) {
         for (const directory of result) {
-          openProject(directory)
+          options?.session ? openSession(directory) : openProject(directory)
         }
       } else if (result) {
-        openProject(result)
+        options?.session ? openSession(result) : openProject(result)
       }
     }
 
@@ -72,6 +78,15 @@ export default function Home() {
     void import("@/components/dialog-settings").then((x) => {
       dialog.show(() => <x.DialogSettings />)
     })
+  }
+
+  function startNewSession() {
+    const project = recent()[0]
+    if (project) {
+      openSession(project.worktree)
+      return
+    }
+    void chooseProject({ session: true })
   }
 
   return (
@@ -107,9 +122,14 @@ export default function Home() {
           <div class="mt-20 w-full flex flex-col gap-4">
             <div class="flex gap-2 items-center justify-between pl-3">
               <div class="text-14-medium text-text-strong">{language.t("home.recentProjects")}</div>
-              <Button icon="folder-add-left" size="normal" class="pl-2 pr-3" onClick={chooseProject}>
-                {language.t("command.project.open")}
-              </Button>
+              <div class="flex items-center gap-2">
+                <Button icon="plus" size="normal" class="pl-2 pr-3" onClick={startNewSession}>
+                  {language.t("command.session.new")}
+                </Button>
+                <Button icon="folder-add-left" size="normal" class="pl-2 pr-3" onClick={() => void chooseProject()}>
+                  {language.t("command.project.open")}
+                </Button>
+              </div>
             </div>
             <ul class="flex flex-col gap-2">
               <For each={recent()}>
@@ -133,7 +153,7 @@ export default function Home() {
         <Match when={!sync.ready}>
           <div class="mt-30 mx-auto flex flex-col items-center gap-3">
             <div class="text-12-regular text-text-weak">{language.t("common.loading")}</div>
-            <Button class="px-3" onClick={chooseProject}>
+            <Button class="px-3" onClick={() => void chooseProject()}>
               {language.t("command.project.open")}
             </Button>
           </div>
@@ -145,9 +165,14 @@ export default function Home() {
               <div class="text-14-medium text-text-strong">{language.t("home.empty.title")}</div>
               <div class="text-12-regular text-text-weak">{language.t("home.empty.description")}</div>
             </div>
-            <Button class="px-3 mt-1" onClick={chooseProject}>
-              {language.t("command.project.open")}
-            </Button>
+            <div class="flex items-center gap-2 mt-1">
+              <Button icon="plus" class="px-3" onClick={() => void chooseProject({ session: true })}>
+                {language.t("command.session.new")}
+              </Button>
+              <Button class="px-3" variant="secondary" onClick={() => void chooseProject()}>
+                {language.t("command.project.open")}
+              </Button>
+            </div>
           </div>
         </Match>
       </Switch>
