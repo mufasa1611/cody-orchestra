@@ -5,7 +5,7 @@ const BASE_URL = process.env.CODY_URL ?? "http://localhost:3001"
 
 export default tool({
   description:
-    "Execute a shell command on a connected remote PC via the Cody Pro agent. Returns stdout, stderr, and exit code."
+    "Execute a shell command on a connected remote PC via the codyx agent. Returns stdout, stderr, and exit code."
     ,
   args: {
     command: tool.schema.string().describe("Shell command to execute on the remote PC"),

@@ -125,11 +125,11 @@ export function permissionInfo(request: PermissionRequest): PermissionInfo {
 
 export function permissionAlwaysLines(request: PermissionRequest): string[] {
   if (request.always.length === 1 && request.always[0] === "*") {
-    return [`This will allow ${request.permission} until Cody Pro is restarted.`]
+    return [`This will allow ${request.permission} until codyx is restarted.`]
   }
 
   return [
-    "This will allow the following patterns until Cody Pro is restarted.",
+    "This will allow the following patterns until codyx is restarted.",
     ...request.always.map((item) => `- ${item}`),
   ]
 }

@@ -45,7 +45,7 @@ Equivalent Bun command:
 bun run codyx
 ```
 
-codyx branding is the default in this fork, even when launching from `packages/cody`. Set `CODY_X=0` only if you need to inspect the inherited upstream branding.
+codyx branding is the default in this fork, even when launching from `packages/codyx`. Set `CODY_X=0` only if you need to inspect the inherited upstream branding.
 
 Pass a project path if you want codyx to open somewhere else:
 

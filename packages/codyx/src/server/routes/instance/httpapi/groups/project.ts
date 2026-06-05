@@ -24,7 +24,7 @@ export const ProjectApi = HttpApi.make("project")
           OpenApi.annotations({
             identifier: "project.list",
             summary: "List all projects",
-            description: "Get a list of projects that have been opened with Cody Pro.",
+            description: "Get a list of projects that have been opened with codyx.",
           }),
         ),
         HttpApiEndpoint.get("current", `${root}/current`, {
@@ -33,7 +33,7 @@ export const ProjectApi = HttpApi.make("project")
           OpenApi.annotations({
             identifier: "project.current",
             summary: "Get current project",
-            description: "Retrieve the currently active project that Cody Pro is working with.",
+            description: "Retrieve the currently active project that codyx is working with.",
           }),
         ),
         HttpApiEndpoint.post("initGit", `${root}/git/init`, {
@@ -80,7 +80,7 @@ export const ProjectApi = HttpApi.make("project")
   )
   .annotateMerge(
     OpenApi.annotations({
-      title: "Cody Pro experimental HttpApi",
+      title: "codyx experimental HttpApi",
       version: "0.0.1",
       description: "Experimental HttpApi surface for selected instance routes.",
     }),

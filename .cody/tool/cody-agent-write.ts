@@ -5,7 +5,7 @@ const BASE_URL = process.env.CODY_URL ?? "http://localhost:3001"
 
 export default tool({
   description:
-    "Write content to a file on a connected remote PC via the Cody Pro agent. Can overwrite existing files or create new ones."
+    "Write content to a file on a connected remote PC via the codyx agent. Can overwrite existing files or create new ones."
     ,
   args: {
     path: tool.schema.string().describe("Absolute path to the file on the remote PC"),

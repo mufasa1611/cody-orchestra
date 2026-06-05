@@ -5,7 +5,7 @@ const BASE_URL = process.env.CODY_URL ?? "http://localhost:3001"
 
 export default tool({
   description:
-    "List files and directories on a connected remote PC via the Cody Pro agent. Shows detailed file info including size and modification time.",
+    "List files and directories on a connected remote PC via the codyx agent. Shows detailed file info including size and modification time.",
   args: {
     path: tool.schema.string().optional().default("/").describe("Directory path to list on the remote PC"),
   },

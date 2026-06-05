@@ -2,7 +2,7 @@
     "$schema":  "https://json.schemastore.org/package.json",
     "name":  "cody-connect",
     "version":  "0.2.1",
-    "description":  "Cody Pro Remote PC Agent - connect your PC to cody.kingkung.men",
+    "description":  "codyx Remote PC Agent - connect your PC to cody.kingkung.men",
     "type":  "module",
     "license":  "MIT",
     "bin":  {

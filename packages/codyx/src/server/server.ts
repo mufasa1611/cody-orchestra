@@ -186,7 +186,7 @@ export async function openapiHono() {
       info: {
         title: "cody-x",
         version: "1.0.0",
-        description: process.env.CODY_PRO === "0" ? "cody api" : "Cody Pro API",
+        description: process.env.CODY_PRO === "0" ? "cody api" : "codyx API",
       },
       openapi: "3.1.1",
     },

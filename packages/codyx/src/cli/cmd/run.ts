@@ -185,7 +185,7 @@ export const RunCommand = effectCmd({
       .option("attach", {
         type: "string",
         describe:
-          "attach to a running cody-x server (e.g., http://localhost:4096)",
+          "attach to a running cody-x server (e.g., http://localhost:4097)",
       })
       .option("password", {
         alias: ["p"],

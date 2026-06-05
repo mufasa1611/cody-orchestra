@@ -1,10 +1,10 @@
-# Cody Pro VS Code Extension
+# codyx VS Code Extension
 
-A Visual Studio Code extension inherited from the upstream runtime and adapted for Cody Pro workflows.
+A Visual Studio Code extension inherited from the upstream runtime and adapted for codyx workflows.
 
 ## Prerequisites
 
-This extension expects the Cody Pro CLI to be available as `cody-pro`. From the repository root, run the Cody Pro installer first:
+This extension expects the codyx CLI to be available as `codyx`. From the repository root, run the codyx installer first:
 
 ```powershell
 .\install.bat
@@ -12,14 +12,14 @@ This extension expects the Cody Pro CLI to be available as `cody-pro`. From the 
 
 ## Features
 
-- **Quick Launch**: Use `Cmd+Esc` (Mac) or `Ctrl+Esc` (Windows/Linux) to open Cody Pro in a split terminal view, or focus an existing terminal session if one is already running.
-- **New Session**: Use `Cmd+Shift+Esc` (Mac) or `Ctrl+Shift+Esc` (Windows/Linux) to start a new Cody Pro terminal session, even if one is already open. You can also click the Cody Pro button in the UI.
-- **Context Awareness**: Automatically share your current selection or tab with Cody Pro.
+- **Quick Launch**: Use `Cmd+Esc` (Mac) or `Ctrl+Esc` (Windows/Linux) to open codyx in a split terminal view, or focus an existing terminal session if one is already running.
+- **New Session**: Use `Cmd+Shift+Esc` (Mac) or `Ctrl+Shift+Esc` (Windows/Linux) to start a new codyx terminal session, even if one is already open. You can also click the codyx button in the UI.
+- **Context Awareness**: Automatically share your current selection or tab with codyx.
 - **File Reference Shortcuts**: Use `Cmd+Option+K` (Mac) or `Alt+Ctrl+K` (Linux/Windows) to insert file references. For example, `@File#L37-42`.
 
 ## Support
 
-This is an early Cody Pro integration. If you encounter issues, use the Cody Pro repository issue tracker.
+This is an early codyx integration. If you encounter issues, use the codyx repository issue tracker.
 
 ## Development
 

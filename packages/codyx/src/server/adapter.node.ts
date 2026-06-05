@@ -27,7 +27,7 @@ async function listen(app: FetchApp, opts: Opts, inject?: (server: ServerType) =
       server.listen(port, opts.hostname)
     })
 
-  const server = opts.port === 0 ? await start(4096).catch(() => start(0)) : await start(opts.port).catch(() => start(0))
+  const server = opts.port === 0 ? await start(4097).catch(() => start(0)) : await start(opts.port).catch(() => start(0))
   const addr = server.address()
   if (!addr || typeof addr === "string") {
     throw new Error(`Failed to resolve server address for port ${opts.port}`)

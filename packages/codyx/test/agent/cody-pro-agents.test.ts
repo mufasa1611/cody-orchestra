@@ -6,7 +6,7 @@ import { Permission } from "../../src/permission"
 const root = path.resolve(import.meta.dir, "../../../..")
 const permissionObject = (value: unknown) => (typeof value === "object" && value ? (value as Record<string, string>) : {})
 
-test("Cody Pro project agents load from .cody/agent", async () => {
+test("codyx project agents load from .cody/agent", async () => {
   const agents = await ConfigAgent.load(path.join(root, ".cody"))
   const operatorBash = permissionObject(agents.operator?.permission?.bash)
 

@@ -16,7 +16,7 @@ printf '\e[?25l' 2>/dev/null || true
 
 draw_menu() {
   printf '\e[H\e[J'
-  printf '\n  Cody Pro Launcher\n\n'
+  printf '\n  codyx Launcher\n\n'
   for i in "${!options[@]}"; do
     if [ "$i" -eq "$selected" ]; then
       printf '  > %s\n' "${options[$i]}"

@@ -13,7 +13,7 @@ function listen(app: FetchApp, opts: Opts, websocket?: ReturnType<typeof createB
       return
     }
   }
-  const server = opts.port === 0 ? (start(4096) ?? start(0)) : (start(opts.port) ?? start(0))
+  const server = opts.port === 0 ? (start(4097) ?? start(0)) : (start(opts.port) ?? start(0))
   if (!server) {
     throw new Error(`Failed to start server on port ${opts.port}`)
   }

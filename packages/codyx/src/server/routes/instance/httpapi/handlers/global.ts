@@ -99,7 +99,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const upgrade = Effect.fn("GlobalHttpApi.upgrade")(function* (ctx: { payload: typeof GlobalUpgradeInput.Type }) {
-      // For Cody Pro, use git-based update
+      // For codyx, use git-based update
       if (process.env.CODY_PRO) {
         const target = ctx.payload.target || "latest"
 

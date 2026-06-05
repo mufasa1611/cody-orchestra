@@ -51,7 +51,7 @@ export const GlobalApi = HttpApi.make("global").add(
         OpenApi.annotations({
           identifier: "global.health",
           summary: "Get health",
-          description: "Get health information about the Cody Pro server.",
+          description: "Get health information about the codyx server.",
         }),
       ),
       HttpApiEndpoint.get("event", GlobalPaths.event, {
@@ -60,7 +60,7 @@ export const GlobalApi = HttpApi.make("global").add(
         OpenApi.annotations({
           identifier: "global.event",
           summary: "Get global events",
-          description: "Subscribe to global events from the Cody Pro system using server-sent events.",
+          description: "Subscribe to global events from the codyx system using server-sent events.",
         }),
       ),
       HttpApiEndpoint.get("configGet", GlobalPaths.config, {
@@ -69,7 +69,7 @@ export const GlobalApi = HttpApi.make("global").add(
         OpenApi.annotations({
           identifier: "global.config.get",
           summary: "Get global configuration",
-          description: "Retrieve the current global Cody Pro configuration settings and preferences.",
+          description: "Retrieve the current global codyx configuration settings and preferences.",
         }),
       ),
       HttpApiEndpoint.patch("configUpdate", GlobalPaths.config, {
@@ -80,7 +80,7 @@ export const GlobalApi = HttpApi.make("global").add(
         OpenApi.annotations({
           identifier: "global.config.update",
           summary: "Update global configuration",
-          description: "Update global Cody Pro configuration settings and preferences.",
+          description: "Update global codyx configuration settings and preferences.",
         }),
       ),
       HttpApiEndpoint.post("dispose", GlobalPaths.dispose, {
@@ -89,7 +89,7 @@ export const GlobalApi = HttpApi.make("global").add(
         OpenApi.annotations({
           identifier: "global.dispose",
           summary: "Dispose instance",
-          description: "Clean up and dispose all Cody Pro instances, releasing all resources.",
+          description: "Clean up and dispose all codyx instances, releasing all resources.",
         }),
       ),
       HttpApiEndpoint.post("upgrade", GlobalPaths.upgrade, {
@@ -99,8 +99,8 @@ export const GlobalApi = HttpApi.make("global").add(
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "global.upgrade",
-          summary: "Upgrade Cody Pro",
-          description: "Upgrade Cody Pro to the specified version or latest if not specified.",
+          summary: "Upgrade codyx",
+          description: "Upgrade codyx to the specified version or latest if not specified.",
         }),
       ),
       HttpApiEndpoint.post("gitCheck", GlobalPaths.gitCheck, {

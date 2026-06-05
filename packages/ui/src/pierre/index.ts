@@ -161,7 +161,7 @@ ${lineCommentStyles}
 
 export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) {
   return {
-    theme: "Cody Pro",
+    theme: "codyx",
     themeType: "system",
     disableLineNumbers: false,
     overflow: "wrap",

@@ -191,7 +191,7 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
       "/instance/dispose",
       describeRoute({
         summary: "Dispose instance",
-        description: "Clean up and dispose the current Cody Pro instance, releasing all resources.",
+        description: "Clean up and dispose the current codyx instance, releasing all resources.",
         operationId: "instance.dispose",
         responses: {
           200: {
@@ -213,7 +213,7 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
       "/path",
       describeRoute({
         summary: "Get paths",
-        description: "Retrieve the current working directory and related path information for the Cody Pro instance.",
+        description: "Retrieve the current working directory and related path information for the codyx instance.",
         operationId: "path.get",
         responses: {
           200: {
@@ -399,7 +399,7 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
       "/command",
       describeRoute({
         summary: "List commands",
-        description: "Get a list of all available commands in the Cody Pro system.",
+        description: "Get a list of all available commands in the codyx system.",
         operationId: "command.list",
         responses: {
           200: {
@@ -422,7 +422,7 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
       "/agent",
       describeRoute({
         summary: "List agents",
-        description: "Get a list of all available AI agents in the Cody Pro system.",
+        description: "Get a list of all available AI agents in the codyx system.",
         operationId: "app.agents",
         responses: {
           200: {
@@ -445,7 +445,7 @@ export const InstanceRoutes = (upgrade: UpgradeWebSocket, opts?: CorsOptions): H
       "/skill",
       describeRoute({
         summary: "List skills",
-        description: "Get a list of all available skills in the Cody Pro system.",
+        description: "Get a list of all available skills in the codyx system.",
         operationId: "app.skills",
         responses: {
           200: {

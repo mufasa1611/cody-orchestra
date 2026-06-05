@@ -857,7 +857,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     await DialogAlert.show(
       dialog,
       "Update Complete",
-      `Successfully updated to Cody Pro v${result.data.version}. Please restart the application.`,
+      `Successfully updated to codyx v${result.data.version}. Please restart the application.`,
     )
 
     void exit()

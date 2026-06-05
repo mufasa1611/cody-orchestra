@@ -260,7 +260,7 @@ describe("HttpApi UI fallback", () => {
 
   test("resolves Windows symlink pointer files for embedded public favicon assets", async () => {
     Flag.CODY_EXPERIMENTAL_HTTPAPI = true
-    const manifest = new TextEncoder().encode(`{"name":"Cody Pro"}`)
+    const manifest = new TextEncoder().encode(`{"name":"codyx"}`)
     const distFile = resolve("packages/app/dist/site.webmanifest")
     const targetFile = resolve(dirname(distFile), "../../ui/src/assets/favicon/site.webmanifest")
     const reads: string[] = []
@@ -288,7 +288,7 @@ describe("HttpApi UI fallback", () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get("content-type")).toContain("application/manifest+json")
-    expect(await response.text()).toBe(`{"name":"Cody Pro"}`)
+    expect(await response.text()).toBe(`{"name":"codyx"}`)
     expect(reads).toEqual([distFile, targetFile])
   })
 

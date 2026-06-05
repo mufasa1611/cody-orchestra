@@ -24,7 +24,7 @@ export function FormatError(input: unknown) {
 
   // MCPFailed: { name: string }
   if (NamedError.hasName(input, "MCPFailed")) {
-    return `MCP server "${(input as ErrorLike).data?.name}" failed. Note, Cody Pro does not support MCP authentication yet.`
+    return `MCP server "${(input as ErrorLike).data?.name}" failed. Note, codyx does not support MCP authentication yet.`
   }
 
   // AccountServiceError, AccountTransportError: TaggedErrorClass

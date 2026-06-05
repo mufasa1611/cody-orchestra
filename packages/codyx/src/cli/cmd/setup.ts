@@ -62,19 +62,19 @@ async function isAutoStartEnabled(): Promise<boolean> {
   if (plat === "win32") {
     try {
       const out = execSync(
-        `reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "Cody Pro" 2>nul`,
+        `reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "codyx" 2>nul`,
         { encoding: "utf8", timeout: 5000 },
       )
-      return out.includes("Cody Pro")
+      return out.includes("codyx")
     } catch {
       return false
     }
   }
   if (plat === "darwin") {
-    const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.cody.plist")
+    const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.codyx.plist")
     return existsSync(plist)
   }
-  const desktop = path.join(os.homedir(), ".config", "autostart", "cody-pro.desktop")
+  const desktop = path.join(os.homedir(), ".config", "autostart", "codyx.desktop")
   return existsSync(desktop)
 }
 
@@ -87,7 +87,7 @@ async function enableAutoStart(): Promise<boolean> {
     if (plat === "win32") {
       const escaped = `${cliBin} serve`.replace(/"/g, '\\"')
       execSync(
-        `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "Cody Pro" /t REG_SZ /d "${escaped}" /f`,
+        `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "codyx" /t REG_SZ /d "${escaped}" /f`,
         { encoding: "utf8", timeout: 10000 },
       )
       return true
@@ -95,7 +95,7 @@ async function enableAutoStart(): Promise<boolean> {
     if (plat === "darwin") {
       const plistDir = path.join(os.homedir(), "Library", "LaunchAgents")
       await fs.mkdir(plistDir, { recursive: true })
-      const plist = path.join(plistDir, "com.cody.plist")
+      const plist = path.join(plistDir, "com.codyx.plist")
       await fs.writeFile(
         plist,
         `<?xml version="1.0" encoding="UTF-8"?>
@@ -103,7 +103,7 @@ async function enableAutoStart(): Promise<boolean> {
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.cody</string>
+  <string>com.codyx</string>
   <key>ProgramArguments</key>
   <array>
     <string>${cliBin}</string>
@@ -122,12 +122,12 @@ async function enableAutoStart(): Promise<boolean> {
     }
     const autoDir = path.join(os.homedir(), ".config", "autostart")
     await fs.mkdir(autoDir, { recursive: true })
-    const autostart = path.join(autoDir, "cody-pro.desktop")
+    const autostart = path.join(autoDir, "codyx.desktop")
     await fs.writeFile(
       autostart,
       `[Desktop Entry]
 Type=Application
-Name=Cody Pro
+Name=codyx
 Comment=AI coding assistant server
 Exec=${cliBin} serve
 X-GNOME-Autostart-enabled=true\n`,
@@ -136,12 +136,12 @@ X-GNOME-Autostart-enabled=true\n`,
     // Also create application menu entry so it appears in the launcher
     const appsDir = path.join(os.homedir(), ".local", "share", "applications")
     await fs.mkdir(appsDir, { recursive: true })
-    const menuEntry = path.join(appsDir, "cody-pro.desktop")
+    const menuEntry = path.join(appsDir, "codyx.desktop")
     await fs.writeFile(
       menuEntry,
       `[Desktop Entry]
 Type=Application
-Name=Cody Pro
+Name=codyx
 Comment=AI coding assistant server
 Exec=${cliBin} serve
 Terminal=false
@@ -159,18 +159,18 @@ async function disableAutoStart(): Promise<boolean> {
   try {
     if (plat === "win32") {
       execSync(
-        `reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "Cody Pro" /f 2>nul`,
+        `reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "codyx" /f 2>nul`,
         { encoding: "utf8", timeout: 10000 },
       )
       return true
     }
     if (plat === "darwin") {
-      const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.cody.plist")
+      const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.codyx.plist")
       execSync(`launchctl unload ${plist} 2>/dev/null || true`, { encoding: "utf8", timeout: 10000 })
       await fs.rm(plist, { force: true })
       return true
     }
-    const desktop = path.join(os.homedir(), ".config", "autostart", "cody-pro.desktop")
+    const desktop = path.join(os.homedir(), ".config", "autostart", "codyx.desktop")
     await fs.rm(desktop, { force: true })
     return true
   } catch {
@@ -184,7 +184,7 @@ async function generateDefaultConfig(): Promise<boolean> {
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(
       path.join(dir, "cody.jsonc"),
-      `// Cody Pro configuration
+      `// codyx configuration
 {
   "\$schema": "https://opencode.ai/schema/cody.jsonc",
   "models": {
@@ -267,7 +267,7 @@ export const SetupCommand = {
     // --- Auto-start configuration ---
     if (!autoStart) {
       const wantAuto = await prompts.select({
-        message: "Start Cody Pro automatically when you log in?",
+        message: "Start codyx automatically when you log in?",
         options: [
           { label: "Yes", value: true, hint: "recommended for background server" },
           { label: "No", value: false },

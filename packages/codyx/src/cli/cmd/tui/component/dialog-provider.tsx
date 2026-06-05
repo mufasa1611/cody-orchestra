@@ -358,7 +358,7 @@ function ApiMethod(props: ApiMethodProps) {
           cody: (
             <box gap={1}>
               <text fg={theme.textMuted}>
-                Cody Pro gives you access to curated coding models through a single API key.
+                codyx gives you access to curated coding models through a single API key.
               </text>
               <text fg={theme.text}>
                 Go to the provider portal to get a key
@@ -368,11 +368,11 @@ function ApiMethod(props: ApiMethodProps) {
           "cody-go": (
             <box gap={1}>
               <text fg={theme.textMuted}>
-                Cody Pro Go is a $10 per month subscription that provides reliable access to popular open coding models
+                codyx Go is a $10 per month subscription that provides reliable access to popular open coding models
                 with generous usage limits.
               </text>
               <text fg={theme.text}>
-                Go to the provider portal and enable Cody Pro Go
+                Go to the provider portal and enable codyx Go
               </text>
             </box>
           ),

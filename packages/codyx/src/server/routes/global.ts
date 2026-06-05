@@ -77,7 +77,7 @@ export const GlobalRoutes = lazy(() =>
       "/health",
       describeRoute({
         summary: "Get health",
-        description: "Get health information about the Cody Pro server.",
+        description: "Get health information about the codyx server.",
         operationId: "global.health",
         responses: {
           200: {
@@ -98,7 +98,7 @@ export const GlobalRoutes = lazy(() =>
       "/event",
       describeRoute({
         summary: "Get global events",
-        description: "Subscribe to global events from the Cody Pro system using server-sent events.",
+        description: "Subscribe to global events from the codyx system using server-sent events.",
         operationId: "global.event",
         responses: {
           200: {
@@ -141,7 +141,7 @@ export const GlobalRoutes = lazy(() =>
       "/config",
       describeRoute({
         summary: "Get global configuration",
-        description: "Retrieve the current global Cody Pro configuration settings and preferences.",
+        description: "Retrieve the current global codyx configuration settings and preferences.",
         operationId: "global.config.get",
         responses: {
           200: {
@@ -162,7 +162,7 @@ export const GlobalRoutes = lazy(() =>
       "/config",
       describeRoute({
         summary: "Update global configuration",
-        description: "Update global Cody Pro configuration settings and preferences.",
+        description: "Update global codyx configuration settings and preferences.",
         operationId: "global.config.update",
         responses: {
           200: {
@@ -192,7 +192,7 @@ export const GlobalRoutes = lazy(() =>
       "/dispose",
       describeRoute({
         summary: "Dispose instance",
-        description: "Clean up and dispose all Cody Pro instances, releasing all resources.",
+        description: "Clean up and dispose all codyx instances, releasing all resources.",
         operationId: "global.dispose",
         responses: {
           200: {
@@ -234,8 +234,8 @@ export const GlobalRoutes = lazy(() =>
     .post(
       "/upgrade",
       describeRoute({
-        summary: "Upgrade Cody Pro",
-        description: "Upgrade Cody Pro to the specified version or latest if not specified.",
+        summary: "Upgrade codyx",
+        description: "Upgrade codyx to the specified version or latest if not specified.",
         operationId: "global.upgrade",
         responses: {
           200: {

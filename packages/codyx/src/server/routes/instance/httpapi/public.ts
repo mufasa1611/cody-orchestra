@@ -89,7 +89,7 @@ const PathParameterSchemas = {
 
 const LegacyComponentDescriptions = {
   LogLevel: "Log level",
-  ServerConfig: "Server configuration for Cody Pro serve and web commands",
+  ServerConfig: "Server configuration for codyx serve and web commands",
   LayoutConfig: "@deprecated Always uses stretch layout.",
 } satisfies Record<string, string>
 
@@ -539,7 +539,7 @@ export const PublicApi = CodyHttpApi.annotateMerge(
   OpenApi.annotations({
     title: "cody-x",
     version: "1.0.0",
-    description: process.env.CODY_PRO === "0" ? "cody api" : "Cody Pro API",
+    description: process.env.CODY_PRO === "0" ? "cody api" : "codyx API",
     transform: matchLegacyOpenApi,
   }),
 )

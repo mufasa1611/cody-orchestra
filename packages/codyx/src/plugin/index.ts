@@ -123,7 +123,7 @@ export const layer = Layer.effect(
         const { Server } = yield* Effect.promise(() => import("../server/server"))
 
         const client = createCodyClient({
-          baseUrl: "http://localhost:4096",
+          baseUrl: "http://localhost:4097",
           directory: ctx.directory,
           headers: ServerAuth.headers(),
           fetch: async (...args) => Server.Default().app.fetch(...args),
@@ -140,7 +140,7 @@ export const layer = Layer.effect(
             },
           },
           get serverUrl(): URL {
-            return Server.url ?? new URL("http://localhost:4096")
+            return Server.url ?? new URL("http://localhost:4097")
           },
           // @ts-expect-error
           $: typeof Bun === "undefined" ? undefined : Bun.$,

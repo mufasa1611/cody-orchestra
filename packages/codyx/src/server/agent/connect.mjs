@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Cody Pro Remote Agent
+// codyx Remote Agent
 // Usage: node connect.mjs <PAIRING_CODE>
 // Connects to cody.kingkung.men WebSocket hub and serves local filesystem
 

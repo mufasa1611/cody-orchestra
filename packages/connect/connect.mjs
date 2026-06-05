@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-// Cody Pro Remote Agent
+// codyx Remote Agent
 // Usage: bunx cody-connect <PAIRING_CODE>
 // Connects to cody.kingkung.men WebSocket hub and serves local filesystem
 

@@ -40,7 +40,7 @@ GGUF_COUNT=0
 
 show_scan() {
   if [ "${CODY_MODEL_DISCOVERY_QUIET:-0}" != "1" ]; then
-    echo "[cody-pro:model-scan] $1"
+    echo "[codyx:model-scan] $1"
   fi
 }
 

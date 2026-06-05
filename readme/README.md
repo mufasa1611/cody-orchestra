@@ -1,10 +1,10 @@
-﻿# Cody Pro Readme Archive
+﻿# codyx Readme Archive
 
-The public Cody Pro README lives at the repository root:
+The public codyx README lives at the repository root:
 
 - [../README.md](../README.md)
 
-This folder keeps non-root README material so the repository root stays focused on Cody Pro.
+This folder keeps non-root README material so the repository root stays focused on codyx.
 
 The `upstream/` directory containing legacy translated stubs from the upstream cody
 repository has been removed. All 21 files were identical English archive notices —

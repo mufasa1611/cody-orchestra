@@ -59,7 +59,7 @@ export const InstanceApi = HttpApi.make("instance")
           OpenApi.annotations({
             identifier: "instance.dispose",
             summary: "Dispose instance",
-            description: "Clean up and dispose the current Cody Pro instance, releasing all resources.",
+            description: "Clean up and dispose the current codyx instance, releasing all resources.",
           }),
         ),
         HttpApiEndpoint.get("path", InstancePaths.path, {
@@ -69,7 +69,7 @@ export const InstanceApi = HttpApi.make("instance")
             identifier: "path.get",
             summary: "Get paths",
             description:
-              "Retrieve the current working directory and related path information for the Cody Pro instance.",
+              "Retrieve the current working directory and related path information for the codyx instance.",
           }),
         ),
         HttpApiEndpoint.get("vcs", InstancePaths.vcs, {
@@ -130,7 +130,7 @@ export const InstanceApi = HttpApi.make("instance")
           OpenApi.annotations({
             identifier: "command.list",
             summary: "List commands",
-            description: "Get a list of all available commands in the Cody Pro system.",
+            description: "Get a list of all available commands in the codyx system.",
           }),
         ),
         HttpApiEndpoint.get("agent", InstancePaths.agent, {
@@ -139,7 +139,7 @@ export const InstanceApi = HttpApi.make("instance")
           OpenApi.annotations({
             identifier: "app.agents",
             summary: "List agents",
-            description: "Get a list of all available AI agents in the Cody Pro system.",
+            description: "Get a list of all available AI agents in the codyx system.",
           }),
         ),
         HttpApiEndpoint.get("skill", InstancePaths.skill, {
@@ -148,7 +148,7 @@ export const InstanceApi = HttpApi.make("instance")
           OpenApi.annotations({
             identifier: "app.skills",
             summary: "List skills",
-            description: "Get a list of all available skills in the Cody Pro system.",
+            description: "Get a list of all available skills in the codyx system.",
           }),
         ),
         HttpApiEndpoint.get("lsp", InstancePaths.lsp, {
@@ -182,7 +182,7 @@ export const InstanceApi = HttpApi.make("instance")
   )
   .annotateMerge(
     OpenApi.annotations({
-      title: "Cody Pro experimental HttpApi",
+      title: "codyx experimental HttpApi",
       version: "0.0.1",
       description: "Experimental HttpApi surface for selected instance routes.",
     }),
