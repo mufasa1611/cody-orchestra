@@ -5,7 +5,7 @@
 .DESCRIPTION
     Detects prerequisites (Git, Bun, cloudflared), installs what's missing,
     clones/updates the repo, installs dependencies, builds the web UI,
-    configures the Cloudflare proxy tunnel, and installs the global cody-x command.
+    configures the Cloudflare proxy tunnel, and installs the global codyx command.
 .PARAMETER Yes
     Auto-confirm all prompts (non-interactive mode).
 .PARAMETER Branch
@@ -40,9 +40,9 @@ $RepoUrl = "https://github.com/mufasa1611/cody-x.git"
 $DefaultParent = Join-Path $env:LOCALAPPDATA "cody-x"
 $Root = if ($InstallRoot) { $InstallRoot } else { $DefaultParent }
 $GlobalBin = Join-Path $env:APPDATA "npm"
-$GlobalCmd = Join-Path $GlobalBin "cody-x.cmd"
+$GlobalCmd = Join-Path $GlobalBin "codyx.cmd"
 $ScriptDir = Split-Path -Parent $PSScriptRoot
-$IsStandalone = -not (Test-Path (Join-Path $ScriptDir "..\cody-x.cmd"))
+$IsStandalone = -not (Test-Path (Join-Path $ScriptDir "codyx.cmd"))
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
@@ -169,7 +169,7 @@ Write-Step "Setting up cody-x checkout..."
 
 if ($IsStandalone) {
   if (Test-Path $Root) {
-    if (Test-Path (Join-Path $Root "cody-x.cmd")) {
+    if (Test-Path (Join-Path $Root "codyx.cmd")) {
       Write-Ok "Existing checkout found at $Root"
     } else {
       Write-Err "Directory $Root exists but is not a cody-x checkout."
@@ -289,7 +289,7 @@ $null = New-Item -ItemType Directory -Force -Path $generatedDir
 
 # ── Phase 7: Install global command ───────────────────────────────────
 
-Write-Step "Installing global cody-x command..."
+Write-Step "Installing global codyx command..."
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "script\install-cody-x-global.ps1")
 if ($LASTEXITCODE -ne 0) {
   Write-Err "Global command install failed."
@@ -299,7 +299,7 @@ if ($LASTEXITCODE -ne 0) {
 # ── Phase 8: Health check ─────────────────────────────────────────────
 
 Write-Step "Running health check..."
-Push-Location (Join-Path $Root "packages\cody")
+Push-Location (Join-Path $Root "packages\codyx")
 try {
   $version = & bun run --conditions=browser src\index.ts --version 2>$null
   if ($version) { Write-Ok "cody-x version: $version" }
@@ -331,14 +331,14 @@ Write-Host "  ║   cody-x installed successfully!      ║"
 Write-Host "  ╚═══════════════════════════════════════╝"
 Write-Host ""
 Write-Host "  Installed to:  $Root"
-Write-Host "  Global command: cody-x"
+Write-Host "  Global command: codyx"
 if (-not $NoProxy) { Write-Host "  Proxy:         enabled (Cloudflare tunnel)" }
 Write-Host ""
 Write-Host "  Next steps:"
-Write-Host "    cody-x           Launch interactive menu (TUI)"
-Write-Host "    cody-x web       Start web UI in browser"
-Write-Host "    cody-x --help    See all commands"
-Write-Host "    cody-x doctor    Run diagnostics"
+Write-Host "    codyx           Launch interactive menu (TUI)"
+Write-Host "    codyx web       Start web UI in browser"
+Write-Host "    codyx --help    See all commands"
+Write-Host "    codyx doctor    Run diagnostics"
 Write-Host ""
 Write-Host "  Open a NEW terminal window for 'cody-x' to be on PATH."
 Write-Host ""

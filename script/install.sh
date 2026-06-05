@@ -52,13 +52,86 @@ detect_pkg_manager() {
 
 pkg_install() {
   local pkg="$1"
+  local runner=()
+  if ! is_root; then
+    if command_exists sudo; then
+      runner=(sudo)
+    else
+      return 1
+    fi
+  fi
   case "$PKG_MGR" in
-    apt-get) apt-get install -y "$pkg" ;;
-    dnf|yum) $PKG_MGR install -y "$pkg" ;;
-    zypper) zypper install -y "$pkg" ;;
-    pacman) pacman -S --noconfirm "$pkg" ;;
+    apt-get) "${runner[@]}" apt-get install -y "$pkg" ;;
+    dnf|yum) "${runner[@]}" "$PKG_MGR" install -y "$pkg" ;;
+    zypper) "${runner[@]}" zypper install -y "$pkg" ;;
+    pacman) "${runner[@]}" pacman -S --noconfirm "$pkg" ;;
     *) return 1 ;;
   esac
+}
+
+pkg_update() {
+  local runner=()
+  if ! is_root; then
+    if command_exists sudo; then
+      runner=(sudo)
+    else
+      return 1
+    fi
+  fi
+  case "$PKG_MGR" in
+    apt-get) "${runner[@]}" apt-get update -y ;;
+    dnf) "${runner[@]}" dnf check-update || true ;;
+    yum) true ;;
+    zypper) "${runner[@]}" zypper refresh ;;
+    pacman) "${runner[@]}" pacman -Sy --noconfirm ;;
+    *) return 1 ;;
+  esac
+}
+
+ensure_default_config() {
+  local generated_dir="$ROOT/.cody/generated"
+  local default_model_file="$generated_dir/cody.json"
+  mkdir -p "$generated_dir"
+  if [ -f "$default_model_file" ]; then
+    if grep -q '"model": "cody/deepseek-v4-flash-free"' "$default_model_file" && grep -q '"DeepSeek V4 Flash Free"' "$default_model_file"; then
+      cat > "$default_model_file" << 'CONFIGEOF'
+{
+  "$schema": "https://cody.dev/config.json",
+  "model": "opencode/big-pickle"
+}
+CONFIGEOF
+      ok "Migrated default model to opencode/big-pickle (Sandra Pickle)"
+      return 0
+    fi
+    ok "Default model config already exists."
+    return 0
+  fi
+  cat > "$default_model_file" << 'CONFIGEOF'
+{
+  "$schema": "https://cody.dev/config.json",
+  "model": "opencode/big-pickle"
+}
+CONFIGEOF
+  ok "Default model configured: opencode/big-pickle (Sandra Pickle)"
+}
+
+ensure_jq_for_scan() {
+  if command_exists jq; then
+    return 0
+  fi
+  warn "jq not found; local model discovery needs jq."
+  if [ "$(uname -s)" = "Darwin" ] && command_exists brew; then
+    step "Installing jq with Homebrew..."
+    brew install jq || return 1
+    return 0
+  fi
+  if [ -n "$PKG_MGR" ]; then
+    pkg_update 2>/dev/null || true
+    step "Installing jq..."
+    pkg_install jq || return 1
+    return 0
+  fi
+  return 1
 }
 
 detect_environment() {
@@ -149,8 +222,9 @@ fi
 step "Checking prerequisites..."
 
 if ! command_exists git; then
-  if [ -n "$PKG_MGR" ] && is_root; then
+  if [ -n "$PKG_MGR" ] && (is_root || command_exists sudo); then
     step "Git not found. Installing..."
+    pkg_update 2>/dev/null || true
     pkg_install git || { err "Failed to install git"; exit 1; }
     ok "Git installed."
   else
@@ -166,12 +240,8 @@ ok "Git found."
 if ! command_exists bun; then
   step "Bun not found. Installing..."
   # bun install script needs unzip
-  if command_exists apt-get && is_root; then
-    apt-get install -y unzip 2>/dev/null || true
-  elif command_exists dnf && is_root; then
-    dnf install -y unzip 2>/dev/null || true
-  elif command_exists yum && is_root; then
-    yum install -y unzip 2>/dev/null || true
+  if [ -n "$PKG_MGR" ] && (is_root || command_exists sudo); then
+    pkg_install unzip 2>/dev/null || true
   fi
   if command_exists curl; then
     curl -fsSL https://bun.sh/install | bash
@@ -481,7 +551,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$ROOT
-ExecStart=$(command -v bun) run --cwd $ROOT/packages/cody --conditions=browser src/index.ts serve --port $CODY_PORT --hostname $CODY_HOST
+ExecStart=$(command -v bun) run --cwd $ROOT/packages/codyx --conditions=browser src/index.ts serve --port $CODY_PORT --hostname $CODY_HOST
 Restart=always
 RestartSec=5
 $env_file_arg
@@ -581,6 +651,13 @@ fi
 # ── Phase 8: Model discovery ───────────────────────────────────────────
 
 if [ "$NO_SCAN" != "1" ] && [ -f "$ROOT/script/discover-local-models.sh" ]; then
+  if ! ensure_jq_for_scan; then
+    warn "Skipping local model discovery because jq could not be installed."
+    NO_SCAN=1
+  fi
+fi
+
+if [ "$NO_SCAN" != "1" ] && [ -f "$ROOT/script/discover-local-models.sh" ]; then
   if [ "$YES" = "1" ]; then
     step "Running model discovery..."
     bash "$ROOT/script/discover-local-models.sh" --root "$ROOT" --max-seconds 30
@@ -595,10 +672,12 @@ if [ "$NO_SCAN" != "1" ] && [ -f "$ROOT/script/discover-local-models.sh" ]; then
   fi
 fi
 
+ensure_default_config
+
 # ── Phase 9: Health check ──────────────────────────────────────────────
 
 step "Running health check..."
-cd "$ROOT/packages/cody"
+cd "$ROOT/packages/codyx"
 version=$(bun run --conditions=browser src/index.ts --version 2>/dev/null || true)
 if [ -n "$version" ]; then
   ok "cody-x version: $version"
@@ -612,10 +691,45 @@ cd "$ROOT"
 step "Installing global command..."
 GLOBAL_BIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/cody-x/bin"
 mkdir -p "$GLOBAL_BIN_DIR"
-ln -sf "$ROOT/cody-x.cmd" "$GLOBAL_BIN_DIR/cody-x" 2>/dev/null || true
+write_unix_launcher() {
+  local launcher="$1"
+  cat > "$launcher" << LAUNCHEREOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$ROOT"
+BUN="\$(command -v bun || true)"
+if [ -z "\$BUN" ] && [ -x "\$HOME/.bun/bin/bun" ]; then
+  BUN="\$HOME/.bun/bin/bun"
+fi
+if [ -z "\$BUN" ]; then
+  echo "Bun was not found. Re-run the cody-x installer or install Bun from https://bun.sh." >&2
+  exit 1
+fi
+
+export XDG_DATA_HOME="\${XDG_DATA_HOME:-\$HOME/.local/share/cody-x}"
+export XDG_CACHE_HOME="\${XDG_CACHE_HOME:-\$HOME/.cache/cody-x}"
+export XDG_CONFIG_HOME="\${XDG_CONFIG_HOME:-\$HOME/.config/cody-x}"
+export XDG_STATE_HOME="\${XDG_STATE_HOME:-\$HOME/.local/state/cody-x}"
+export CODY_DB="\${CODY_DB:-cody-x.db}"
+export CODY_CONFIG_DIR="\${CODY_CONFIG_DIR:-\$ROOT/.cody/generated}"
+
+if [ -f "\$ROOT/.env.proxy" ]; then
+  set -a
+  . "\$ROOT/.env.proxy"
+  set +a
+fi
+
+exec "\$BUN" run --cwd "\$ROOT/packages/codyx" --conditions=browser src/index.ts "\$@"
+LAUNCHEREOF
+  chmod +x "$launcher"
+}
+
+write_unix_launcher "$GLOBAL_BIN_DIR/codyx"
+ok "Global launcher written to $GLOBAL_BIN_DIR/codyx"
 
 # Check if already on PATH
-if ! command_exists cody-x; then
+if ! command_exists codyx; then
   shell_config=""
   case "${SHELL:-}" in
     *zsh*) shell_config="${ZDOTDIR:-$HOME}/.zshrc" ;;
@@ -624,9 +738,9 @@ if ! command_exists cody-x; then
   esac
   if [ -n "$shell_config" ] && [ -f "$shell_config" ]; then
     echo "" >> "$shell_config"
-    echo "# cody-x" >> "$shell_config"
+    echo "# codyx" >> "$shell_config"
     echo "export PATH=\"\$PATH:$GLOBAL_BIN_DIR\"" >> "$shell_config"
-    ok "Added cody-x to PATH in $shell_config"
+    ok "Added codyx to PATH in $shell_config"
   fi
   export PATH="$PATH:$GLOBAL_BIN_DIR"
 fi
@@ -688,7 +802,7 @@ echo "  ║   cody-x installed successfully!      ║"
 echo "  ╚═══════════════════════════════════════╝"
 echo ""
 echo "  Installed to:  $ROOT"
-echo "  Global command: cody-x (after opening a new terminal)"
+echo "  Global command: codyx (after opening a new terminal)"
 echo ""
 
 if [ "$IS_SERVER" = "1" ]; then
@@ -702,9 +816,9 @@ if [ "$IS_SERVER" = "1" ]; then
   fi
 else
   echo "  Next steps:"
-  echo "    cody-x           Launch interactive menu (TUI)"
-  echo "    cody-x web       Start web UI in browser"
+  echo "    codyx           Launch interactive menu (TUI)"
+  echo "    codyx web       Start web UI in browser"
 fi
-echo "    cody-x --help    See all commands"
-echo "    cody-x doctor    Run diagnostics"
+echo "    codyx --help    See all commands"
+echo "    codyx doctor    Run diagnostics"
 echo ""

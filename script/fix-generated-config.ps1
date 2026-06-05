@@ -24,10 +24,18 @@ if (Test-Path $legacyCfg) {
         $fixed = @'
 {
   "$schema": "https://cody.dev/config.json",
-  "model": "cody/deepseek-v4-flash-free"
+  "model": "opencode/big-pickle"
+}
+'@
+        [System.IO.File]::WriteAllText($legacyCfg, $fixed.TrimStart(), $utf8NoBom)
+    } elseif ($text.Contains('"model": "cody/deepseek-v4-flash-free"') -and $text.Contains('"DeepSeek V4 Flash Free"')) {
+        Write-Host "[cody-x] Migrated installer default model to Sandra Pickle"
+        $fixed = @'
+{
+  "$schema": "https://cody.dev/config.json",
+  "model": "opencode/big-pickle"
 }
 '@
         [System.IO.File]::WriteAllText($legacyCfg, $fixed.TrimStart(), $utf8NoBom)
     }
 }
-

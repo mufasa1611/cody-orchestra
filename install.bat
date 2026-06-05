@@ -11,7 +11,7 @@ set "INSTALLER_URL=https://raw.githubusercontent.com/mufasa1611/cody-x/%CODY_BRA
 set "DEFAULT_PARENT=%LOCALAPPDATA%\cody-x"
 set "DEFAULT_ROOT=%DEFAULT_PARENT%"
 set "GLOBAL_BIN=%APPDATA%\npm"
-set "GLOBAL_CMD=%GLOBAL_BIN%\cody-x.cmd"
+set "GLOBAL_CMD=%GLOBAL_BIN%\codyx.cmd"
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
@@ -68,7 +68,7 @@ call :EnsureCommand git "Git.Git" "Git"
 if errorlevel 1 exit /b 1
 
 set "HAS_CHECKOUT=0"
-if exist "%ROOT%\package.json" if exist "%ROOT%\cody-x.cmd" set "HAS_CHECKOUT=1"
+if exist "%ROOT%\package.json" if exist "%ROOT%\codyx.cmd" set "HAS_CHECKOUT=1"
 
 if "%HAS_CHECKOUT%"=="1" (
   echo [ok] cody-x checkout found.
@@ -228,7 +228,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\script\ensure-defaul
 
 echo.
 echo.
-echo Installing global cody-x command...
+echo Installing global codyx command...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\script\install-cody-x-global.ps1"
 if errorlevel 1 (
   set "CODY_FATAL_EXIT=!ERRORLEVEL!"
@@ -237,9 +237,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo Verifying cody-x command...
+echo Verifying codyx command...
 if not exist "%GLOBAL_CMD%" (
-  echo [error] Global cody-x command shim was not created.
+  echo [error] Global codyx command shim was not created.
   echo Expected command shim:
   echo   "%GLOBAL_CMD%"
   popd
@@ -247,7 +247,7 @@ if not exist "%GLOBAL_CMD%" (
 )
 
 echo Verifying cody-x can start...
-pushd "%ROOT%\packages\cody"
+pushd "%ROOT%\packages\codyx"
 for /f "delims=" %%V in ('bun run --conditions=browser src\index.ts --version 2^>nul') do set "CODY_VERSION=%%V"
 popd
 if not defined CODY_VERSION (
@@ -276,13 +276,13 @@ echo   cody-x installed successfully!
 echo ========================================
 echo.
 echo   Installed to: %ROOT%
-echo   Global command: cody-x
+echo   Global command: codyx
 if exist "%ROOT%\.env.proxy" echo   Proxy: enabled (Cloudflare tunnel)
 echo.
 echo   Next steps:
-echo     cody-x           Launch interactive menu (TUI)
-echo     cody-x web       Start web UI in browser
-echo     cody-x --help    See all commands
+echo     codyx           Launch interactive menu (TUI)
+echo     codyx web       Start web UI in browser
+echo     codyx --help    See all commands
 echo.
 echo   Open a NEW terminal window for the global 'cody-x' command to be available.
 echo ========================================

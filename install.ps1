@@ -272,7 +272,7 @@ if (-not (Test-Path $proxyFile)) {
 }
 
 # ---- Set default model ----
-Write-Host "Setting default model to cody/deepseek-v4-flash-free..."
+Write-Host "Setting default model to opencode/big-pickle (Sandra Pickle)..."
 $generatedDir = Join-Path $root ".cody\generated"
 if (-not (Test-Path $generatedDir)) {
   New-Item -ItemType Directory -Force -Path $generatedDir | Out-Null
@@ -282,28 +282,14 @@ if (-not (Test-Path $defaultModelFile)) {
   $json = [System.Text.StringBuilder]::new()
   [void]$json.AppendLine("{")
   [void]$json.AppendLine('  "$schema": "https://cody.dev/config.json",')
-  [void]$json.AppendLine('  "model": "cody/deepseek-v4-flash-free",')
-  [void]$json.AppendLine('  "provider": {')
-  [void]$json.AppendLine('    "cody": {')
-  [void]$json.AppendLine('      "models": {')
-  [void]$json.AppendLine('        "deepseek-v4-flash-free": {')
-  [void]$json.AppendLine('          "name": "DeepSeek V4 Flash Free",')
-  [void]$json.AppendLine('          "reasoning": false,')
-  [void]$json.AppendLine('          "tool_call": true,')
-  [void]$json.AppendLine('          "temperature": true,')
-  [void]$json.AppendLine('          "cost": { "input": 0, "output": 0 },')
-  [void]$json.AppendLine('          "limit": { "context": 200000, "output": 128000 }')
-  [void]$json.AppendLine("        }")
-  [void]$json.AppendLine("      }")
-  [void]$json.AppendLine("    }")
-  [void]$json.AppendLine("  }")
+  [void]$json.AppendLine('  "model": "opencode/big-pickle"')
   [void]$json.AppendLine("}")
   [System.IO.File]::WriteAllText($defaultModelFile, $json.ToString(), [System.Text.UTF8Encoding]::new($false))
-  Write-Host "[ok] Default model configured: cody/deepseek-v4-flash-free"
+  Write-Host "[ok] Default model configured: opencode/big-pickle (Sandra Pickle)"
 }
 
 # ---- Install global command ----
-Write-Host "Installing global cody-x command..."
+Write-Host "Installing global codyx command..."
 $globalInstaller = Join-Path $root "script\install-cody-x-global.ps1"
 & $globalInstaller
 $globalInstallExit = $LASTEXITCODE
@@ -317,7 +303,7 @@ $shimDir = Join-Path $env:APPDATA "npm"
 $env:PATH = "$shimDir;$env:PATH"
 
 Write-Host "Verifying cody-x can start..."
-$verifyOutput = & $bun run --cwd "$root\packages\cody" --conditions=browser src\index.ts --version 2>&1
+$verifyOutput = & $bun run --cwd "$root\packages\codyx" --conditions=browser src\index.ts --version 2>&1
 $verifyExit = $LASTEXITCODE
 if ($verifyExit -ne 0) {
   Write-Host "[error] cody-x failed to start (exit code $verifyExit)." -ForegroundColor Red
@@ -391,15 +377,15 @@ Write-Host "  cody-x installed successfully!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Installed to: $root" -ForegroundColor Cyan
-Write-Host "  Global command: cody-x" -ForegroundColor Cyan
+Write-Host "  Global command: codyx" -ForegroundColor Cyan
 if (Test-Path (Join-Path $root ".env.proxy")) {
   Write-Host "  Proxy: enabled (Cloudflare tunnel)" -ForegroundColor Cyan
 }
 Write-Host ""
 Write-Host "  Next steps:" -ForegroundColor White
-Write-Host "    cody-x           Launch interactive menu (TUI)" -ForegroundColor Yellow
-Write-Host "    cody-x web       Start web UI in browser" -ForegroundColor Yellow
-Write-Host "    cody-x --help    See all commands" -ForegroundColor Yellow
+Write-Host "    codyx           Launch interactive menu (TUI)" -ForegroundColor Yellow
+Write-Host "    codyx web       Start web UI in browser" -ForegroundColor Yellow
+Write-Host "    codyx --help    See all commands" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  Open a NEW terminal window for the global 'cody-x' command to be available." -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Green

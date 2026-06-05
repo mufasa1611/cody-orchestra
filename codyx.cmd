@@ -126,17 +126,17 @@ setlocal enabledelayedexpansion
 set "HAS_WEB=0"
 for %%A in (%*) do if /I "%%A"=="web" set "HAS_WEB=1"
 if "!HAS_WEB!"=="1" (
-  call "%BUN%" run --cwd "%ROOT%packages\cody" --conditions=browser src\index.ts %*
+  call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts %*
   exit /b %ERRORLEVEL%
 )
 if not "%*"=="" (
-  call "%BUN%" run --cwd "%ROOT%packages\cody" --conditions=browser src\index.ts %*
+  call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts %*
   exit /b %ERRORLEVEL%
 )
 endlocal
 
 rem Print banner before the interactive launcher menu
-call "%BUN%" run --cwd "%ROOT%packages\cody" --conditions=browser src\index.ts --print-banner-only
+call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts --print-banner-only
 
 rem Arrow-key launcher menu (exit code = choice, Write-Host goes direct to console)
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\launcher.ps1" -Root "%ROOT%"
@@ -156,10 +156,10 @@ if "%CODY_CHOICE%"=="1" (
   )
   echo [cody-x] Starting web UI...
   pushd "%ROOT%"
-  call "%BUN%" run cody-x web
+  call "%BUN%" run codyx web
   popd
 ) else (
   rem Banner already printed above before launcher, skip duplicate
-  call "%BUN%" run --cwd "%ROOT%packages\cody" --conditions=browser src\index.ts --no-banner
+  call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts --no-banner
 )
 exit /b %ERRORLEVEL%

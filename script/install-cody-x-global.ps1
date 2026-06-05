@@ -3,11 +3,11 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $target = Join-Path $env:APPDATA "npm"
-$cmdShim = Join-Path $target "cody-x.cmd"
-$psShim = Join-Path $target "cody-x.ps1"
+$cmdShim = Join-Path $target "codyx.cmd"
+$psShim = Join-Path $target "codyx.ps1"
 
-if (-not (Test-Path (Join-Path $root "cody-x.cmd"))) {
-  throw "cody-x launcher not found at $root\cody-x.cmd"
+if (-not (Test-Path (Join-Path $root "codyx.cmd"))) {
+  throw "codyx launcher not found at $root\codyx.cmd"
 }
 
 function Get-BunCommand {
@@ -35,7 +35,7 @@ function Add-UserPathEntry($entry) {
   if (-not $exists) {
     $next = @($items + $full) -join ";"
     [Environment]::SetEnvironmentVariable("Path", $next, "User")
-    Write-Host "Added cody-x command directory to user PATH: $full"
+    Write-Host "Added codyx command directory to user PATH: $full"
   }
   $currentItems = @($env:PATH -split ";" | Where-Object { $_ -and $_.Trim() })
   $inCurrent = $false
@@ -75,13 +75,13 @@ if (-not $bun) { throw "Bun installation did not produce a usable bun command." 
 Write-Host "Using Bun: $bun"
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 
-# Create cody-x command (proxy-enabled)
+# Create codyx command (proxy-enabled)
 @"
 @echo off
 setlocal
 set "CODY_ROOT=$root"
-if not exist "%CODY_ROOT%\cody-x.cmd" (
-  echo cody-x launcher not found at "%CODY_ROOT%\cody-x.cmd".
+if not exist "%CODY_ROOT%\codyx.cmd" (
+  echo codyx launcher not found at "%CODY_ROOT%\codyx.cmd".
   exit /b 1
 )
 :: Load proxy settings from .env.proxy, with .env fallback for older installs.
@@ -95,16 +95,16 @@ if not defined CODY_PROXY_ENABLED if exist "%CODY_ROOT%\.env" (
     for /f "tokens=1,* delims==" %%b in ("%%a") do set "%%b=%%c"
   )
 )
-call "%CODY_ROOT%\cody-x.cmd" %*
+call "%CODY_ROOT%\codyx.cmd" %*
 exit /b %ERRORLEVEL%
 "@ | Set-Content -Encoding ASCII -Path $cmdShim
 
 @"
 #!/usr/bin/env pwsh
 `$root = "$root"
-`$launcher = Join-Path `$root "cody-x.cmd"
+`$launcher = Join-Path `$root "codyx.cmd"
 if (-not (Test-Path `$launcher)) {
-  Write-Error "cody-x launcher not found at `$launcher."
+  Write-Error "codyx launcher not found at `$launcher."
   exit 1
 }
 # Load proxy settings from .env.proxy, with .env fallback for older installs.
@@ -121,13 +121,13 @@ if (Test-Path `$envFile) {
 exit `$LASTEXITCODE
 "@ | Set-Content -Encoding ASCII -Path $psShim
 
-# Only cody-x is created from this repo
+# codyx is created from this repo
 
 Write-Host "Installed global commands:"
-  Write-Host "  cody-x  (from $root, with proxy from .env.proxy)"
+  Write-Host "  codyx  (from $root, with proxy from .env.proxy)"
 Add-UserPathEntry $target
 
-if (-not (Get-Command cody-x -ErrorAction SilentlyContinue)) {
-  throw "cody-x shim was created but is not on PATH."
+if (-not (Get-Command codyx -ErrorAction SilentlyContinue)) {
+  throw "codyx shim was created but is not on PATH."
 }
-Write-Host "[ok] cody-x is available on PATH."
+Write-Host "[ok] codyx is available on PATH."
