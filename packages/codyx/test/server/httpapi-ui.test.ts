@@ -17,6 +17,7 @@ import { AppFileSystem } from "@cody/core/filesystem"
 import { ServerAuth } from "../../src/server/auth"
 import { authorizationRouterMiddleware } from "../../src/server/routes/instance/httpapi/middleware/authorization"
 import { ExperimentalHttpApiServer } from "../../src/server/routes/instance/httpapi/server"
+import { isPublicUIPath } from "../../src/server/shared/public-ui"
 import { serveEmbeddedUIEffect, serveUIEffect } from "../../src/server/shared/ui"
 
 void Log.init({ print: false })
@@ -413,5 +414,12 @@ describe("HttpApi UI fallback", () => {
 
     expect(response.status).toBe(204)
     expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:3000")
+  })
+
+  test("allows agent pairing bootstrap paths without exposing agent status", () => {
+    expect(isPublicUIPath("GET", "/ws/agent")).toBe(true)
+    expect(isPublicUIPath("GET", "/agent/download/script")).toBe(true)
+    expect(isPublicUIPath("GET", "/agent/status")).toBe(false)
+    expect(isPublicUIPath("POST", "/ws/agent")).toBe(false)
   })
 })

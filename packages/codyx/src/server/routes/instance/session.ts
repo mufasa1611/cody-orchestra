@@ -1054,10 +1054,11 @@ export const SessionRoutes = lazy(() =>
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
         const body = c.req.valid("json") as Omit<SessionRevert.RevertInput, "sessionID">
+        const userId = Jwt.userIdFromBearer(c.req.header("Authorization"))
         log.info("revert", body)
         return jsonRequest("SessionRoutes.revert", c, function* () {
           const svc = yield* SessionRevert.Service
-          return yield* svc.revert({ sessionID, ...body })
+          return yield* svc.revert({ sessionID, ...body }).pipe(Effect.provideService(UserRef, userId))
         })
       },
     )
@@ -1088,8 +1089,9 @@ export const SessionRoutes = lazy(() =>
       async (c) =>
         jsonRequest("SessionRoutes.unrevert", c, function* () {
           const sessionID = c.req.valid("param").sessionID
+          const userId = Jwt.userIdFromBearer(c.req.header("Authorization"))
           const svc = yield* SessionRevert.Service
-          return yield* svc.unrevert({ sessionID })
+          return yield* svc.unrevert({ sessionID }).pipe(Effect.provideService(UserRef, userId))
         }),
     )
     .post(
