@@ -335,7 +335,8 @@ export function Titlebar() {
           <Show when={username()}>
             {(name) => (
               <div
-                class="mr-1 flex h-6 min-w-0 max-w-36 items-center rounded-md border border-border-weak-base bg-surface-base px-2 text-12-medium text-text-weak"
+                class="mr-1 flex h-7 min-w-0 max-w-44 items-center rounded-md border bg-surface-base px-2.5 text-14-medium"
+                style={{ color: "var(--avatar-text-orange)", "border-color": "var(--avatar-text-orange)" }}
                 title={`Signed in as ${name()}`}
               >
                 <span class="truncate">{name()}</span>
