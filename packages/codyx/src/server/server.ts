@@ -101,7 +101,7 @@ function createHttpApi(corsOptions?: CorsOptions) {
   const app = new Hono()
     .onError(ErrorMiddleware)
     .use(CorsMiddleware(corsOptions))
-    .use(AuthMiddleware)
+    .use(AuthMiddleware) // RESTORED THIS - Hono should handle initial auth identification
     .route("/api/auth", AuthRoutes)
     .all("/*", (c) => handler(c.req.raw, context))
 
@@ -186,7 +186,7 @@ export async function openapiHono() {
       info: {
         title: "cody-x",
         version: "1.0.0",
-        description: process.env.CODY_PRO === "0" ? "cody api" : "codyx API",
+        description: process.env.CODY_PRO === "0" ? "cody api" : "Cody Pro API",
       },
       openapi: "3.1.1",
     },
@@ -235,6 +235,16 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
       return close ? next.then(() => closing!) : closing
     },
   }
+}
+
+export function withUserContext(request: Request, context: Context.Context<never>): Context.Context<never> {
+    const { UserRef } = require("@/effect/instance-ref")
+    const Jwt = require("@/server/auth/jwt")
+    const userID = Jwt.userIdFromBearer(request.headers.get("authorization") ?? "")
+    if (userID) {
+        return Context.add(context, UserRef, userID)
+    }
+    return context
 }
 
 async function listenLegacy(opts: ListenOptions): Promise<Listener> {

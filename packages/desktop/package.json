@@ -5,10 +5,7 @@
   "type": "module",
   "license": "MIT",
   "homepage": "https://cody.ai",
-  "author": {
-    "name": "Cody",
-    "email": "hello@cody.ai"
-  },
+  "author": "Mufasa (M. Farid)",
   "scripts": {
     "typecheck": "tsgo -b",
     "predev": "bun ./scripts/predev.ts",

@@ -80,7 +80,7 @@ process.on("uncaughtException", (e) => {
 })
 
 const rawArgs = hideBin(process.argv)
-const cliName = "cody-x"
+const cliName = "cody"
 
 if (rawArgs.includes("--print-banner-only")) {
   process.stderr.write(UI.logo() + EOL + EOL)

@@ -379,5 +379,5 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 
 ## License
 
-MIT © 2026 codyx — Maintained and upgraded by M. Farid (mufasa).
+MIT © 2026 Mufasa (M. Farid)
 Uses the upstream [cody](https://github.com/mufasa1611/cody-pro) project as base (also MIT).

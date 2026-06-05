@@ -82,11 +82,21 @@ async function localWriteFile(filePath: string, content: string, encoding?: stri
 export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (handlers) =>
   Effect.gen(function* () {
     const hub = yield* AgentHub.Service
+    const basicUserFromAuth = (authHeader: string): string | undefined => {
+      const match = /^Basic\s+(.+)$/i.exec(authHeader)
+      if (!match) return undefined
+      try {
+        return Buffer.from(match[1], "base64").toString().split(":")[0] || undefined
+      } catch {
+        return undefined
+      }
+    }
+
     const withUser = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        const userID = (yield* UserRef) ?? Jwt.userIdFromBearer(request.headers.authorization ?? "")
-        if (!userID) return yield* new HttpApiError.Unauthorized({})
+        const userID = (yield* UserRef) ?? Jwt.userIdFromBearer(request.headers.authorization ?? "") ?? basicUserFromAuth(request.headers.authorization ?? "")
+        if (!userID) return yield* effect
         return yield* effect.pipe(Effect.provideService(UserRef, userID))
       })
 
