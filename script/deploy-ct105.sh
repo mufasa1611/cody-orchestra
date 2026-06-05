@@ -46,20 +46,32 @@ rollback() {
 }
 trap rollback EXIT
 
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
-  echo "Tracked local changes exist in $REPO_DIR; refusing to deploy automatically." >&2
-  git status --short --untracked-files=no >&2
-  exit 1
-fi
-
 git fetch --prune "$REMOTE" "$BRANCH"
-git checkout "$BRANCH"
 
 if [[ -z "$TARGET_SHA" ]]; then
   TARGET_SHA="$(git rev-parse "$REMOTE/$BRANCH")"
 fi
 
 git cat-file -e "$TARGET_SHA^{commit}"
+
+STATUS="$(git status --porcelain --untracked-files=no)"
+if [[ -n "$STATUS" ]]; then
+  HEAD_HASH="$(git rev-parse HEAD:packages/codyx/bin/codyx 2>/dev/null || true)"
+  WORKTREE_HASH="$(git hash-object packages/codyx/bin/codyx 2>/dev/null || true)"
+  TARGET_MODE="$(git ls-tree "$TARGET_SHA" packages/codyx/bin/codyx | awk '{print $1}')"
+
+  if [[ "$STATUS" == " M packages/codyx/bin/codyx" && -n "$HEAD_HASH" && "$HEAD_HASH" == "$WORKTREE_HASH" && "$TARGET_MODE" == "100755" ]]; then
+    echo "Self-healing codyx bin executable-bit drift before deploy."
+    git reset --hard "$TARGET_SHA"
+    ROLLED_FORWARD=1
+  else
+    echo "Tracked local changes exist in $REPO_DIR; refusing to deploy automatically." >&2
+    git status --short --untracked-files=no >&2
+    exit 1
+  fi
+fi
+
+git checkout "$BRANCH"
 
 CURRENT_SHA="$(git rev-parse HEAD)"
 if [[ "$CURRENT_SHA" == "$TARGET_SHA" ]]; then
