@@ -48,7 +48,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   if (c.req.method === "OPTIONS") return next()
 
   // CLI/TUI bypass — allow all requests from the local CLI identified by the x-cody-directory header.
-  if (c.req.header("x-cody-directory") || c.req.header("x-cody-cli-local")) return next()
+  if (c.req.header("x-cody-cli-local")) return next()
 
   // Public auth endpoints — no auth required
   if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register")) return next()
