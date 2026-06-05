@@ -73,7 +73,7 @@ export default function Login(props: { onLogin?: (token: string) => void }) {
         <img
           src="/mufasa.jpg"
           alt="Mufasa"
-          class="w-24 h-24 object-cover rounded-full border border-border-weak-base"
+          class="max-w-52 max-h-36 w-auto h-auto object-contain rounded-md border border-border-weak-base"
         />
         <Splash class="w-12 h-15" />
         <h1 class="text-18-medium text-text-strong mt-2">cody_orchestra</h1>
