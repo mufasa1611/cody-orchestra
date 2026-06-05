@@ -1,26 +1,26 @@
-# Cody Pro Install And Update Strategy
+# codyx Install And Update Strategy
 
 ## Local Install
 
 Install with one command from PowerShell:
 
 ```powershell
-iwr https://raw.githubusercontent.com/mufasa1611/cody-pro/master/install.ps1 | iex
+iwr https://raw.githubusercontent.com/mufasa1611/cody-orchestra/master/install.ps1 | iex
 ```
 
 Or from CMD:
 
 ```cmd
-powershell -NoP -c "iwr https://raw.githubusercontent.com/mufasa1611/cody-pro/master/install.ps1 | iex"
+powershell -NoP -c "iwr https://raw.githubusercontent.com/mufasa1611/cody-orchestra/master/install.ps1 | iex"
 ```
 
-The installer clones the repository, checks Git/Node.js/Bun (installing missing tools with `winget` when possible), runs `bun install`, marks the checkout as a Git safe directory, and creates the global `cody-pro` command.
+The installer clones the repository, checks Git/Node.js/Bun (installing missing tools with `winget` when possible), runs `bun install`, marks the checkout as a Git safe directory, and creates the global `codyx` command.
 
 If you prefer to clone manually first:
 
 ```powershell
-git clone https://github.com/mufasa1611/cody-pro.git
-cd cody-pro
+git clone https://github.com/mufasa1611/cody-orchestra.git
+cd codyx
 .\install.bat
 ```
 
@@ -29,11 +29,11 @@ If Git is not installed, the installer tries to install Git with `winget` before
 The checkout path is not fixed. On Windows, the global command installer records the current checkout path in shims under your user npm global bin folder, normally:
 
 ```text
-%APPDATA%\npm\cody-pro.ps1
-%APPDATA%\npm\cody-pro.cmd
+%APPDATA%\npm\codyx.ps1
+%APPDATA%\npm\codyx.cmd
 ```
 
-Both shims route to the `cody-pro.cmd` file in your checkout. The folder name is historical; npm itself is not required.
+Both shims route to the `codyx.cmd` file in your checkout. The folder name is historical; npm itself is not required.
 
 macOS/Linux users can run:
 
@@ -44,18 +44,18 @@ macOS/Linux users can run:
 ## Start Command
 
 ```powershell
-cody-pro
+codyx
 ```
 
 Explicit operator launch:
 
 ```powershell
-cody-pro --agent operator
+codyx --agent operator
 ```
 
 ## Update Policy
 
-Cody Pro updates through git from the local checkout. Re-run `install.bat`:
+codyx updates through git from the local checkout. Re-run `install.bat`:
 
 ```powershell
 .\install.bat
@@ -80,11 +80,11 @@ If the global shim is missing or stale:
 
 ## Release Checkpoint Criteria
 
-Before tagging a Cody Pro checkpoint:
+Before tagging a codyx checkpoint:
 
 - Worktree is clean.
-- `cody-pro --help` shows Cody Pro branding.
-- `cody-pro debug agent operator` loads Cody agents and tools.
+- `codyx --help` shows codyx branding.
+- `codyx debug agent operator` loads Cody agents and tools.
 - Local provider smoke checks pass.
 - Focused Cody tool smoke checks pass.
 - `bun run typecheck` passes.

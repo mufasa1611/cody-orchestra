@@ -1,4 +1,4 @@
-﻿# Cody Pro Infra Tools
+# codyx Infra Tools
 
 ## Guarded Windows Inspection
 
@@ -28,7 +28,7 @@ Profiles:
 Smoke test:
 
 ```powershell
-cody-pro debug agent windows-admin --tool cody-windows-inspect --params '"{\"check\":\"system\",\"timeoutSeconds\":10}"'
+codyx debug agent windows-admin --tool cody-windows-inspect --params '"{\"check\":\"system\",\"timeoutSeconds\":10}"'
 ```
 
 This is an inspection tool only. Mutating operations still require explicit user approval and should be implemented as separate, guarded tools.
@@ -62,7 +62,7 @@ Profiles:
 Smoke test:
 
 ```powershell
-cody-pro debug agent ssh-operator --tool cody-ssh-inspect --params '"{\"check\":\"client\",\"timeoutSeconds\":10}"'
+codyx debug agent ssh-operator --tool cody-ssh-inspect --params '"{\"check\":\"client\",\"timeoutSeconds\":10}"'
 ```
 
 Remote checks require a `host` value and run with `BatchMode=yes`, so they will fail fast instead of prompting for passwords.
@@ -97,7 +97,7 @@ Profiles:
 Smoke test:
 
 ```powershell
-cody-pro debug agent docker-operator --tool cody-docker-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
+codyx debug agent docker-operator --tool cody-docker-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
 ```
 
 The `compose` profile can receive `projectPath` as a working directory, but mutating compose commands remain out of scope for this inspection tool.
@@ -131,7 +131,7 @@ Profiles:
 Smoke test:
 
 ```powershell
-cody-pro debug agent systemd-operator --tool cody-systemd-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
+codyx debug agent systemd-operator --tool cody-systemd-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
 ```
 
 Remote checks accept `host`, optional `user`, and optional `port`. Unit-specific profiles require a sanitized `unit` value such as `ssh.service`.
@@ -175,7 +175,7 @@ $env:CODY_PROXMOX_TOKEN_SECRET = "secret"
 Smoke test:
 
 ```powershell
-cody-pro debug agent proxmox-operator --tool cody-proxmox-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
+codyx debug agent proxmox-operator --tool cody-proxmox-inspect --params '"{\"check\":\"version\",\"timeoutSeconds\":10}"'
 ```
 
 Guest checks require `node`, `guestKind`, and `vmid`. Backup checks require `node` and `storage`.
@@ -207,7 +207,7 @@ Profiles:
 Smoke test:
 
 ```powershell
-cody-pro debug agent backup-operator --tool cody-backup-inventory --params '"{\"check\":\"summary\",\"root\":\"D:\\\\cody-pro\",\"maxDepth\":2,\"maxItems\":25}"'
+codyx debug agent backup-operator --tool cody-backup-inventory --params '"{\"check\":\"summary\",\"root\":\"D:\\\\codyx\",\"maxDepth\":2,\"maxItems\":25}"'
 ```
 
 The scanner does not follow symlinks and defaults to bounded recursion. Restore, delete, prune, rotate, or overwrite actions remain outside this tool.

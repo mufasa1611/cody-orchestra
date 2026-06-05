@@ -53,6 +53,7 @@ import { DoctorCommand } from "./cli/cmd/doctor"
 import { SessionCommand } from "./cli/cmd/session"
 import { DbCommand } from "./cli/cmd/db"
 import { UsersCommand } from "./cli/cmd/users"
+import { ProxyCommand } from "./cli/cmd/proxy"
 import path from "path"
 import { exec, execSync } from "child_process"
 import { Global } from "@cody/core/global"
@@ -241,6 +242,7 @@ const cli = yargs(args)
   .command(DoctorCommand)
   .command(DbCommand)
   .command(UsersCommand)
+  .command(ProxyCommand)
   .fail((msg, err) => {
     if (
       msg?.startsWith("Unknown argument") ||

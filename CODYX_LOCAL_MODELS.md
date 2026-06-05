@@ -1,6 +1,6 @@
-# Cody Pro Local Models
+# codyx Local Models
 
-Cody Pro keeps the upstream provider system. Use these snippets when you want local/private models through Ollama, LM Studio, or another OpenAI-compatible server.
+codyx keeps the upstream provider system. Use these snippets when you want local/private models through Ollama, LM Studio, or another OpenAI-compatible server.
 
 Do not paste all examples at once. Pick one provider and model that actually exists on your machine.
 
@@ -41,10 +41,10 @@ Add this to `.cody/cody.jsonc` under the top-level config:
 }
 ```
 
-Launch Cody Pro with that model explicitly:
+Launch codyx with that model explicitly:
 
 ```powershell
-.\cody-pro.cmd --model ollama/qwen2.5-coder:7b
+.\codyx.cmd --model ollama/qwen2.5-coder:7b
 ```
 
 ## LM Studio
@@ -73,10 +73,10 @@ Start an LM Studio local server on port `1234`, then add:
 }
 ```
 
-Launch Cody Pro with:
+Launch codyx with:
 
 ```powershell
-.\cody-pro.cmd --model lmstudio/local-model
+.\codyx.cmd --model lmstudio/local-model
 ```
 
 ## Notes
@@ -88,7 +88,7 @@ Launch Cody Pro with:
 
 ## Auto Discovery
 
-Cody Pro runs local model discovery on first normal startup and writes generated provider config to:
+codyx runs local model discovery on first normal startup and writes generated provider config to:
 
 ```text
 <repo>\.cody\generated\cody.jsonc
@@ -103,14 +103,14 @@ Refresh discovery:
 
 ```powershell
 $env:CODY_REFRESH_MODELS='1'
-cody-pro
+codyx
 ```
 
 Skip discovery for one launch:
 
 ```powershell
 $env:CODY_SKIP_MODEL_DISCOVERY='1'
-cody-pro
+codyx
 ```
 
 Set an unlimited scan when you want every drive walked fully:
@@ -118,7 +118,7 @@ Set an unlimited scan when you want every drive walked fully:
 ```powershell
 $env:CODY_REFRESH_MODELS='1'
 $env:CODY_MODEL_SCAN_MAX_SECONDS='0'
-cody-pro
+codyx
 ```
 
 

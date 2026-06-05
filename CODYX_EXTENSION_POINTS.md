@@ -1,4 +1,4 @@
-# Cody Pro Extension Points
+# codyx Extension Points
 
 This fork uses cody as its runtime foundation and adds Cody behavior around the supported local extension surfaces.
 
@@ -76,12 +76,12 @@ Use this for first-start Ollama and GGUF model discovery. This file is generated
 Locations:
 
 ```text
-<repo>\cody-pro.cmd
-%APPDATA%\npm\cody-pro.ps1
-%APPDATA%\npm\cody-pro.cmd
+<repo>\codyx.cmd
+%APPDATA%\npm\codyx.ps1
+%APPDATA%\npm\codyx.cmd
 ```
 
-Use this for Cody startup behavior before control reaches the Cody Pro CLI, including local model discovery and global command routing.
+Use this for Cody startup behavior before control reaches the codyx CLI, including local model discovery and global command routing.
 
 ## Avoid For Now
 

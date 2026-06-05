@@ -1535,6 +1535,9 @@ const layer: Layer.Layer<
             timeout: false,
           })
 
+          if (res.status === 429 || res.status === 402) {
+            try { await fetch("http://127.0.0.1:8888/__cody_rotate"); } catch (e) {}
+          }
           if (!chunkAbortCtl) return res
           return wrapSSE(res, chunkTimeout, chunkAbortCtl)
         }

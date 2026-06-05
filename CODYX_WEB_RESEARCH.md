@@ -1,6 +1,6 @@
-# Cody Pro Web Research
+# codyx Web Research
 
-The upstream `webfetch` tool is available for page reads. The upstream search tool depends on provider capability, so Cody Pro also includes a provider-independent web search wrapper.
+The upstream `webfetch` tool is available for page reads. The upstream search tool depends on provider capability, so codyx also includes a provider-independent web search wrapper.
 
 ## Tools
 
@@ -25,10 +25,10 @@ It also explicitly disables Cody infra inspection tools so research work does no
 ## Smoke Tests
 
 ```powershell
-cody-pro debug agent web-research --tool cody-web-search --params '"{\"query\":\"cody-pro\",\"limit\":2,\"timeoutSeconds\":15}"'
-cody-pro debug agent web-research --tool cody-web-read --params '"{\"url\":\"https://example.com\",\"timeoutSeconds\":10}"'
-cody-pro debug agent web-research --tool cody-source-summarize --params '"{\"title\":\"Example\",\"url\":\"https://example.com\",\"text\":\"This-domain-is-for-use-in-documentation-examples-without-needing-permission.\",\"maxSentences\":1}"'
-cody-pro debug agent web-research --tool cody-citation-format --params '"{\"sourcesText\":\"Example;https://example.com;Documentation-example-domain\"}"'
+codyx debug agent web-research --tool cody-web-search --params '"{\"query\":\"codyx\",\"limit\":2,\"timeoutSeconds\":15}"'
+codyx debug agent web-research --tool cody-web-read --params '"{\"url\":\"https://example.com\",\"timeoutSeconds\":10}"'
+codyx debug agent web-research --tool cody-source-summarize --params '"{\"title\":\"Example\",\"url\":\"https://example.com\",\"text\":\"This-domain-is-for-use-in-documentation-examples-without-needing-permission.\",\"maxSentences\":1}"'
+codyx debug agent web-research --tool cody-citation-format --params '"{\"sourcesText\":\"Example;https://example.com;Documentation-example-domain\"}"'
 ```
 
 

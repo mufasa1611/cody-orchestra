@@ -1,8 +1,8 @@
-﻿# Cody Pro Safety Model
+# codyx Safety Model
 
 ## Current Rule
 
-Cody Pro's infrastructure tools are inspection-only right now. They are allowed to read state, summarize it, and recommend a next action. They must not start, stop, restart, delete, prune, restore, overwrite, expose, migrate, resize, rotate, or edit infrastructure.
+codyx's infrastructure tools are inspection-only right now. They are allowed to read state, summarize it, and recommend a next action. They must not start, stop, restart, delete, prune, restore, overwrite, expose, migrate, resize, rotate, or edit infrastructure.
 
 ## Permission Boundary
 
@@ -21,7 +21,7 @@ This means repository edits are blocked for infra agents, shell commands require
 
 ## Mutation Path
 
-Before Cody Pro gets any mutation tool, that tool must have:
+Before codyx gets any mutation tool, that tool must have:
 
 - A separate tool file from the read-only inspection tool.
 - A narrow operation enum instead of arbitrary command input.
