@@ -86,17 +86,36 @@ export function SessionSidePanel(props: {
     } catch { /* ignore */ }
   }
 
+  const requestDisconnect = async (options?: { silent?: boolean; keepalive?: boolean }) => {
+    const res = await agentFetch()("/agent/disconnect", { method: "POST", keepalive: options?.keepalive })
+    if (res.ok) {
+      setConnected(false)
+      if (!options?.silent) showToast({ title: "Remote PC disconnected", variant: "success" })
+      return
+    }
+    if (!options?.silent) showToast({ title: "Failed to disconnect", variant: "error" })
+  }
+
   const disconnect = async () => {
     try {
-      const res = await agentFetch()("/agent/disconnect", { method: "POST" })
-      if (res.ok) {
-        setConnected(false)
-        showToast({ title: "Remote PC disconnected", variant: "success" })
-      }
+      await requestDisconnect()
     } catch {
       showToast({ title: "Failed to disconnect", variant: "error" })
     }
   }
+
+  const disconnectOnPageHide = () => {
+    if (!connected()) return
+    void requestDisconnect({ silent: true, keepalive: true }).catch(() => {})
+  }
+
+  onMount(() => {
+    window.addEventListener("pagehide", disconnectOnPageHide)
+  })
+
+  onCleanup(() => {
+    window.removeEventListener("pagehide", disconnectOnPageHide)
+  })
 
   const dialog = useDialog()
   const { params, sessionKey, tabs, view } = useSessionLayout()
@@ -178,6 +197,7 @@ export function SessionSidePanel(props: {
   const activeFileTab = tabState.activeFileTab
 
   const fileTreeTab = () => layout.fileTree.tab()
+  const hasFileSource = createMemo(() => connected() || server.isLocal())
 
   const setFileTreeTabValue = (value: string) => {
     if (value !== "changes" && value !== "all") return
@@ -464,19 +484,21 @@ export function SessionSidePanel(props: {
                   </Tabs.Content>
                   <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
                     <Switch>
-                      <Match when={connected()}>
+                      <Match when={hasFileSource()}>
                         <div class="flex flex-col h-full">
                           <div class="flex-1 overflow-y-auto">
-                            <FileTreeRemote />
+                            <FileTreeRemote fallbackText={server.isLocal() ? "Loading local files..." : undefined} />
                           </div>
-                          <div class="shrink-0 border-t border-border-secondary px-3 py-2">
-                            <Button variant="secondary" size="small" class="w-full" onClick={disconnect}>
-                              Disconnect from PC
-                            </Button>
-                          </div>
+                          <Show when={connected()}>
+                            <div class="shrink-0 border-t border-border-secondary px-3 py-2">
+                              <Button variant="secondary" size="small" class="w-full" onClick={disconnect}>
+                                Disconnect from PC
+                              </Button>
+                            </div>
+                          </Show>
                         </div>
                       </Match>
-                      <Match when={!connected()}>
+                      <Match when={!hasFileSource()}>
                         <div class="flex flex-col items-center justify-center h-full gap-3 py-12 px-4">
                           <p class="text-13-regular text-text-weak text-center">
                             Connect to a remote PC to browse files

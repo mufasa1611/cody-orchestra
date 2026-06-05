@@ -28,6 +28,17 @@ export const SettingsAgentConnect: Component = () => {
     return fetchForServer(current.http, platform.fetch ?? globalThis.fetch)
   }
 
+  const serverOrigin = () => server.current?.http.url ?? window.location.origin
+
+  const wsUrl = () => {
+    const url = new URL(serverOrigin())
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+    url.pathname = "/ws/agent"
+    url.search = ""
+    url.hash = ""
+    return url.toString()
+  }
+
   const checkStatus = async () => {
     try {
       const res = await agentFetch()("/agent/status")
@@ -82,12 +93,27 @@ export const SettingsAgentConnect: Component = () => {
     }
   }
 
+  const disconnectOnPageHide = () => {
+    if (!connected()) return
+    void agentFetch()("/agent/disconnect", { method: "POST", keepalive: true }).catch(() => {})
+  }
+
+  onMount(() => {
+    window.addEventListener("pagehide", disconnectOnPageHide)
+  })
+
+  onCleanup(() => {
+    window.removeEventListener("pagehide", disconnectOnPageHide)
+  })
+
   const downloadLauncher = async (kind: "bat" | "ps1") => {
     const code = pairingCode()
     if (!code) return
     const endpoint = kind === "ps1" ? "/agent/download/launcher.ps1" : "/agent/download/launcher"
-    const url = new URL(endpoint, server.current?.http.url ?? window.location.origin)
+    const url = new URL(endpoint, serverOrigin())
     url.searchParams.set("code", code)
+    url.searchParams.set("server", serverOrigin())
+    url.searchParams.set("ws", wsUrl())
     try {
       const res = await agentFetch()(url)
       if (!res.ok) throw new Error(res.statusText)
@@ -108,7 +134,7 @@ export const SettingsAgentConnect: Component = () => {
   const copyCommand = async () => {
     const code = pairingCode()
     if (code) {
-      const cmd = "bunx --yes cody-connect " + code
+      const cmd = `CODY_WS_URL="${wsUrl()}" bunx --yes cody-connect ${code}`
       await navigator.clipboard.writeText(cmd)
       setCopied(true)
       showToast({ title: "Command copied! Paste it in your PC terminal.", variant: "success" })
@@ -184,7 +210,7 @@ export const SettingsAgentConnect: Component = () => {
                 <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
                   <span class="text-text-on-success-base text-13-mono">$</span>
                   <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    bunx --yes cody-connect {pairingCode()}
+                    CODY_WS_URL="{wsUrl()}" bunx --yes cody-connect {pairingCode()}
                   </code>
                   <Button
                     variant="ghost"

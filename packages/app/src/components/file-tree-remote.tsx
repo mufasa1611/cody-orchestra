@@ -134,6 +134,7 @@ function FileTreeRemoteNode(props: {
 
 export default function FileTreeRemote(props: {
   initialPath?: string
+  fallbackText?: string
 }) {
   const server = useServer()
   const platform = usePlatform()
@@ -154,7 +155,7 @@ export default function FileTreeRemote(props: {
         when={!root.loading && !root.error}
         fallback={
           <div class="text-12-regular text-text-weaker px-3 py-2">
-            {root.loading ? "Connecting to remote PC..." : "Failed to load remote files"}
+            {root.loading ? (props.fallbackText ?? "Connecting to remote PC...") : "Failed to load files"}
           </div>
         }
       >

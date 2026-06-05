@@ -5,6 +5,8 @@ import type { AgentMessage, HubMessage } from "./types"
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
 const CODE_TTL_DURATION = Duration.minutes(5)
+const AGENT_MAX_CONNECTION_DURATION = Duration.hours(24)
+const CLIENT_LEASE_DURATION = Duration.seconds(60)
 const COMMAND_TIMEOUT_DURATION = Duration.seconds(30)
 
 interface PendingCommand {
@@ -20,6 +22,7 @@ interface PairedAgent {
   write: AgentWriter
   close: Effect.Effect<void>
   connectedAt: number
+  expiresAt: number
   remotePlatform?: string
   remoteHostname?: string
   lastPong?: number
@@ -37,8 +40,9 @@ export interface Interface {
   readonly createPairingCode: Effect.Effect<string>
   readonly connectAgent: (code: string, write: AgentWriter, close: Effect.Effect<void>) => Effect.Effect<boolean, Error>
   readonly disconnectAgent: (code: string) => Effect.Effect<void>
+  readonly touchClient: Effect.Effect<void>
   readonly dispatch: (message: AgentMessage, senderCode?: string) => Effect.Effect<void>
-  readonly getStatus: Effect.Effect<{ connected: boolean; code?: string; pairedAt?: number }>
+  readonly getStatus: Effect.Effect<{ connected: boolean; code?: string; pairedAt?: number; expiresAt?: number }>
   readonly listDir: (path: string) => Effect.Effect<unknown, Error>
   readonly readFile: (path: string) => Effect.Effect<unknown, Error>
   readonly writeFile: (path: string, content: string) => Effect.Effect<unknown, Error>
@@ -49,6 +53,7 @@ export class Service extends Context.Service<Service, Interface>()("@cody/AgentH
 
 const pairingCodes = new Map<string, PairingCode>()
 const agents = new Map<string, PairedAgent>()
+const clientHeartbeats = new Map<string, number>()
 let nextCommandId = 1
 const pendingCommands = new Map<number, PendingCommand>()
 
@@ -69,12 +74,31 @@ function cleanupExpiredCodes(): void {
   }
 }
 
-const cleanupInterval = setInterval(() => cleanupExpiredCodes(), Duration.toMillis(Duration.minutes(1)))
+function shouldDisconnectAgent(agent: PairedAgent, now = Date.now()) {
+  if (now > agent.expiresAt) return true
+  if (!agent.userID) return false
+  const lastClientSeen = clientHeartbeats.get(agent.userID)
+  return lastClientSeen !== undefined && now - lastClientSeen > Duration.toMillis(CLIENT_LEASE_DURATION)
+}
+
+function cleanupExpiredAgents(): void {
+  const now = Date.now()
+  for (const agent of agents.values()) {
+    if (!shouldDisconnectAgent(agent, now)) continue
+    Effect.runFork(disconnectAgent(agent.code))
+  }
+}
+
+const cleanupInterval = setInterval(() => {
+  cleanupExpiredCodes()
+  cleanupExpiredAgents()
+}, Duration.toMillis(Duration.seconds(15)))
 if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
 
 const createPairingCode = Effect.fn("AgentHub.createPairingCode")(function* () {
   cleanupExpiredCodes()
   const userID = yield* UserRef
+  if (userID) clientHeartbeats.set(userID, Date.now())
 
   let code: string
   do {
@@ -111,7 +135,9 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
     write,
     close,
     connectedAt: Date.now(),
+    expiresAt: Date.now() + Duration.toMillis(AGENT_MAX_CONNECTION_DURATION),
   }
+  if (pairing.userID) clientHeartbeats.set(pairing.userID, Date.now())
   agents.set(code, agent)
 
   return true
@@ -166,10 +192,17 @@ const dispatch = Effect.fn("AgentHub.dispatch")(function* (message: AgentMessage
 
 const agentForCurrentUser = Effect.fn("AgentHub.agentForCurrentUser")(function* () {
   const userID = yield* UserRef
+  cleanupExpiredAgents()
   const agentsList = Array.from(agents.values())
     .filter((agent) => (userID ? agent.userID === userID : true))
+    .filter((agent) => !shouldDisconnectAgent(agent))
     .sort((a, b) => b.connectedAt - a.connectedAt)
   return agentsList[0]
+})
+
+const touchClient = Effect.fn("AgentHub.touchClient")(function* () {
+  const userID = yield* UserRef
+  if (userID) clientHeartbeats.set(userID, Date.now())
 })
 
 const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Error> =>
@@ -207,6 +240,7 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
   })
 
 const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
+  yield* touchClient()
   const agent = yield* agentForCurrentUser()
   if (!agent) {
     return { connected: false } as const
@@ -215,6 +249,7 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
     connected: true,
     code: agent.code,
     pairedAt: agent.connectedAt,
+    expiresAt: agent.expiresAt,
   } as const
 })
 
@@ -222,6 +257,7 @@ const instance: Interface = {
   createPairingCode: createPairingCode(),
   connectAgent: (code, write, close) => connectAgent(code, write, close),
   disconnectAgent: (code) => disconnectAgent(code),
+  touchClient: touchClient(),
   dispatch: (message, code) => dispatch(message, code),
   getStatus: getStatus(),
   listDir: (path) => sendCommand("list-dir", { path }),

@@ -101,6 +101,8 @@ function ensureColumn(db: Client, table: string, column: string, definition: str
 }
 
 function ensureAuthOwnershipColumns(db: Client) {
+  ensureColumn(db, "session", "user_id", "text")
+  db.run(`CREATE INDEX IF NOT EXISTS "session_user_idx" ON "session" ("user_id")`)
   ensureColumn(db, "project", "user_id", "text")
   db.run(`CREATE INDEX IF NOT EXISTS "project_user_idx" ON "project" ("user_id")`)
   ensureColumn(db, "workspace", "user_id", "text")
