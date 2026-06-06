@@ -18,7 +18,6 @@ function loadEnvFile(file: string) {
 
 loadEnvFile(resolve(process.cwd(), ".env.proxy")) || loadEnvFile(resolve(process.cwd(), ".env"))
 
-import { Effect } from "effect"
 import { ProxyCommand } from "./cli/cmd/proxy"
 import * as Log from "@cody/core/util/log"
 
@@ -29,8 +28,17 @@ async function main() {
     level: "INFO"
   })
 
+  console.log("[Proxy] Initializing standalone rotator...");
+  // ProxyCommand.handler is already an async function that runs the Effect.
+  // DO NOT use Effect.runPromise on its result.
   // @ts-ignore
-  Effect.runPromise(ProxyCommand.handler({}))
+  await ProxyCommand.handler({ 
+    $0: "codyx", 
+    _: ["proxy"] 
+  })
 }
 
-main().catch(console.error)
+main().catch((err) => {
+  console.error("[Proxy] Fatal error:", err);
+  process.exit(1);
+})

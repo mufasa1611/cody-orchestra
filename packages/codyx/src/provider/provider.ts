@@ -1536,7 +1536,7 @@ const layer: Layer.Layer<
           })
 
           if (res.status === 429 || res.status === 402) {
-            try { await fetch("http://127.0.0.1:8888/__cody_rotate"); } catch (e) {}
+            try { await fetch("http://192.168.68.68:8888/__cody_rotate"); } catch (e) {}
           }
           if (!chunkAbortCtl) return res
           return wrapSSE(res, chunkTimeout, chunkAbortCtl)
