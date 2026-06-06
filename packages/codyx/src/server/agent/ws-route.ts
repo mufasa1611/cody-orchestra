@@ -14,6 +14,7 @@ export const agentWebSocketRoute = HttpRouter.use((router) =>
       "/ws/agent",
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        console.log("Agent WS connected from", request.headers.host, "path", request.url);
         const socket = yield* Effect.orDie(request.upgrade)
         const rawWrite = yield* socket.writer
         const write = (data: string | Uint8Array) => rawWrite(data).pipe(Effect.catch(() => Effect.void))
