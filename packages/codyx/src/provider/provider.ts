@@ -25,11 +25,16 @@ import { InstanceState } from "@/effect/instance-state"
 import { AppFileSystem } from "@cody/core/filesystem"
 import { isRecord } from "@/util/record"
 import { optionalOmitUndefined, withStatics } from "@/util/schema"
+import * as ProxyControl from "./proxy-control"
 
 import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
 
 const log = Log.create({ service: "provider" })
+const DEFAULT_REQUEST_TIMEOUT_MS = 5_000
+const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 10_000
+const DEFAULT_IDLE_CHUNK_TIMEOUT_MS = 15_000
+const MAX_PROXY_RETRIES = 2
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
@@ -37,18 +42,32 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
 }
 
-function wrapSSE(res: Response, ms: number, ctl: AbortController) {
-  if (typeof ms !== "number" || ms <= 0) return res
+function positiveNumber(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function wrapSSE(
+  res: Response,
+  firstChunkMs: number,
+  idleChunkMs: number,
+  ctl: AbortController,
+  onTimeout: (phase: "first-chunk" | "idle-chunk") => void | Promise<void>,
+) {
+  if (firstChunkMs <= 0 && idleChunkMs <= 0) return res
   if (!res.body) return res
   if (!res.headers.get("content-type")?.includes("text/event-stream")) return res
 
   const reader = res.body.getReader()
+  let seenChunk = false
   const body = new ReadableStream<Uint8Array>({
     async pull(ctrl) {
+      const phase = seenChunk ? "idle-chunk" : "first-chunk"
+      const ms = seenChunk ? idleChunkMs : firstChunkMs
       const part = await new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
         const id = setTimeout(() => {
-          const err = new Error("SSE read timed out")
+          const err = new Error(`${phase} timed out after ${ms}ms`)
           ctl.abort(err)
+          void onTimeout(phase)
           void reader.cancel(err)
           reject(err)
         }, ms)
@@ -70,6 +89,7 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
         return
       }
 
+      seenChunk = true
       ctrl.enqueue(part.value)
     },
     async cancel(reason) {
@@ -1494,52 +1514,92 @@ const layer: Layer.Layer<
         if (existing) return existing
 
         const customFetch = options["fetch"]
+        const configuredTimeout = options["timeout"]
+        const firstChunkTimeout = options["firstChunkTimeout"]
         const chunkTimeout = options["chunkTimeout"]
+        const requestTimeout =
+          configuredTimeout === false ? false : positiveNumber(configuredTimeout, DEFAULT_REQUEST_TIMEOUT_MS)
+        const streamFirstChunkTimeout = positiveNumber(firstChunkTimeout, DEFAULT_FIRST_CHUNK_TIMEOUT_MS)
+        const streamIdleChunkTimeout = positiveNumber(chunkTimeout, DEFAULT_IDLE_CHUNK_TIMEOUT_MS)
+        delete options["firstChunkTimeout"]
         delete options["chunkTimeout"]
 
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
-          const opts = init ?? {}
-          const chunkAbortCtl = typeof chunkTimeout === "number" && chunkTimeout > 0 ? new AbortController() : undefined
-          const signals: AbortSignal[] = []
 
-          if (opts.signal) signals.push(opts.signal)
-          if (chunkAbortCtl) signals.push(chunkAbortCtl.signal)
-          if (options["timeout"] !== undefined && options["timeout"] !== null && options["timeout"] !== false)
-            signals.push(AbortSignal.timeout(options["timeout"]))
+          const makeOptions = (chunkAbortCtl: AbortController) => {
+            const opts = { ...(init ?? {}) }
+            const signals: AbortSignal[] = []
 
-          const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
-          if (combined) opts.signal = combined
+            if (opts.signal) signals.push(opts.signal)
+            signals.push(chunkAbortCtl.signal)
+            if (requestTimeout !== false) signals.push(AbortSignal.timeout(requestTimeout))
 
-          // Strip openai itemId metadata following what codex does
-          if (
-            (model.api.npm === "@ai-sdk/openai" || model.api.npm === "@ai-sdk/azure") &&
-            opts.body &&
-            opts.method === "POST"
-          ) {
-            const body = JSON.parse(opts.body as string)
-            const keepIds = body.store === true
-            if (!keepIds && Array.isArray(body.input)) {
-              for (const item of body.input) {
-                if ("id" in item) {
-                  delete item.id
+            const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
+            if (combined) opts.signal = combined
+
+            // Strip openai itemId metadata following what codex does
+            if (
+              (model.api.npm === "@ai-sdk/openai" || model.api.npm === "@ai-sdk/azure") &&
+              opts.body &&
+              opts.method === "POST"
+            ) {
+              const body = JSON.parse(opts.body as string)
+              const keepIds = body.store === true
+              if (!keepIds && Array.isArray(body.input)) {
+                for (const item of body.input) {
+                  if ("id" in item) {
+                    delete item.id
+                  }
                 }
+                opts.body = JSON.stringify(body)
               }
-              opts.body = JSON.stringify(body)
+            }
+
+            return opts
+          }
+
+          for (let attempt = 0; attempt <= MAX_PROXY_RETRIES; attempt++) {
+            const chunkAbortCtl = new AbortController()
+            const opts = makeOptions(chunkAbortCtl)
+
+            try {
+              const res = await fetchFn(input, {
+                ...opts,
+                // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
+                timeout: false,
+              })
+
+              if (ProxyControl.retryableStatus(res.status) && attempt < MAX_PROXY_RETRIES) {
+                await res.body?.cancel(`retryable status ${res.status}`)
+                await ProxyControl.rotate("retryable-status", {
+                  status: res.status,
+                  providerID: model.providerID,
+                  modelID: model.id,
+                  attempt: attempt + 1,
+                })
+                continue
+              }
+
+              return wrapSSE(res, streamFirstChunkTimeout, streamIdleChunkTimeout, chunkAbortCtl, async (phase) => {
+                await ProxyControl.rotate("stream-timeout", {
+                  phase,
+                  providerID: model.providerID,
+                  modelID: model.id,
+                })
+              })
+            } catch (error) {
+              if (!ProxyControl.retryableError(error) || attempt >= MAX_PROXY_RETRIES) throw error
+              await ProxyControl.rotate("request-error", {
+                error: error instanceof Error ? error.message : String(error),
+                providerID: model.providerID,
+                modelID: model.id,
+                attempt: attempt + 1,
+              })
             }
           }
 
-          const res = await fetchFn(input, {
-            ...opts,
-            // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
-            timeout: false,
-          })
-
-          if (res.status === 429 || res.status === 402) {
-            try { await fetch("http://192.168.68.68:8888/__cody_rotate"); } catch (e) {}
-          }
-          if (!chunkAbortCtl) return res
-          return wrapSSE(res, chunkTimeout, chunkAbortCtl)
+          throw new Error("provider fetch failed after proxy retries")
         }
 
         const bundledLoader = BUNDLED_PROVIDERS[model.api.npm]

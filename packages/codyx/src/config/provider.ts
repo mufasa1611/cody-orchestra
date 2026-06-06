@@ -90,15 +90,19 @@ export const Info = Schema.Struct({
         timeout: Schema.optional(
           Schema.Union([PositiveInt, Schema.Literal(false)]).annotate({
             description:
-              "Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.",
+              "Timeout in milliseconds for request/connect attempts to this provider. Default is 5000. Set to false to disable timeout.",
           }),
         ).annotate({
           description:
-            "Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.",
+            "Timeout in milliseconds for request/connect attempts to this provider. Default is 5000. Set to false to disable timeout.",
+        }),
+        firstChunkTimeout: Schema.optional(PositiveInt).annotate({
+          description:
+            "Timeout in milliseconds waiting for the first streamed SSE chunk from this provider. Default is 10000.",
         }),
         chunkTimeout: Schema.optional(PositiveInt).annotate({
           description:
-            "Timeout in milliseconds between streamed SSE chunks for this provider. If no chunk arrives within this window, the request is aborted.",
+            "Timeout in milliseconds between streamed SSE chunks for this provider. Default is 15000. If no chunk arrives within this window, the request is aborted.",
         }),
       }),
       [Schema.Record(Schema.String, Schema.Any)],
