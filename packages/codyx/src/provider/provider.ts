@@ -31,7 +31,6 @@ import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
 
 const log = Log.create({ service: "provider" })
-const DEFAULT_REQUEST_TIMEOUT_MS = 5_000
 const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 10_000
 const DEFAULT_IDLE_CHUNK_TIMEOUT_MS = 15_000
 const MAX_PROXY_RETRIES = 2
@@ -1518,7 +1517,9 @@ const layer: Layer.Layer<
         const firstChunkTimeout = options["firstChunkTimeout"]
         const chunkTimeout = options["chunkTimeout"]
         const requestTimeout =
-          configuredTimeout === false ? false : positiveNumber(configuredTimeout, DEFAULT_REQUEST_TIMEOUT_MS)
+          typeof configuredTimeout === "number" && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+            ? configuredTimeout
+            : false
         const streamFirstChunkTimeout = positiveNumber(firstChunkTimeout, DEFAULT_FIRST_CHUNK_TIMEOUT_MS)
         const streamIdleChunkTimeout = positiveNumber(chunkTimeout, DEFAULT_IDLE_CHUNK_TIMEOUT_MS)
         delete options["firstChunkTimeout"]

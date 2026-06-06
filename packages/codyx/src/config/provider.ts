@@ -90,11 +90,11 @@ export const Info = Schema.Struct({
         timeout: Schema.optional(
           Schema.Union([PositiveInt, Schema.Literal(false)]).annotate({
             description:
-              "Timeout in milliseconds for request/connect attempts to this provider. Default is 5000. Set to false to disable timeout.",
+              "Optional timeout in milliseconds for provider fetch requests. Disabled by default because some streaming providers do not send response headers quickly. Set to false to disable timeout.",
           }),
         ).annotate({
           description:
-            "Timeout in milliseconds for request/connect attempts to this provider. Default is 5000. Set to false to disable timeout.",
+            "Optional timeout in milliseconds for provider fetch requests. Disabled by default because some streaming providers do not send response headers quickly. Set to false to disable timeout.",
         }),
         firstChunkTimeout: Schema.optional(PositiveInt).annotate({
           description:
