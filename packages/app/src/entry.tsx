@@ -244,7 +244,7 @@ function WebRoot() {
           {(currentServer) => (
             <Show when={authed()} fallback={<LoginPage onLogin={onLogin} />}>
               <AppInterface
-                defaultServer={ServerConnection.Key.make(getDefaultUrl())}
+                defaultServer={ServerConnection.Key.make(currentServer.http.url)}
                 servers={[currentServer]}
                 disableHealthCheck
               />
