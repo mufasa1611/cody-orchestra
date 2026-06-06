@@ -92,12 +92,13 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
       }
     }
 
-    const withUser = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    const withUser = <A, E, R>(effect: Effect.Effect<A, E, R>, opts: { allowLocalAnonymous?: boolean } = {}) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
         const userID = (yield* UserRef) ?? Jwt.userIdFromBearer(request.headers.authorization ?? "") ?? basicUserFromAuth(request.headers.authorization ?? "")
-        if (!userID) return yield* effect
-        return yield* effect.pipe(Effect.provideService(UserRef, userID))
+        if (userID) return yield* effect.pipe(Effect.provideService(UserRef, userID))
+        if (opts.allowLocalAnonymous && requestIsLocal(request)) return yield* effect
+        return yield* new HttpApiError.Unauthorized({})
       })
 
     const createPair = Effect.fn("AgentHttpApi.createPair")(function* () {
@@ -128,6 +129,7 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
           )
           return result as { files: Array<{ name: string; path: string; type: "file" | "directory"; size?: number; modifiedAt?: number }> }
         }),
+        { allowLocalAnonymous: true },
       )
     })
 
@@ -145,6 +147,7 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
           )
           return result as { content: string; encoding?: string }
         }),
+        { allowLocalAnonymous: true },
       )
     })
 

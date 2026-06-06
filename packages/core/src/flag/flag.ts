@@ -57,11 +57,23 @@ export const Flag = {
   get CODY_SERVER_PASSWORD() {
     return process.env["CODY_SERVER_PASSWORD"]
   },
+  set CODY_SERVER_PASSWORD(value: string | undefined) {
+    if (value === undefined) delete process.env["CODY_SERVER_PASSWORD"]
+    else process.env["CODY_SERVER_PASSWORD"] = value
+  },
   get CODY_SERVER_USERNAME() {
     return process.env["CODY_SERVER_USERNAME"]
   },
+  set CODY_SERVER_USERNAME(value: string | undefined) {
+    if (value === undefined) delete process.env["CODY_SERVER_USERNAME"]
+    else process.env["CODY_SERVER_USERNAME"] = value
+  },
   get CODY_JWT_SECRET() {
     return process.env["CODY_JWT_SECRET"]
+  },
+  set CODY_JWT_SECRET(value: string | undefined) {
+    if (value === undefined) delete process.env["CODY_JWT_SECRET"]
+    else process.env["CODY_JWT_SECRET"] = value
   },
   CODY_ENABLE_QUESTION_TOOL: truthy("CODY_ENABLE_QUESTION_TOOL"),
 
