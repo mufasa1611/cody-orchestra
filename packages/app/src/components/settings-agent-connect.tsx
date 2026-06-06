@@ -39,6 +39,24 @@ export const SettingsAgentConnect: Component = () => {
     return url.toString()
   }
 
+  const launcherUrl = (kind: "bat" | "ps1") => {
+    const code = pairingCode()
+    const endpoint = kind === "ps1" ? "/agent/download/launcher.ps1" : "/agent/download/launcher"
+    const url = new URL(endpoint, serverOrigin())
+    if (code) url.searchParams.set("code", code)
+    url.searchParams.set("server", serverOrigin())
+    url.searchParams.set("ws", wsUrl())
+    return url.toString()
+  }
+
+  const scriptUrl = () => new URL("/agent/download/script", serverOrigin()).toString()
+
+  const windowsCommand = () =>
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr '${launcherUrl("ps1")}' -UseBasicParsing | iex"`
+
+  const unixCommand = () =>
+    `tmp="$(mktemp)"; curl -fsSL "${scriptUrl()}" -o "$tmp"; (bun "$tmp" "${pairingCode()}" --ws "${wsUrl()}" || node "$tmp" "${pairingCode()}" --ws "${wsUrl()}")`
+
   const checkStatus = async () => {
     try {
       const res = await agentFetch()("/agent/status")
@@ -109,11 +127,7 @@ export const SettingsAgentConnect: Component = () => {
   const downloadLauncher = async (kind: "bat" | "ps1") => {
     const code = pairingCode()
     if (!code) return
-    const endpoint = kind === "ps1" ? "/agent/download/launcher.ps1" : "/agent/download/launcher"
-    const url = new URL(endpoint, serverOrigin())
-    url.searchParams.set("code", code)
-    url.searchParams.set("server", serverOrigin())
-    url.searchParams.set("ws", wsUrl())
+    const url = launcherUrl(kind)
     try {
       const res = await agentFetch()(url)
       if (!res.ok) throw new Error(res.statusText)
@@ -134,11 +148,18 @@ export const SettingsAgentConnect: Component = () => {
   const copyCommand = async () => {
     const code = pairingCode()
     if (code) {
-      const cmd = `bunx --yes cody-connect ${code} --ws "${wsUrl()}"`
-      await navigator.clipboard.writeText(cmd)
+      await navigator.clipboard.writeText(windowsCommand())
       setCopied(true)
-      showToast({ title: "Command copied. Paste it in any terminal.", variant: "success" })
+      showToast({ title: "Windows command copied", variant: "success" })
       setTimeout(() => setCopied(false), 3000)
+    }
+  }
+
+  const copyUnixCommand = async () => {
+    const code = pairingCode()
+    if (code) {
+      await navigator.clipboard.writeText(unixCommand())
+      showToast({ title: "macOS/Linux command copied", variant: "success" })
     }
   }
 
@@ -201,16 +222,17 @@ export const SettingsAgentConnect: Component = () => {
                 </Button>
               </div>
 
-              {/* Step 2: Show the ready-to-paste bunx command */}
+              {/* Step 2: Show ready-to-paste commands that use the hosted connector */}
               <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
                 <p class="text-13-semibold text-blue-300 mb-2 flex items-center gap-1.5">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                   Step 2: Run this on your PC
                 </p>
+                <p class="text-12-semibold text-blue-200 mb-1">Windows CMD / PowerShell</p>
                 <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
                   <span class="text-text-on-success-base text-13-mono">&gt;</span>
                   <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    bunx --yes cody-connect {pairingCode()} --ws &quot;{wsUrl()}&quot;
+                    {windowsCommand()}
                   </code>
                   <Button
                     variant="ghost"
@@ -221,8 +243,25 @@ export const SettingsAgentConnect: Component = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   </Button>
                 </div>
+                <p class="text-12-semibold text-blue-200 mb-1 mt-3">macOS / Linux</p>
+                <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
+                  <span class="text-text-on-success-base text-13-mono">&gt;</span>
+                  <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
+                    {unixCommand()}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={copyUnixCommand}
+                    aria-label="Copy macOS or Linux command"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </Button>
+                </div>
                 <p class="text-12-regular text-text-weak mt-2">
-                  {copied() ? "Copied. Paste in any terminal." : "This command works in Windows CMD, PowerShell, Linux, and macOS terminals."}
+                  {copied()
+                    ? "Copied. Paste it in Windows CMD or PowerShell."
+                    : "These commands use the live connector from this server, not the npm package."}
                 </p>
               </div>
 
