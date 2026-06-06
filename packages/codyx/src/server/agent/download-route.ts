@@ -32,7 +32,7 @@ const handleLauncherDownload = Effect.fn("AgentDownload.handleLauncherDownload")
   const wsUrl = url.searchParams.get("ws") || "wss://codyx.kingkung.men/ws/agent"
   const serverUrl = url.searchParams.get("server") || "https://codyx.kingkung.men"
 
-  const bat = `@echo off
+  const bat = String.raw`@echo off
 setlocal enabledelayedexpansion
 title cody-x — Connect My PC
 echo ============================================
@@ -42,7 +42,7 @@ echo.
 
 set "CODE=${code}"
 set "SERVER=${serverUrl}"
-set "SCRIPT=%TEMP%\\cody-x-connect-${code}.mjs"
+set "SCRIPT=%TEMP%\cody-x-connect-${code}.mjs"
 
 REM Download connect.mjs from server
 echo [1/2] Downloading connect script...
@@ -114,7 +114,7 @@ const handlePs1Download = Effect.fn("AgentDownload.handlePs1Download")(function*
   const wsUrl = url.searchParams.get("ws") || "wss://codyx.kingkung.men/ws/agent"
   const serverUrl = url.searchParams.get("server") || "https://codyx.kingkung.men"
 
-  const ps1 = `#!/usr/bin/env pwsh
+  const ps1 = String.raw`#!/usr/bin/env pwsh
 # cody-x — Remote PC Agent
 
 $code = "${code}"
