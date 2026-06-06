@@ -316,6 +316,8 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
   })
 
 const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
+  const userID = yield* UserRef;
+  log.info("status check", { userID, agentsCount: agents.size, activeAgents: Array.from(agents.values()).map(a => ({ code: a.code, user: a.userID })) });
   yield* touchClient()
   const agent = yield* agentForCurrentUser().pipe(Effect.catch(() => Effect.succeed(undefined)))
   if (!agent) {
