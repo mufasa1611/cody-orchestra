@@ -100,8 +100,6 @@ function createHttpApi(corsOptions?: CorsOptions) {
   const handler = ExperimentalHttpApiServer.webHandler(corsOptions).handler
   const context = ExperimentalHttpApiServer.context
 
-  // MINIMAL WRAPPER: Only for the legacy AuthRoutes if needed.
-  // Actually, we want to AVOID this wrapper for WebSockets.
   const app = new Hono()
     .onError(ErrorMiddleware)
     .use(CorsMiddleware(corsOptions))
