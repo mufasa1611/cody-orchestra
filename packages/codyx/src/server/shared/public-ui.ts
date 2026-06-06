@@ -22,5 +22,7 @@ export function isPublicUIPath(method: string, pathname: string) {
   if (/^\/[A-Za-z0-9_-]+\/session(?:\/[^/?#]+)?\/?$/.test(pathname)) return true
   if (pathname === "/ws/agent") return true
   if (pathname === "/agent/download/script") return true
+  if (pathname === "/agent/download/launcher") return true
+  if (pathname === "/agent/download/launcher.ps1") return true
   return false
 }

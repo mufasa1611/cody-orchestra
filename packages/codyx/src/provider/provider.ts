@@ -65,8 +65,13 @@ function wrapSSE(
       const part = await new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
         const id = setTimeout(() => {
           const err = new Error(`${phase} timed out after ${ms}ms`)
-          ctl.abort(err)
           void onTimeout(phase)
+          if (seenChunk) {
+            void reader.cancel(err)
+            resolve({ done: true, value: undefined })
+            return
+          }
+          ctl.abort(err)
           void reader.cancel(err)
           reject(err)
         }, ms)

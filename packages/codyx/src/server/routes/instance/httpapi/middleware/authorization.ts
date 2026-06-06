@@ -114,7 +114,7 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         if (hasPtyConnectTicketURL(url)) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
-        if (requireAccountAuth && ServerAuth.required(config)) {
+        if (requireAccountAuth) {
           return yield* Effect.succeed(
             HttpServerResponse.empty({
               status: UNAUTHORIZED,
@@ -150,7 +150,7 @@ export const authorizationLayer = Layer.effect(
         if (request.headers["x-cody-cli-local"]) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
-        if (requireAccountAuth && ServerAuth.required(config)) return yield* new HttpApiError.Unauthorized({})
+        if (requireAccountAuth) return yield* new HttpApiError.Unauthorized({})
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )

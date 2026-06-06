@@ -85,7 +85,11 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   }
 
-    const username = Flag.CODY_SERVER_USERNAME ?? "cody-x"
+  if (accountAuthRequired) {
+    return c.json({ error: "Authentication required" }, 401)
+  }
+
+  const username = Flag.CODY_SERVER_USERNAME ?? "cody-x"
 
   if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
 
