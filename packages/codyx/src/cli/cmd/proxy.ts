@@ -17,6 +17,7 @@ const PORTS = [
 
 let currentState = 0
 const PROXY_PORT = Number(process.env.CODY_PROXY_PORT || 8888)
+let transitionSeq = 0
 const routeHealth = PORTS.map(() => ({
   failures: 0,
   successes: 0,
@@ -95,14 +96,17 @@ function nextHealthyState() {
 }
 
 async function rotate(reason = "manual") {
-  currentState = nextHealthyState()
+  const seq = ++transitionSeq
+  const index = nextHealthyState()
+  currentState = index
   lastRotationReason = reason
-  const state = PORTS[currentState]
+  const state = PORTS[index]
   const stateStr = state.type === 'direct' ? 'Direct' : 'Tor on port ' + state.port;
-  UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Rotated to State ${currentState}: ${stateStr} (${reason})`);
+  UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Rotated to State ${index}: ${stateStr} (${reason})`);
   
   const ip = await getCurrentIP(state);
-  markSuccess(currentState, ip)
+  if (seq !== transitionSeq || currentState !== index) return
+  markSuccess(index, ip)
   UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (${state.type.toUpperCase()})`);
   
   if (state.type === "tor") {
@@ -119,9 +123,11 @@ async function rotate(reason = "manual") {
 }
 
 async function direct(reason = "manual-direct") {
+  const seq = ++transitionSeq
   currentState = 0
   lastRotationReason = reason
   const ip = await getCurrentIP(PORTS[0])
+  if (seq !== transitionSeq || currentState !== 0) return
   markSuccess(0, ip)
   UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Switched to Direct (${reason})`)
   UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (DIRECT)`)
