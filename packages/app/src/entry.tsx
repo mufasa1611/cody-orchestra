@@ -168,6 +168,13 @@ function WebRoot() {
     return res?.status === 200
   }
 
+  const accountAuthRequired = async () => {
+    const res = await fetch(getCurrentUrl() + "/api/auth/status", { method: "GET" }).catch(() => null)
+    if (!res?.ok) return true
+    const data = (await res.json().catch(() => null)) as { accountAuthRequired?: unknown } | null
+    return data?.accountAuthRequired === true
+  }
+
   const buildServer = (token?: string, creds?: { username: string; password: string }): ServerConnection.Http => ({
     type: "http",
     authToken: !!token || !!creds,
@@ -219,20 +226,15 @@ function WebRoot() {
       return
     }
 
-    fetch(getCurrentUrl() + "/global/health", { method: "GET" })
-      .then((res) => {
-        if (res.status === 401) {
-          setServer(buildServer())
-          setAuthed(false)
-        } else {
-          setServer(buildServer())
-          setAuthed(true)
-        }
+    accountAuthRequired()
+      .then((required) => {
+        setServer(buildServer())
+        setAuthed(!required)
         setReady(true)
       })
       .catch(() => {
         setServer(buildServer())
-        setAuthed(true)
+        setAuthed(false)
         setReady(true)
       })
   })

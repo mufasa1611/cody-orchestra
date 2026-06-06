@@ -9,6 +9,11 @@ const authRoutes = new Hono()
 authRoutes.use("/login", rateLimit(10, 60_000))
 authRoutes.use("/register", rateLimit(5, 60_000))
 
+// GET /api/auth/status - public auth mode for the web client boot gate
+authRoutes.get("/status", async (c) => {
+  return c.json({ accountAuthRequired: Auth.userCount() > 0 })
+})
+
 // POST /api/auth/register — create account and return JWT
 authRoutes.post("/register", async (c) => {
   try {

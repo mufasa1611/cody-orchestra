@@ -44,6 +44,20 @@ afterEach(async () => {
 })
 
 describe("HttpApi auth endpoints", () => {
+  test("GET /api/auth/status reports whether account auth is active", async () => {
+    const server = app()
+    const initial = await server.request("/api/auth/status")
+
+    expect(initial.status).toBe(200)
+    expect(await initial.json()).toEqual({ accountAuthRequired: false })
+
+    AuthService.createUser("status-user", "testpass123")
+    const afterUser = await server.request("/api/auth/status")
+
+    expect(afterUser.status).toBe(200)
+    expect(await afterUser.json()).toEqual({ accountAuthRequired: true })
+  })
+
   test("POST /api/auth/login returns token for valid credentials", async () => {
     ensureSecret()
     AuthService.createUser("testuser", "testpass123")
