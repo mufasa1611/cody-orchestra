@@ -56,6 +56,14 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const bus = yield* Bus.Service
     const scope = yield* Scope.Scope
 
+    const requestUserID = Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      return (yield* UserRef) ?? Jwt.userIdFromBearer(request.headers.authorization)
+    })
+
+    const withUserID = <A, E, R>(userID: string | undefined, effect: Effect.Effect<A, E, R>) =>
+      userID ? effect.pipe(Effect.provideService(UserRef, userID)) : effect
+
     const list = Effect.fn("SessionHttpApi.list")(function* (ctx: { query: typeof ListQuery.Type }) {
       const request = yield* HttpServerRequest.HttpServerRequest
       const userId = Jwt.userIdFromBearer(request.headers.authorization)
@@ -250,7 +258,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         },
         auto: ctx.payload.auto ?? false,
       })
-      yield* promptSvc.loop({ sessionID: ctx.params.sessionID })
+      const userID = yield* requestUserID
+      yield* withUserID(userID, promptSvc.loop({ sessionID: ctx.params.sessionID }))
       return true
     })
 
@@ -260,14 +269,16 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     }) {
       const instance = yield* InstanceState.context
       const workspace = yield* InstanceState.workspaceID
+      const userID = yield* requestUserID
       return HttpServerResponse.stream(
         Stream.fromEffect(
-          promptSvc
-            .prompt({
+          withUserID(
+            userID,
+            promptSvc.prompt({
               ...ctx.payload,
               sessionID: ctx.params.sessionID,
-            })
-            .pipe(Effect.provideService(InstanceRef, instance), Effect.provideService(WorkspaceRef, workspace)),
+            }),
+          ).pipe(Effect.provideService(InstanceRef, instance), Effect.provideService(WorkspaceRef, workspace)),
         ).pipe(
           Stream.map((message) => JSON.stringify(message)),
           Stream.encodeText,
@@ -280,7 +291,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof PromptPayload.Type
     }) {
-      yield* promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID }).pipe(
+      const userID = yield* requestUserID
+      yield* withUserID(userID, promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID })).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
             yield* Effect.logError("prompt_async failed", { sessionID: ctx.params.sessionID, cause })
@@ -299,14 +311,16 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof CommandPayload.Type
     }) {
-      return yield* promptSvc.command({ ...ctx.payload, sessionID: ctx.params.sessionID })
+      const userID = yield* requestUserID
+      return yield* withUserID(userID, promptSvc.command({ ...ctx.payload, sessionID: ctx.params.sessionID }))
     })
 
     const shell = Effect.fn("SessionHttpApi.shell")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof ShellPayload.Type
     }) {
-      return yield* promptSvc.shell({ ...ctx.payload, sessionID: ctx.params.sessionID })
+      const userID = yield* requestUserID
+      return yield* withUserID(userID, promptSvc.shell({ ...ctx.payload, sessionID: ctx.params.sessionID }))
     })
 
     const revert = Effect.fn("SessionHttpApi.revert")(function* (ctx: {

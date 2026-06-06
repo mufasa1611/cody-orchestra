@@ -4,7 +4,7 @@ import * as Shared from "@/server/agent/shared"
 
 const CommonDescription =
   " Only available when a remote PC is paired via Connect My PC." +
-  " Generate a pairing code in Settings > Connect My PC, then run `bunx cody-connect <CODE>` on the target PC."
+  " Generate a pairing code in Settings > Connect My PC, then run the hosted launcher command shown in the WebUI on the target PC."
 
 function formatFileList(data: { files?: Array<{ name: string; type: string; size?: number }> }): string {
   if (!data.files || data.files.length === 0) return "(empty directory)"
