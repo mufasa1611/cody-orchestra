@@ -1443,7 +1443,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             lastAssistant?.finish &&
             !["tool-calls"].includes(lastAssistant.finish) &&
             !hasToolCalls &&
-            lastUser.id < lastAssistant.id
+            lastAssistant.parentID === lastUser.id
           ) {
             yield* slog.info("exiting loop")
             break
@@ -1625,7 +1625,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }
 
             const finished = handle.message.finish && !["tool-calls", "unknown"].includes(handle.message.finish)
-            if (finished && !handle.message.error) {
+            const currentAssistant = finished
+              ? (yield* sessions.messages({ sessionID })).find((message) => message.info.id === handle.message.id)
+              : undefined
+            const hasToolCalls =
+              currentAssistant?.parts.some((part) => part.type === "tool" && !part.metadata?.providerExecuted) ?? false
+            if (finished && !handle.message.error && !hasToolCalls) {
               if (format.type === "json_schema") {
                 handle.message.error = new MessageV2.StructuredOutputError({
                   message: "Model did not produce structured output",
@@ -1634,6 +1639,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 yield* sessions.updateMessage(handle.message)
                 return "break" as const
               }
+              return "break" as const
             }
 
             if (result === "stop") return "break" as const

@@ -44,6 +44,7 @@ import { CrossSpawnSpawner } from "@cody/core/cross-spawn-spawner"
 import * as Database from "../../src/storage/db"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
+import * as AgentHub from "../../src/server/agent/hub"
 import { provideTmpdirInstance, provideTmpdirServer } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { reply, TestLLMServer } from "../lib/llm-server"
@@ -199,6 +200,7 @@ function makeHttp() {
       Layer.provideMerge(trunc),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
+      Layer.provide(AgentHub.layer),
       Layer.provideMerge(deps),
     ),
   ).pipe(Layer.provide(summary))
@@ -369,6 +371,36 @@ it.live("loop calls LLM and returns assistant message", () =>
       const parts = result.parts.filter((p) => p.type === "text")
       expect(parts.some((p) => p.type === "text" && p.text === "world")).toBe(true)
       expect(yield* llm.hits).toHaveLength(1)
+    }),
+    { git: true, config: providerCfg },
+  ),
+)
+
+it.live("loop stops after one normal text response", () =>
+  provideTmpdirServer(
+    Effect.fnUntraced(function* ({ llm }) {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Single response",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "reply once" }],
+      })
+      yield* llm.text("first response")
+      yield* llm.text("must remain unused")
+
+      const result = yield* prompt.loop({ sessionID: chat.id })
+      const messages = yield* sessions.messages({ sessionID: chat.id })
+
+      expect(result.parts.some((part) => part.type === "text" && part.text === "first response")).toBe(true)
+      expect(messages.filter((message) => message.info.role === "assistant")).toHaveLength(1)
+      expect(yield* llm.calls).toBe(1)
+      expect(yield* llm.pending).toBe(1)
     }),
     { git: true, config: providerCfg },
   ),
