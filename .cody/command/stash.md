@@ -1,33 +1,32 @@
 ---
-description: Stash private machine-specific info, credentials, and paths to memo.md
+description: Stash local environment config, connection references, and paths to memo.md
 ---
 
-Analyze this session and extract sensitive or personal information that must remain private to your local machine.
+Analyze this session and extract local setup details, machine-specific configurations, and connection references that are required for your work on this local machine.
 
 ### MISSION:
-You are an encrypted vault. Your only task is to extract connection details, local IPs, passwords, private paths, and machine-specific configurations into the root memo.md file.
+Your task is to preserve the personal workspace context by recording local service endpoints, machine-specific paths, and environment configuration into the root memo.md file. This ensures you have the necessary references to operate autonomously without repeated user input.
 
 ### TARGET:
 - **File:** Project root memo.md
-- **Privacy:** This file is Gitignored and safe. It will NEVER be pushed to GitHub.
-- **Goal:** Preserve your personal workspace context so you don''t have to ask the user for these details again.
+- **Persistence:** This file is for local reference only and is untracked by version control.
+- **Goal:** Maintain continuity of local environment details.
 
 ### WHAT TO STASH:
-- **Infrastructure:** Server IPs, SSH hostnames, Cloudflare/Tailscale addresses.
-- **Credentials:** API keys, passwords, database connection strings (e.g. \"User: mufasa / Pass: kingkung\").
-- **Local Paths:** Specific drive paths (e.g. \"X:\\cody-x\", \"/opt/vb\"), mapped network shares.
-- **Quirks:** \"On this specific server, Tor 9052 is flaky.\"
+- **Infrastructure:** Local service IPs, connection hostnames, internal network addresses (e.g., \"Proxmox: 192.168.68.68\").
+- **Environment Config:** Paths to configuration files, local port assignments, or service reference names.
+- **Local Paths:** Machine-specific directory locations (e.g., \"X:\\cody-x\", \"/opt/vb\"), drive mappings, and local project structures.
+- **Local Quirks:** Specific machine behavior or known local environment constraints.
 
 ### WHAT NOT TO STASH:
-- General code logic or architectural findings (use /learn for those).
-- Public documentation links.
+- General codebase logic or architectural patterns (use /learn for those).
 
 ### PROCESS:
-1. Review the session for private breakthroughs and server details.
+1. Review the session for unique local setup discoveries or required connection strings.
 2. Update/Create the memo.md file at the project root.
-3. Organize using headers like ## Infrastructure or ## Credentials.
+3. Organize using headers like ## Infrastructure or ## Environment.
 4. Keep entries concise (1-3 lines).
 
-After stashing, confirm what categories were updated in your private memo.
+After stashing, confirm which configuration categories were preserved in your local memo.
 
 \$ARGUMENTS
