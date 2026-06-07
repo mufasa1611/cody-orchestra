@@ -1,4 +1,4 @@
-import { createEffect, createMemo, Show, untrack } from "solid-js"
+import { createEffect, createMemo, createSignal, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { IconButton } from "@cody/ui/icon-button"
@@ -13,7 +13,8 @@ import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { useServer } from "@/context/server"
-import { authUserFromJwt } from "@/utils/server"
+import { clearAuthCookies, clearToken } from "@/pages/login"
+import { authUserFromJwt, fetchForServer } from "@/utils/server"
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 
 type TauriDesktopWindow = {
@@ -99,6 +100,24 @@ export function Titlebar() {
     if (!current) return
     return current.http.username || authUserFromJwt(current.http.token)?.username
   })
+  const authenticatedWebUser = createMemo(() => web() && !!server.current?.http.token)
+  const [loggingOut, setLoggingOut] = createSignal(false)
+
+  const logout = async () => {
+    const current = server.current
+    if (!current || !current.http.token || loggingOut()) return
+
+    setLoggingOut(true)
+    const request = fetchForServer(current.http, platform.fetch ?? globalThis.fetch)
+    try {
+      await request("/agent/disconnect", { method: "POST" }).catch(() => undefined)
+      await request("/api/auth/logout", { method: "POST" }).catch(() => undefined)
+    } finally {
+      clearToken()
+      clearAuthCookies()
+      window.location.replace(new URL("/", current.http.url).toString())
+    }
+  }
 
   const back = () => {
     const next = backPath(history)
@@ -334,12 +353,26 @@ export function Titlebar() {
         >
           <Show when={username()}>
             {(name) => (
-              <div
-                class="mr-1 flex h-7 min-w-0 max-w-44 items-center rounded-md border bg-surface-base px-2.5 text-14-medium"
-                style={{ color: "var(--avatar-text-orange)", "border-color": "var(--avatar-text-orange)" }}
-                title={`Signed in as ${name()}`}
-              >
-                <span class="truncate">{name()}</span>
+              <div class="mr-1 flex min-w-0 items-center gap-1">
+                <div
+                  class="flex h-7 min-w-0 max-w-44 items-center rounded-md border bg-surface-base px-2.5 text-14-medium"
+                  style={{ color: "var(--avatar-text-orange)", "border-color": "var(--avatar-text-orange)" }}
+                  title={`Signed in as ${name()}`}
+                >
+                  <span class="truncate">{name()}</span>
+                </div>
+                <Show when={authenticatedWebUser()}>
+                  <Tooltip placement="bottom" value="Log out">
+                    <IconButton
+                      icon="arrow-right"
+                      variant="ghost"
+                      class="titlebar-icon h-7 w-7 rounded-md"
+                      aria-label="Log out"
+                      disabled={loggingOut()}
+                      onClick={() => void logout()}
+                    />
+                  </Tooltip>
+                </Show>
               </div>
             )}
           </Show>

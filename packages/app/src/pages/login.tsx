@@ -25,6 +25,18 @@ export function clearToken(): void {
   } catch { }
 }
 
+export function clearAuthCookies(): void {
+  if (typeof document === "undefined") return
+  const names = document.cookie
+    .split(";")
+    .map((cookie) => cookie.split("=", 1)[0]?.trim())
+    .filter((name): name is string => !!name && /(?:auth|jwt|token)/i.test(name))
+
+  for (const name of names) {
+    document.cookie = `${encodeURIComponent(name)}=; Max-Age=0; Path=/; SameSite=Lax`
+  }
+}
+
 function getServerUrl(): string {
   if (typeof location === "undefined") return "http://localhost:4096"
   if (location.hostname.includes("cody.ai")) return "http://localhost:4096"
