@@ -4,7 +4,8 @@ import * as AgentHub from "@/server/agent/hub"
 
 const CommonDescription =
   " Only available when a remote PC is paired via Connect My PC." +
-  " Generate a pairing code in Settings > Connect My PC, then run the hosted launcher command shown in the WebUI on the target PC."
+  " Pair it from Settings > Connect My PC by running `bunx --yes cody-connect@latest <PAIRING_CODE>` on the target PC." +
+  " Do not instruct the user to install or run the codyx TUI; cody-connect is the remote PC agent."
 
 function formatFileList(data: { files?: Array<{ name: string; type: string; size?: number }> }): string {
   if (!data.files || data.files.length === 0) return "(empty directory)"

@@ -1599,7 +1599,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             const agentStatus = yield* hub.getStatus
             if (agentStatus.connected) {
               system.push(
-                "A remote PC is connected. To interact with the remote PC's filesystem (list/read/write files, execute commands), use the cody-agent-list, cody-agent-read, cody-agent-write, and cody-agent-exec tools. The default glob, grep, read, write, edit, and shell tools operate on the server's filesystem, not the remote PC's filesystem."
+                "A remote PC is verified as connected for this response. Use cody-agent-list, cody-agent-read, cody-agent-write, and cody-agent-exec for its filesystem and commands. Do not claim the remote PC is disconnected or provide setup instructions when this notice is present. The default glob, grep, read, write, edit, and shell tools operate on the server, not the remote PC. If a remote tool fails, report that specific command failure without replacing the supported setup flow. The only supported pairing command is `bunx --yes cody-connect@latest <PAIRING_CODE>` from Settings > Connect My PC; do not recommend installing or running the codyx TUI."
               )
             }
             const format = lastUser.format ?? { type: "text" as const }
