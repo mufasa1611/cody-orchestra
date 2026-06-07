@@ -340,7 +340,34 @@ export function Titlebar() {
         </div>
 
         <div class="min-w-0 flex items-center justify-center pointer-events-none">
-          <div id="cody-titlebar-center" class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full" />
+          <div class="pointer-events-auto flex min-w-0 max-w-full items-center justify-center gap-1">
+            <div id="cody-titlebar-center" class="flex min-w-0 max-w-full justify-center" />
+            <Show when={username()}>
+              {(name) => (
+                <div class="flex min-w-0 shrink-0 items-center gap-1">
+                  <div
+                    class="flex h-7 min-w-0 max-w-32 items-center rounded-md border bg-surface-base px-2.5 text-14-medium"
+                    style={{ color: "var(--avatar-text-orange)", "border-color": "var(--avatar-text-orange)" }}
+                    title={`Signed in as ${name()}`}
+                  >
+                    <span class="truncate">{name()}</span>
+                  </div>
+                  <Show when={authenticatedWebUser()}>
+                    <Tooltip placement="bottom" value="Log out">
+                      <IconButton
+                        icon="arrow-right"
+                        variant="ghost"
+                        class="titlebar-icon h-7 w-7 rounded-md"
+                        aria-label="Log out"
+                        disabled={loggingOut()}
+                        onClick={() => void logout()}
+                      />
+                    </Tooltip>
+                  </Show>
+                </div>
+              )}
+            </Show>
+          </div>
         </div>
 
         <div
@@ -351,31 +378,6 @@ export function Titlebar() {
           data-tauri-drag-region
           onMouseDown={drag}
         >
-          <Show when={username()}>
-            {(name) => (
-              <div class="mr-1 flex min-w-0 items-center gap-1">
-                <div
-                  class="flex h-7 min-w-0 max-w-44 items-center rounded-md border bg-surface-base px-2.5 text-14-medium"
-                  style={{ color: "var(--avatar-text-orange)", "border-color": "var(--avatar-text-orange)" }}
-                  title={`Signed in as ${name()}`}
-                >
-                  <span class="truncate">{name()}</span>
-                </div>
-                <Show when={authenticatedWebUser()}>
-                  <Tooltip placement="bottom" value="Log out">
-                    <IconButton
-                      icon="arrow-right"
-                      variant="ghost"
-                      class="titlebar-icon h-7 w-7 rounded-md"
-                      aria-label="Log out"
-                      disabled={loggingOut()}
-                      onClick={() => void logout()}
-                    />
-                  </Tooltip>
-                </Show>
-              </div>
-            )}
-          </Show>
           <div id="cody-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
           <Show when={windows()}>
             {!tauriApi() && <div class="shrink-0" style={{ width: windowsControlsWidth() }} />}
