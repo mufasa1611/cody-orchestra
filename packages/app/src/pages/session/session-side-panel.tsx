@@ -86,14 +86,14 @@ export function SessionSidePanel(props: {
     } catch { /* ignore */ }
   }
 
-  const requestDisconnect = async (options?: { silent?: boolean; keepalive?: boolean }) => {
-    const res = await agentFetch()("/agent/disconnect", { method: "POST", keepalive: options?.keepalive })
+  const requestDisconnect = async () => {
+    const res = await agentFetch()("/agent/disconnect", { method: "POST" })
     if (res.ok) {
       setConnected(false)
-      if (!options?.silent) showToast({ title: "Remote PC disconnected", variant: "success" })
+      showToast({ title: "Remote PC disconnected", variant: "success" })
       return
     }
-    if (!options?.silent) showToast({ title: "Failed to disconnect", variant: "error" })
+    showToast({ title: "Failed to disconnect", variant: "error" })
   }
 
   const disconnect = async () => {
@@ -103,19 +103,6 @@ export function SessionSidePanel(props: {
       showToast({ title: "Failed to disconnect", variant: "error" })
     }
   }
-
-  const disconnectOnPageHide = () => {
-    if (!connected()) return
-    void requestDisconnect({ silent: true, keepalive: true }).catch(() => {})
-  }
-
-  onMount(() => {
-    window.addEventListener("pagehide", disconnectOnPageHide)
-  })
-
-  onCleanup(() => {
-    window.removeEventListener("pagehide", disconnectOnPageHide)
-  })
 
   const dialog = useDialog()
   const { params, sessionKey, tabs, view } = useSessionLayout()

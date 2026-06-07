@@ -335,7 +335,7 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
   } as const
 })
 
-const instance: Interface = {
+export const service: Interface = {
   createPairingCode: createPairingCode(),
   connectAgent: (code, write, close, metadata) => connectAgent(code, write, close, metadata),
   disconnectAgent: (code) => disconnectAgent(code),
@@ -348,4 +348,4 @@ const instance: Interface = {
   exec: (command) => sendCommand("exec", { command }),
 }
 
-export const layer: Layer.Layer<Service> = Layer.succeed(Service, Service.of(instance))
+export const layer: Layer.Layer<Service> = Layer.succeed(Service, Service.of(service))

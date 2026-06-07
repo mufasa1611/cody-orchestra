@@ -1,7 +1,7 @@
 ﻿{
     "$schema":  "https://json.schemastore.org/package.json",
     "name":  "cody-connect",
-    "version":  "0.2.2",
+    "version":  "0.2.3",
     "description":  "codyx Remote PC Agent - connect your PC to codyx.kingkung.men",
     "type":  "module",
     "license":  "MIT",
@@ -14,8 +14,12 @@
                 },
     "repository":  {
                        "type":  "git",
-                       "url":  "git+https://github.com/mufasa1611/cody-x.git"
+                       "url":  "git+https://github.com/mufasa1611/cody-orchestra.git",
+                       "directory":  "packages/connect"
                    },
+    "publishConfig":  {
+                          "access":  "public"
+                      },
     "files":  [
                   "connect.mjs"
               ]

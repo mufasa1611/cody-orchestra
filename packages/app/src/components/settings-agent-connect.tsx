@@ -18,7 +18,7 @@ export const SettingsAgentConnect: Component = () => {
   const [connected, setConnected] = createSignal(false)
   const [pairedAt, setPairedAt] = createSignal<number | null>(null)
   const [generating, setGenerating] = createSignal(false)
-  const [copiedCommand, setCopiedCommand] = createSignal<string | null>(null)
+  const [copiedCommand, setCopiedCommand] = createSignal(false)
 
   let intervalId: ReturnType<typeof setInterval> | undefined
 
@@ -28,37 +28,7 @@ export const SettingsAgentConnect: Component = () => {
     return fetchForServer(current.http, platform.fetch ?? globalThis.fetch)
   }
 
-  const serverOrigin = () => server.current?.http.url ?? window.location.origin
-
-  const wsUrl = () => {
-    const url = new URL(serverOrigin())
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
-    url.pathname = "/ws/agent"
-    url.search = ""
-    url.hash = ""
-    return url.toString()
-  }
-
-  const launcherUrl = (kind: "bat" | "ps1") => {
-    const code = pairingCode()
-    const endpoint = kind === "ps1" ? "/agent/download/launcher.ps1" : "/agent/download/launcher"
-    const url = new URL(endpoint, serverOrigin())
-    if (code) url.searchParams.set("code", code)
-    url.searchParams.set("server", serverOrigin())
-    url.searchParams.set("ws", wsUrl())
-    return url.toString()
-  }
-
-  const scriptUrl = () => new URL("/agent/download/script", serverOrigin()).toString()
-
-  const powershellCommand = () =>
-    `[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('${launcherUrl("ps1")}'))`
-
-  const cmdCommand = () =>
-    `powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('${launcherUrl("ps1")}'))"`
-
-  const unixCommand = () =>
-    `tmp="$(mktemp)"; curl -fsSL "${scriptUrl()}" -o "$tmp"; (bun "$tmp" "${pairingCode()}" --ws "${wsUrl()}" || node "$tmp" "${pairingCode()}" --ws "${wsUrl()}")`
+  const connectCommand = () => `bunx --yes cody-connect@latest ${pairingCode()}`
 
   const checkStatus = async () => {
     try {
@@ -90,7 +60,7 @@ export const SettingsAgentConnect: Component = () => {
         const data = await res.json()
         setPairingCode(data.code)
         setCodeExpiresAt(data.expiresAt)
-        setCopiedCommand(null)
+        setCopiedCommand(false)
       } else {
         showToast({ title: "Failed to generate pairing code", variant: "error" })
       }
@@ -114,47 +84,13 @@ export const SettingsAgentConnect: Component = () => {
     }
   }
 
-  const disconnectOnPageHide = () => {
-    if (!connected()) return
-    void agentFetch()("/agent/disconnect", { method: "POST", keepalive: true }).catch(() => {})
-  }
-
-  onMount(() => {
-    window.addEventListener("pagehide", disconnectOnPageHide)
-  })
-
-  onCleanup(() => {
-    window.removeEventListener("pagehide", disconnectOnPageHide)
-  })
-
-  const downloadLauncher = async (kind: "bat" | "ps1") => {
-    const code = pairingCode()
-    if (!code) return
-    const url = launcherUrl(kind)
-    try {
-      const res = await agentFetch()(url)
-      if (!res.ok) throw new Error(res.statusText)
-      const blob = await res.blob()
-      const href = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = href
-      a.download = "connect-pc-" + code + "." + kind
-      document.body.append(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(href)
-    } catch {
-      showToast({ title: "Failed to download launcher", variant: "error" })
-    }
-  }
-
-  const copyCommand = async (label: string, command: string) => {
+  const copyCommand = async () => {
     const code = pairingCode()
     if (code) {
-      await navigator.clipboard.writeText(command)
-      setCopiedCommand(label)
-      showToast({ title: label + " command copied", variant: "success" })
-      setTimeout(() => setCopiedCommand((current) => (current === label ? null : current)), 3000)
+      await navigator.clipboard.writeText(connectCommand())
+      setCopiedCommand(true)
+      showToast({ title: "Connect command copied", variant: "success" })
+      setTimeout(() => setCopiedCommand(false), 3000)
     }
   }
 
@@ -217,72 +153,30 @@ export const SettingsAgentConnect: Component = () => {
                 </Button>
               </div>
 
-              {/* Step 2: Show hosted connector launchers and shell-specific commands */}
+              {/* Step 2: Show one command for every Bun-supported terminal */}
               <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
                 <p class="text-13-semibold text-blue-300 mb-2 flex items-center gap-1.5">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                   Step 2: Connect this PC
                 </p>
-                <div class="flex flex-wrap gap-2 mb-3">
-                  <Button variant="primary" size="small" onClick={() => downloadLauncher("bat")}>
-                    Download Windows launcher
-                  </Button>
-                  <Button variant="secondary" size="small" onClick={() => downloadLauncher("ps1")}>
-                    Download PowerShell launcher
-                  </Button>
-                </div>
-
-                <p class="text-12-semibold text-blue-200 mb-1">PowerShell</p>
                 <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
                   <span class="text-text-on-success-base text-13-mono">&gt;</span>
                   <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    {powershellCommand()}
+                    {connectCommand()}
                   </code>
                   <Button
                     variant="ghost"
                     size="small"
-                    onClick={() => copyCommand("PowerShell", powershellCommand())}
-                    aria-label="Copy PowerShell command"
+                    onClick={copyCommand}
+                    aria-label="Copy connect command"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </Button>
-                </div>
-
-                <p class="text-12-semibold text-blue-200 mb-1 mt-3">Command Prompt</p>
-                <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
-                  <span class="text-text-on-success-base text-13-mono">&gt;</span>
-                  <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    {cmdCommand()}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    onClick={() => copyCommand("Command Prompt", cmdCommand())}
-                    aria-label="Copy Command Prompt command"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </Button>
-                </div>
-
-                <p class="text-12-semibold text-blue-200 mb-1 mt-3">macOS / Linux</p>
-                <div class="flex items-center gap-2 bg-gray-900 rounded-lg py-2.5 px-3 border border-gray-700">
-                  <span class="text-text-on-success-base text-13-mono">&gt;</span>
-                  <code class="text-14-mono text-text-on-success-base flex-1 select-all whitespace-nowrap overflow-x-auto">
-                    {unixCommand()}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    onClick={() => copyCommand("macOS/Linux", unixCommand())}
-                    aria-label="Copy macOS or Linux command"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <Icon name="copy" size="small" />
                   </Button>
                 </div>
                 <p class="text-12-regular text-text-weak mt-2">
                   {copiedCommand()
-                    ? copiedCommand() + " command copied."
-                    : "These commands use the live connector from this server, not the npm package."}
+                    ? "Command copied."
+                    : "Run this command in PowerShell, Command Prompt, Windows Terminal, Linux, or macOS."}
                 </p>
               </div>
 

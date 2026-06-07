@@ -2,7 +2,6 @@
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
 import * as AgentHub from "./hub"
-import * as Shared from "./shared"
 import type { AgentMessage } from "./types"
 
 export const agentWebSocketRoute = HttpRouter.use((router) =>
@@ -48,7 +47,6 @@ export const agentWebSocketRoute = HttpRouter.use((router) =>
                 if (ok) {
                   paired = true
                   pairedCode = parsed.code
-                  Shared.registerHub(hub)
                   yield* write(JSON.stringify({ type: "paired" }))
                 } else {
                   yield* write(JSON.stringify({ type: "pair-error", error: "Invalid or expired pairing code" }))
@@ -63,11 +61,11 @@ export const agentWebSocketRoute = HttpRouter.use((router) =>
           )
           .pipe(
             Effect.ensuring(
-              pairedCode
-                ? hub.disconnectAgent(pairedCode).pipe(
-                    Effect.ensuring(Effect.sync(() => Shared.clearHub())),
-                  )
-                : Effect.void,
+              Effect.suspend(() =>
+                pairedCode
+                  ? hub.disconnectAgent(pairedCode)
+                  : Effect.void,
+              ),
             ),
           )
 

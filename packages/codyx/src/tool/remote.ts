@@ -1,6 +1,6 @@
 ﻿import { Effect, Schema } from "effect"
 import * as Tool from "./tool"
-import * as Shared from "@/server/agent/shared"
+import * as AgentHub from "@/server/agent/hub"
 
 const CommonDescription =
   " Only available when a remote PC is paired via Connect My PC." +
@@ -25,9 +25,7 @@ const RemoteLsTool = Tool.define(
       }),
       execute: (params: { path: string }) =>
         Effect.gen(function* () {
-          const hub = Shared.getRemoteHub()
-          if (!hub) return yield* Effect.fail(new Error("No remote PC connected"))
-          const result = yield* hub.listDir(params.path)
+          const result = yield* AgentHub.service.listDir(params.path)
           return { output: formatFileList(result as any), title: `remote: ${params.path}`, metadata: {} }
         }).pipe(Effect.orDie),
     }
@@ -44,9 +42,7 @@ const RemoteReadTool = Tool.define(
       }),
       execute: (params: { path: string }) =>
         Effect.gen(function* () {
-          const hub = Shared.getRemoteHub()
-          if (!hub) return yield* Effect.fail(new Error("No remote PC connected"))
-          const result = yield* hub.readFile(params.path)
+          const result = yield* AgentHub.service.readFile(params.path)
           const data = result as { content: string; encoding?: string }
           return { output: data.content, title: `remote: ${params.path}`, metadata: {} }
         }).pipe(Effect.orDie),
@@ -65,9 +61,7 @@ const RemoteWriteTool = Tool.define(
       }),
       execute: (params: { path: string; content: string }) =>
         Effect.gen(function* () {
-          const hub = Shared.getRemoteHub()
-          if (!hub) return yield* Effect.fail(new Error("No remote PC connected"))
-          yield* hub.writeFile(params.path, params.content)
+          yield* AgentHub.service.writeFile(params.path, params.content)
           return { output: "File written successfully", title: `remote: ${params.path}`, metadata: {} }
         }).pipe(Effect.orDie),
     }
@@ -84,9 +78,7 @@ const RemoteBashTool = Tool.define(
       }),
       execute: (params: { command: string }) =>
         Effect.gen(function* () {
-          const hub = Shared.getRemoteHub()
-          if (!hub) return yield* Effect.fail(new Error("No remote PC connected"))
-          const result = yield* hub.exec(params.command)
+          const result = yield* AgentHub.service.exec(params.command)
           const r = result as { stdout: string; stderr: string; exitCode: number }
           let output = ""
           if (r.stdout) output += r.stdout

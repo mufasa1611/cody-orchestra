@@ -7,7 +7,7 @@
 import fs from "fs"
 import path from "path"
 import os from "os"
-import { exec, execSync } from "child_process"
+import { exec, execSync, spawnSync } from "child_process"
 
 const DEFAULT_WS_URL = "wss://codyx.kingkung.men/ws/agent"
 
@@ -36,38 +36,34 @@ function parseArgs(argv) {
 }
 
 const { code: mode, wsUrl: WS_URL } = parseArgs(process.argv.slice(2))
+let ws
+let reconnectTimer
+let running = true
+const activeChildren = new Set()
 
 // --- Uninstall ---
 
 if (mode === "--uninstall" || mode === "--cleanup") {
-  if (process.platform === "win32" && !(trySync(() => execSync("net session", { encoding: "utf-8", timeout: 3000 }), false))) {
-    console.log("Elevating to administrator privileges for cleanup...")
-    const args = process.argv.slice(1).map(a => `"${a}"`).join(" ")
-    execSync(`powershell -Command "Start-Process -Verb RunAs -FilePath '${process.execPath}' -ArgumentList ${args} -Wait"`, { timeout: 15000 })
-    process.exit(0)
-  }
+  if (process.platform === "win32" && !isWindowsAdmin()) elevateWindows("Elevating to administrator privileges for cleanup...")
   uninstallAll()
   process.exit(0)
 }
 
 if (!mode || mode.startsWith("--")) {
-  console.error("Usage: bunx cody-connect <PAIRING_CODE> [--ws <WEBSOCKET_URL>]")
-  console.error("       bunx cody-connect --uninstall")
+  console.error("Usage: bunx --yes cody-connect@latest <PAIRING_CODE> [--ws <WEBSOCKET_URL>]")
+  console.error("       bunx --yes cody-connect@latest --uninstall")
   console.error("")
   console.error("Get a pairing code from codyx.kingkung.men > Settings > Connect My PC")
   console.error("")
   console.error("Example:")
-  console.error(`  bunx --yes cody-connect ABC123 --ws ${DEFAULT_WS_URL}`)
+  console.error("  bunx --yes cody-connect@latest ABC123")
   if (mode === "--help") console.log("  --uninstall  Remove all installed files, Bun, and cloned repo")
   process.exit(mode === "--help" ? 0 : 1)
 }
 
 // Auto-elevate on Windows if not already admin
-if (process.platform === "win32" && !(trySync(() => execSync("net session", { encoding: "utf-8", timeout: 3000 }), false))) {
-  console.log("Elevating to administrator privileges for full remote control...")
-  const args = process.argv.slice(1).map(a => `"${a}"`).join(" ")
-  execSync(`powershell -Command "Start-Process -Verb RunAs -FilePath '${process.execPath}' -ArgumentList ${args} -Wait"`, { timeout: 15000 })
-  process.exit(0)
+if (process.platform === "win32" && !isWindowsAdmin()) {
+  elevateWindows("Elevating to administrator privileges for full remote control...")
 }
 
 console.log("Cody Connect Agent (admin mode)")
@@ -77,6 +73,39 @@ startAgent(mode)
 
 function trySync(fn, fallback) {
   try { return fn() } catch { return fallback }
+}
+
+function isWindowsAdmin() {
+  return trySync(() => {
+    execSync("net session", { stdio: "ignore", timeout: 3000 })
+    return true
+  }, false)
+}
+
+function quoteWindowsArgument(value) {
+  return `"${value.replace(/(\\*)"/g, "$1$1\\\"").replace(/(\\+)$/, "$1$1")}"`
+}
+
+function quotePowerShellLiteral(value) {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
+function elevateWindows(message) {
+  console.log(message)
+  const commandLine = process.argv.slice(1).map(quoteWindowsArgument).join(" ")
+  const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$process = Start-Process -Verb RunAs -FilePath ${quotePowerShellLiteral(process.execPath)} -ArgumentList ${quotePowerShellLiteral(commandLine)} -Wait -PassThru`,
+    "exit $process.ExitCode",
+  ].join("\n")
+  const encoded = Buffer.from(script, "utf16le").toString("base64")
+  const result = spawnSync(
+    "powershell.exe",
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+    { stdio: "inherit" },
+  )
+  if (result.error) throw result.error
+  process.exit(result.status ?? 1)
 }
 
 // --- Uninstall ---
@@ -130,9 +159,6 @@ function uninstallAll() {
 }
 
 // --- WebSocket Agent ---
-
-let ws, reconnectTimer, running = true
-const activeChildren = new Set()
 
 function killActiveChildren(reason = "disconnect") {
   for (const child of Array.from(activeChildren)) {
