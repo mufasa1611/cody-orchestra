@@ -789,7 +789,22 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
   }
 
   for (const msg of input) {
-    if (msg.parts.length === 0) continue
+    if (msg.parts.length === 0 && (msg.info as any).type !== "compaction") continue
+
+    
+    // @ts-ignore
+    if (msg.info.type === "compaction") {
+      result.push({
+        id: msg.info.id,
+        role: "system",
+        parts: [
+          {
+            type: "text",
+            text: "This is a summary of the conversation so far to provide context for the current session:\n\n" + (msg.info as any).summary,
+          },
+        ],
+      })
+    }
 
     if (msg.info.role === "user") {
       const userMessage: UIMessage = {
