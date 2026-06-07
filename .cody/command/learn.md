@@ -39,4 +39,4 @@ Process:
 
 After updating, summarize which AGENTS.md files were created/updated and how many learnings per file.
 
-$ARGUMENTS
+\$ARGUMENTS

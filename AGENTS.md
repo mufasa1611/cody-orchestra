@@ -101,3 +101,4 @@ const table = sqliteTable("session", {
 ## Type Checking
 
 - Always run `bun typecheck` from package directories (e.g., `packages/codyx`), never `tsc` directly.
+- Private machine-specific data is stored in the gitignored \`memo.md\` file at the root. Use the \`/stash\` command to update it with local paths and credentials.

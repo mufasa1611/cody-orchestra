@@ -33,7 +33,7 @@ import { ModelID, ProviderID } from "./schema"
 const log = Log.create({ service: "provider" })
 const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 10_000
 const DEFAULT_IDLE_CHUNK_TIMEOUT_MS = 15_000
-const MAX_PROXY_RETRIES = 2
+const MAX_PROXY_RETRIES = 5
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
