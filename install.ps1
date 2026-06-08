@@ -8,11 +8,11 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "[warn] This installer (root 'install.ps1') is deprecated." -ForegroundColor Yellow
 Write-Host "[warn] Use the unified script/install.ps1 instead:" -ForegroundColor Yellow
-Write-Host "  irm https://raw.githubusercontent.com/mufasa1611/cody-x/$Branch/script/install.ps1 | iex" -ForegroundColor Yellow
+Write-Host "  irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/install.ps1 | iex" -ForegroundColor Yellow
 Write-Host ""
 
 # Redirect to unified installer
-$newUrl = "https://raw.githubusercontent.com/mufasa1611/cody-x/$Branch/script/install.ps1"
+$newUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/install.ps1"
 try {
   $newScript = Invoke-WebRequest -UseBasicParsing -Uri $newUrl
   $tempFile = [System.IO.Path]::GetTempFileName() + ".ps1"
@@ -30,7 +30,7 @@ trap {
   exit 1
 }
 
-$repoUrl = "https://github.com/mufasa1611/cody-x.git"
+$repoUrl = "https://github.com/mufasa1611/cody-orchestra.git"
 $defaultRoot = Join-Path $env:LOCALAPPDATA "cody-x"
 
 function Test-CodyXCheckout($path) {
@@ -71,7 +71,7 @@ if (-not $scriptRoot) {
 # or pass -NoSelfUpdate for local deterministic testing.
 $selfUpdateDisabled = $NoSelfUpdate -or $env:CODY_INSTALLER_SELF_UPDATE -eq "0"
 if (-not $selfUpdateDisabled -and $scriptPath -and -not $env:CODY_INSTALLER_SELF_UPDATED) {
-  $installerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-x/$Branch/install.ps1"
+  $installerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/install.ps1"
   try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $response = Invoke-WebRequest -UseBasicParsing -Uri $installerUrl

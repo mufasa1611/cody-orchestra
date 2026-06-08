@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-set "REPO_URL=https://github.com/mufasa1611/cody-x.git"
+set "REPO_URL=https://github.com/mufasa1611/cody-orchestra.git"
 if not defined CODY_BRANCH set "CODY_BRANCH=main"
 if not defined CODY_NO_SCAN set "CODY_NO_SCAN=0"
 if not defined CODY_NO_PROXY set "CODY_NO_PROXY=0"
 if not defined CODY_NO_BUILD set "CODY_NO_BUILD=0"
 if not defined CODY_YES set "CODY_YES=0"
-set "INSTALLER_URL=https://raw.githubusercontent.com/mufasa1611/cody-x/%CODY_BRANCH%/install.bat"
+set "INSTALLER_URL=https://raw.githubusercontent.com/mufasa1611/cody-orchestra/%CODY_BRANCH%/install.bat"
 set "DEFAULT_PARENT=%LOCALAPPDATA%\cody-x"
 set "DEFAULT_ROOT=%DEFAULT_PARENT%"
 set "GLOBAL_BIN=%APPDATA%\npm"

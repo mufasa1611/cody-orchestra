@@ -19,7 +19,7 @@
 .PARAMETER InstallRoot
     Directory to clone/install cody-x into (default: ~\AppData\Local\cody-x).
 .EXAMPLE
-    irm https://raw.githubusercontent.com/mufasa1611/cody-x/main/script/install.ps1 | iex
+    irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.ps1 | iex
 .EXAMPLE
     .\install.ps1 -Yes -Branch dev -NoScan -NoProxy
 #>
@@ -36,7 +36,7 @@ $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "cody-x Installer"
 
 # ── Configuration ──────────────────────────────────────────────────────
-$RepoUrl = "https://github.com/mufasa1611/cody-x.git"
+$RepoUrl = "https://github.com/mufasa1611/cody-orchestra.git"
 $DefaultParent = Join-Path $env:LOCALAPPDATA "cody-x"
 $Root = if ($InstallRoot) { $InstallRoot } else { $DefaultParent }
 $GlobalBin = Join-Path $env:APPDATA "npm"

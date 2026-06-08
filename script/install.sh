@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ── Config ─────────────────────────────────────────────────────────────
-REPO_URL="https://github.com/mufasa1611/cody-x.git"
+REPO_URL="https://github.com/mufasa1611/cody-orchestra.git"
 BRANCH="${CODY_BRANCH:-main}"
 ROOT="${CODY_INSTALL_ROOT:-$HOME/.local/share/cody-x}"
 NO_SCAN="${CODY_NO_SCAN:-0}"
