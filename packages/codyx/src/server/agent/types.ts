@@ -3,6 +3,7 @@
 // === Agent → Hub messages ===
 export type AgentMessage =
   | { type: "pair"; code: string; platform?: string; hostname?: string }
+  | { type: "reconnect"; token: string; platform?: string; hostname?: string }
   | { type: "result"; id: number; data: unknown }
   | { type: "error"; id: number; error: string }
   | { type: "pong" }
@@ -10,7 +11,8 @@ export type AgentMessage =
 
 // === Hub → Agent messages ===
 export type HubMessage =
-  | { type: "paired" }
+  | { type: "paired"; reconnectToken?: string }
+  | { type: "reconnect-ok" }
   | { type: "pair-error"; error: string }
   | { type: "command"; id: number; command: string; args: unknown }
   | { type: "ping" }

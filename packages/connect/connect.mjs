@@ -39,6 +39,7 @@ const { code: mode, wsUrl: WS_URL } = parseArgs(process.argv.slice(2))
 let ws
 let reconnectTimer
 let running = true
+let reconnectToken = null
 const activeChildren = new Set()
 
 // --- Uninstall ---
@@ -187,13 +188,23 @@ async function startAgent(code) {
 
     ws = new globalThis.WebSocket(WS_URL)
     ws.onopen = () => {
-      console.log("Connected! Sending pairing code...")
-      ws.send(JSON.stringify({
-        type: "pair",
-        code,
-        platform: process.platform,
-        hostname: os.hostname(),
-      }))
+      if (reconnectToken) {
+        console.log("Connected! Attempting reconnect with stored token...")
+        ws.send(JSON.stringify({
+          type: "reconnect",
+          token: reconnectToken,
+          platform: process.platform,
+          hostname: os.hostname(),
+        }))
+      } else {
+        console.log("Connected! Sending pairing code...")
+        ws.send(JSON.stringify({
+          type: "pair",
+          code,
+          platform: process.platform,
+          hostname: os.hostname(),
+        }))
+      }
     }
 
     ws.onmessage = async (event) => {
@@ -225,6 +236,10 @@ async function handleMessage(msg) {
   switch (msg.type) {
     case "paired":
       console.log("Paired successfully! Awaiting commands...")
+      if (msg.reconnectToken) reconnectToken = msg.reconnectToken
+      break
+    case "reconnect-ok":
+      console.log("Reconnected successfully! Awaiting commands...")
       break
     case "pair-error":
       console.error("Pairing failed:", msg.error)

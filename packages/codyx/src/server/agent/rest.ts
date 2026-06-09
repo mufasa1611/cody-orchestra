@@ -288,8 +288,12 @@ export const AgentRoutes = lazy(() =>
             Effect.gen(function* () {
               const hub = yield* AgentHub.Service
               const status = yield* hub.getStatus
+              const userID = yield* UserRef
               if (status.connected && status.code) {
                 yield* hub.disconnectAgent(status.code)
+              }
+              if (userID) {
+                yield* hub.invalidateUserReconnectTokens(userID)
               }
               return { disconnected: true }
             }),

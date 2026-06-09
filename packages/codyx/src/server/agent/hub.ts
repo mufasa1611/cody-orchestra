@@ -29,6 +29,7 @@ interface PairedAgent {
   remotePlatform?: string
   remoteHostname?: string
   lastPong?: number
+  reconnectToken?: string
 }
 
 interface PairingCode {
@@ -46,7 +47,13 @@ export interface Interface {
     write: AgentWriter,
     close: Effect.Effect<void>,
     metadata?: { platform?: string; hostname?: string },
-  ) => Effect.Effect<boolean, Error>
+  ) => Effect.Effect<{ success: boolean; reconnectToken?: string }, Error>
+  readonly reconnectAgent: (
+    token: string,
+    write: AgentWriter,
+    close: Effect.Effect<void>,
+    metadata?: { platform?: string; hostname?: string },
+  ) => Effect.Effect<{ success: boolean; code?: string }, Error>
   readonly disconnectAgent: (code: string) => Effect.Effect<void>
   readonly touchClient: Effect.Effect<void>
   readonly dispatch: (message: AgentMessage, senderCode?: string) => Effect.Effect<void>
@@ -60,6 +67,7 @@ export interface Interface {
     activeCommands?: number
     lastPong?: number
   }>
+  readonly invalidateUserReconnectTokens: (userID: string) => Effect.Effect<void>
   readonly listDir: (path: string) => Effect.Effect<unknown, Error>
   readonly readFile: (path: string) => Effect.Effect<unknown, Error>
   readonly writeFile: (path: string, content: string) => Effect.Effect<unknown, Error>
@@ -71,6 +79,7 @@ export class Service extends Context.Service<Service, Interface>()("@cody/AgentH
 const pairingCodes = new Map<string, PairingCode>()
 const agents = new Map<string, PairedAgent>()
 const clientHeartbeats = new Map<string, number>()
+const reconnectTokens = new Map<string, string>() // token → agent code
 let nextCommandId = 1
 const pendingCommands = new Map<number, PendingCommand>()
 const log = Log.create({ service: "agent-hub" })
@@ -104,6 +113,18 @@ function cleanupExpiredAgents(): void {
   for (const agent of agents.values()) {
     if (!shouldDisconnectAgent(agent, now)) continue
     Effect.runFork(disconnectAgent(agent.code))
+  }
+  // Clean up stale reconnect tokens for expired agents
+  for (const [token, code] of reconnectTokens) {
+    const agent = agents.get(code)
+    if (!agent || now > agent.expiresAt) reconnectTokens.delete(token)
+  }
+}
+
+function invalidateUserReconnectTokens(userID: string): void {
+  for (const [token, code] of reconnectTokens) {
+    const agent = agents.get(code)
+    if (agent?.userID === userID) reconnectTokens.delete(token)
   }
 }
 
@@ -156,7 +177,7 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
   const pairing = pairingCodes.get(code)
   if (!pairing || pairing.used || Date.now() > pairing.expiresAt) {
     log.warn("pair rejected", { code, reason: !pairing ? "missing" : pairing.used ? "used" : "expired" })
-    return false
+    return { success: false }
   }
 
   pairing.used = true
@@ -169,6 +190,7 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
     }
   }
 
+  const reconnectToken = generateCode()
   const agent: PairedAgent = {
     code,
     userID: pairing.userID,
@@ -178,9 +200,11 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
     expiresAt: Date.now() + Duration.toMillis(AGENT_MAX_CONNECTION_DURATION),
     remotePlatform: metadata?.platform,
     remoteHostname: metadata?.hostname,
+    reconnectToken,
   }
   if (pairing.userID) clientHeartbeats.set(pairing.userID, Date.now())
   agents.set(code, agent)
+  reconnectTokens.set(reconnectToken, code)
 
   log.info("agent paired", {
     code,
@@ -188,8 +212,40 @@ const connectAgent = Effect.fn("AgentHub.connectAgent")(function* (
     remotePlatform: metadata?.platform,
     remoteHostname: metadata?.hostname,
     expiresAt: agent.expiresAt,
+    reconnectToken,
   })
-  return true
+  return { success: true, reconnectToken }
+})
+
+const reconnectAgent = Effect.fn("AgentHub.reconnectAgent")(function* (
+  token: string,
+  write: AgentWriter,
+  close: Effect.Effect<void>,
+  metadata?: { platform?: string; hostname?: string },
+) {
+  const code = reconnectTokens.get(token)
+  if (!code) {
+    log.warn("reconnect rejected", { token, reason: "token not found" })
+    return { success: false }
+  }
+  const agent = agents.get(code)
+  if (!agent || Date.now() > agent.expiresAt) {
+    log.warn("reconnect rejected", { token, code, reason: agent ? "expired" : "no agent" })
+    reconnectTokens.delete(token)
+    return { success: false }
+  }
+
+  agent.write = write
+  agent.close = close
+  agent.connectedAt = Date.now()
+  if (metadata) {
+    agent.remotePlatform = metadata.platform
+    agent.remoteHostname = metadata.hostname
+  }
+  if (agent.userID) clientHeartbeats.set(agent.userID, Date.now())
+
+  log.info("agent reconnected", { code, token, userID: agent.userID })
+  return { success: true, code }
 })
 
 const disconnectAgent = Effect.fn("AgentHub.disconnectAgent")(function* (code: string) {
@@ -338,10 +394,12 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
 export const service: Interface = {
   createPairingCode: createPairingCode(),
   connectAgent: (code, write, close, metadata) => connectAgent(code, write, close, metadata),
+  reconnectAgent: (token, write, close, metadata) => reconnectAgent(token, write, close, metadata),
   disconnectAgent: (code) => disconnectAgent(code),
   touchClient: touchClient(),
   dispatch: (message, code) => dispatch(message, code),
   getStatus: getStatus(),
+  invalidateUserReconnectTokens: (userID) => Effect.sync(() => invalidateUserReconnectTokens(userID)),
   listDir: (path) => sendCommand("list-dir", { path }),
   readFile: (path) => sendCommand("read-file", { path }),
   writeFile: (path, content) => sendCommand("write-file", { path, content }),

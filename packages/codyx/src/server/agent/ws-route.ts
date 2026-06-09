@@ -40,16 +40,31 @@ export const agentWebSocketRoute = HttpRouter.use((router) =>
               }
 
               if (parsed.type === "pair" && !paired) {
-                const ok = yield* hub.connectAgent(parsed.code, write, closeSocket, {
+                const result = yield* hub.connectAgent(parsed.code, write, closeSocket, {
                   platform: parsed.platform,
                   hostname: parsed.hostname,
                 })
-                if (ok) {
+                if (result.success) {
                   paired = true
                   pairedCode = parsed.code
-                  yield* write(JSON.stringify({ type: "paired" }))
+                  yield* write(JSON.stringify({ type: "paired", reconnectToken: result.reconnectToken }))
                 } else {
                   yield* write(JSON.stringify({ type: "pair-error", error: "Invalid or expired pairing code" }))
+                }
+                return
+              }
+
+              if (parsed.type === "reconnect" && !paired) {
+                const result = yield* hub.reconnectAgent(parsed.token, write, closeSocket, {
+                  platform: parsed.platform,
+                  hostname: parsed.hostname,
+                })
+                if (result.success && result.code) {
+                  paired = true
+                  pairedCode = result.code
+                  yield* write(JSON.stringify({ type: "reconnect-ok" }))
+                } else {
+                  yield* write(JSON.stringify({ type: "pair-error", error: "Invalid or expired reconnect token" }))
                 }
                 return
               }
