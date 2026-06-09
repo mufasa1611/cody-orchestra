@@ -22,7 +22,10 @@ let known: Set<string> | undefined
 
 function getFiles() {
   if (files) return files
-  files = import.meta.glob<{ default: DesktopTheme }>("./themes/*.json")
+  files = Object.assign(
+    { "./themes/oc-2.json": () => Promise.resolve({ default: oc2ThemeJson as DesktopTheme }) },
+    import.meta.glob<{ default: DesktopTheme }>(["./themes/*.json", "!./themes/oc-2.json"])
+  )
   return files
 }
 

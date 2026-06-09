@@ -1,3 +1,4 @@
+import { DialogSelectModel } from "@/components/dialog-select-model";
 import { useNavigate } from "@solidjs/router"
 import { useCommand, type CommandOption } from "@/context/command"
 import { useDialog } from "@cody/ui/context/dialog"
@@ -257,9 +258,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   }
 
   const chooseModel = () => {
-    void import("@/components/dialog-select-model").then((x) => {
-      dialog.show(() => <x.DialogSelectModel model={local.model} />)
-    })
+    dialog.show(() => <DialogSelectModel model={local.model} />)
   }
 
   const chooseMcp = () => {
