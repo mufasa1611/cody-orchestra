@@ -19,6 +19,9 @@ if not defined BUN (
 if exist "%USERPROFILE%\.bun\bin" set "PATH=%USERPROFILE%\.bun\bin;%PATH%"
 if exist "%USERPROFILE%\AppData\Roaming\npm" set "PATH=%USERPROFILE%\AppData\Roaming\npm;%PATH%"
 
+rem --- ANSI escape character (ASCII 27) ---
+for /f %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
+
 rem ------------------------------------------------------------------
 rem Unique identity ? isolated data directories
 rem ------------------------------------------------------------------
@@ -62,13 +65,13 @@ if "%CODY_PROXY_ENABLED%"=="1" (
 rem Update check with confirmation. Set CODY_SKIP_UPDATE_CHECK=1 to disable.
 if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
   git config --global --add safe.directory "%ROOT%" >nul 2>nul
-  echo %ESC%[92m[Codyx]%ESC%[0m Checking for updates...
+  echo %ESC%[94m[Codyx]%ESC%[0m Checking for updates...
   pushd "%ROOT%"
   for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "CODY_CURRENT_BRANCH=%%B"
   if not defined CODY_CURRENT_BRANCH set "CODY_CURRENT_BRANCH=master"
   git fetch origin !CODY_CURRENT_BRANCH! --quiet --depth 1 >nul 2>nul
   if errorlevel 1 (
-    echo %ESC%[92m[Codyx]%ESC%[0m Network unavailable, skipping update check.
+    echo %ESC%[94m[Codyx]%ESC%[0m Network unavailable, skipping update check.
     set "CODY_FETCH_FAILED=1"
   )
   for /f "delims=" %%C in ('git rev-list --count HEAD..origin/!CODY_CURRENT_BRANCH! 2^>nul') do set "CODY_BEHIND=%%C"
@@ -83,8 +86,8 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
       git pull --ff-only
       set "CODY_PULLED=!CODY_BEHIND!"
     )
-    if /I not "!CODY_UPDATE_ANSWER!"=="Y" echo %ESC%[92m[Codyx]%ESC%[0m Update skipped.
-  ) else if not defined CODY_FETCH_FAILED echo %ESC%[92m[Codyx]%ESC%[0m Up to date.
+    if /I not "!CODY_UPDATE_ANSWER!"=="Y" echo %ESC%[94m[Codyx]%ESC%[0m Update skipped.
+  ) else if not defined CODY_FETCH_FAILED echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
   popd
 )
 
@@ -110,10 +113,10 @@ if not "%CODY_SKIP_MODEL_DISCOVERY%"=="1" if "%CODY_DISCOVER_MODELS%"=="1" (
 )
 
 if "%CODY_SHOULD_DISCOVER_MODELS%"=="1" (
-  echo %ESC%[92m[Codyx]%ESC%[0m Scanning for local Ollama and GGUF models...
+  echo %ESC%[94m[Codyx]%ESC%[0m Scanning for local Ollama and GGUF models...
   echo [cody-x] This runs once so subsequent launches are faster.
   powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\discover-local-models.ps1" -Root "%ROOT:~0,-1%"
-  echo %ESC%[92m[Codyx]%ESC%[0m Model scanning complete.
+  echo %ESC%[94m[Codyx]%ESC%[0m Model scanning complete.
 )
 
 if not defined CODY_CONFIG_DIR (
@@ -145,16 +148,16 @@ set "CODY_CHOICE=%ERRORLEVEL%"
 rem 255 = Escape pressed, exit silently
 if "%CODY_CHOICE%"=="255" exit /b 0
 
-if defined CODY_PULLED if not "!CODY_PULLED!"=="0" echo %ESC%[92m[Codyx]%ESC%[0m Pulled !CODY_PULLED! update(s).
+if defined CODY_PULLED if not "!CODY_PULLED!"=="0" echo %ESC%[94m[Codyx]%ESC%[0m Pulled !CODY_PULLED! update(s).
 
 if "%CODY_CHOICE%"=="1" (
-  echo [cody-x] Building web UI...
+  echo %ESC%[94m[Codyx]%ESC%[0m Building web UI...
   call "%BUN%" run --cwd "%ROOT%packages\app" build
   if errorlevel 1 (
-    echo [cody-x] Web UI build failed. Check the error above.
+    echo %ESC%[94m[Codyx]%ESC%[0m Web UI build failed. Check the error above.
     exit /b %ERRORLEVEL%
   )
-  echo [cody-x] Starting web UI...
+  echo %ESC%[94m[Codyx]%ESC%[0m Starting web UI...
   pushd "%ROOT%"
   call "%BUN%" run codyx web
   popd

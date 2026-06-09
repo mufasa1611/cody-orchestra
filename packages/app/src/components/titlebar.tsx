@@ -201,6 +201,8 @@ export function Titlebar() {
   }
 
   return (
+    <>
+    <style>{`.logout-button [data-slot="icon-svg"] { color: #fff; }`}</style>
     <header
       class="h-10 shrink-0 bg-background-base relative overflow-hidden"
       style={{ "min-height": minHeight() }}
@@ -357,10 +359,11 @@ export function Titlebar() {
                       <IconButton
                         icon="arrow-right"
                         variant="ghost"
-                        class="titlebar-icon h-7 w-7 rounded-md"
+                        class="titlebar-icon logout-button h-7 w-7 rounded-md"
                         aria-label="Log out"
                         disabled={loggingOut()}
                         onClick={() => void logout()}
+                        style={{ "background-color": "#000" }}
                       />
                     </Tooltip>
                   </Show>
@@ -386,5 +389,6 @@ export function Titlebar() {
         </div>
       </div>
     </header>
+    </>
   )
 }

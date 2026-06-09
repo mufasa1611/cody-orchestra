@@ -3,19 +3,17 @@
 $options = @("CLI (Terminal UI)", "Web UI (Browser)")
 $selected = 0
 $esc = [char]0x1b
-$arrow = [char]0x276f
 $up = [char]0x2191
 $down = [char]0x2193
+$menuHeight = $options.Length + 5
 $first = $true
 try {
     try { [Console]::CursorVisible = $false } catch {}
     $host.UI.RawUI.FlushInputBuffer()
     do {
         if (-not $first) {
-            $host.UI.RawUI.CursorPosition = $startPos
-            Write-Host "${esc}[J" -NoNewline
+            Write-Host "${esc}[${menuHeight}A${esc}[J" -NoNewline
         } else {
-            $startPos = $host.UI.RawUI.CursorPosition
             $first = $false
         }
         Write-Host ""
