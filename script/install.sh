@@ -485,7 +485,7 @@ if [ "$NO_PROXY" != "1" ]; then
 CODY_PROXY_ENABLED=1
 HTTPS_PROXY=$CODY_PROXY_URL
 HTTP_PROXY=$CODY_PROXY_URL
-NO_PROXY=localhost,127.0.0.1,::1
+NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 PROXYEOF
     elif [ "$IS_SERVER" = "1" ] && ! is_root && [ -z "$CLOUDFLARED_HOSTNAME" ]; then
       # Rootless server (e.g. unprivileged LXC) without external proxy —
@@ -498,7 +498,7 @@ PROXYEOF
 CODY_PROXY_ENABLED=1
 HTTPS_PROXY=http://localhost:$PROXY_PORT
 HTTP_PROXY=http://localhost:$PROXY_PORT
-NO_PROXY=localhost,127.0.0.1,::1
+NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 PROXYEOF
     elif [ "$IS_SERVER" = "1" ]; then
       # Server/LAN — use LAN IP for local proxy stack
@@ -507,7 +507,7 @@ PROXYEOF
 CODY_PROXY_ENABLED=1
 HTTPS_PROXY=http://${lan_ip}:$PROXY_PORT
 HTTP_PROXY=http://${lan_ip}:$PROXY_PORT
-NO_PROXY=localhost,127.0.0.1,::1,${lan_ip}
+NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68,${lan_ip}
 PROXYEOF
     else
       # Desktop/localhost
@@ -515,7 +515,7 @@ PROXYEOF
 CODY_PROXY_ENABLED=1
 HTTPS_PROXY=http://localhost:$PROXY_PORT
 HTTP_PROXY=http://localhost:$PROXY_PORT
-NO_PROXY=localhost,127.0.0.1,::1
+NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 PROXYEOF
     fi
     ok ".env.proxy created."

@@ -164,7 +164,7 @@ if not exist "%ROOT%\.env.proxy" (
   >"%ROOT%\.env.proxy" echo CODY_PROXY_ENABLED=1
   >>"%ROOT%\.env.proxy" echo HTTPS_PROXY=http://localhost:9999
   >>"%ROOT%\.env.proxy" echo HTTP_PROXY=http://localhost:9999
-  >>"%ROOT%\.env.proxy" echo NO_PROXY=localhost,127.0.0.1,::1
+  >>"%ROOT%\.env.proxy" echo NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
   echo [ok] .env.proxy created with proxy settings.
 ) else (
   findstr /B /C:"NO_PROXY=" "%ROOT%\.env.proxy" >nul 2>nul
