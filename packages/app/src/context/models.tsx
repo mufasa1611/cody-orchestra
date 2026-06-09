@@ -30,7 +30,10 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
     const [store, setStore, _, ready] = persisted(
       Persist.global("model", ["model.v1"]),
       createStore<Store>({
-        user: [],
+        user: [
+          { providerID: "opencode", modelID: "big-pickle", visibility: "show" },
+          { providerID: "opencode", modelID: "deepseek-v4-flash-free", visibility: "show" },
+        ],
         recent: [],
         variant: {},
       }),
