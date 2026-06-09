@@ -1579,11 +1579,12 @@ const layer: Layer.Layer<
               if (ProxyControl.retryableStatus(res.status) && attempt < MAX_PROXY_RETRIES) {
                 await res.body?.cancel(`retryable status ${res.status}`)
                 await ProxyControl.rotate("retryable-status", {
-                  status: res.status,
-                  providerID: model.providerID,
-                  modelID: model.id,
-                  attempt: attempt + 1,
-                })
+                    status: res.status,
+                    providerID: model.providerID,
+                    modelID: model.id,
+                    attempt: attempt + 1,
+                  })
+                  await new Promise((resolve) => setTimeout(resolve, 3000))
                 continue
               }
 
@@ -1597,11 +1598,12 @@ const layer: Layer.Layer<
             } catch (error) {
               if (!ProxyControl.retryableError(error) || attempt >= MAX_PROXY_RETRIES) throw error
               await ProxyControl.rotate("request-error", {
-                error: error instanceof Error ? error.message : String(error),
-                providerID: model.providerID,
-                modelID: model.id,
-                attempt: attempt + 1,
-              })
+                  error: error instanceof Error ? error.message : String(error),
+                  providerID: model.providerID,
+                  modelID: model.id,
+                  attempt: attempt + 1,
+                })
+                await new Promise((resolve) => setTimeout(resolve, 3000))
             }
           }
 

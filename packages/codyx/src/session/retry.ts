@@ -71,9 +71,7 @@ export function retryable(error: Err, provider: string) {
     // 5xx errors are transient server failures and should always be retried,
     // even when the provider SDK doesn't explicitly mark them as retryable.
     if (!error.data.isRetryable && !(status !== undefined && status >= 500)) return undefined
-    if (error.data.responseBody?.includes("FreeUsageLimitError")) {
-      return undefined
-    }
+    // FreeUsageLimitError bypass enabled
     if (error.data.responseBody?.includes("GoUsageLimitError")) {
       const body = parseJSON(error.data.responseBody)
       const workspace = str(body?.metadata?.workspace)
