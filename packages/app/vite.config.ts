@@ -1,6 +1,6 @@
-﻿import { sentryVitePlugin } from "@sentry/vite-plugin"
-import { defineConfig } from "vite"
-import desktopPlugin from "./vite"
+import { sentryVitePlugin } from \"@sentry/vite-plugin\"
+import { defineConfig } from \"vite\"
+import desktopPlugin from \"./vite\"
 
 const sentry =
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
@@ -13,8 +13,8 @@ const sentry =
           name: process.env.SENTRY_RELEASE ?? process.env.VITE_SENTRY_RELEASE,
         },
         sourcemaps: {
-          assets: "./dist/**",
-          filesToDeleteAfterUpload: "./dist/**/*.map",
+          assets: \"./dist/**\",
+          filesToDeleteAfterUpload: \"./dist/**/*.map\",
         },
       })
     : false
@@ -24,29 +24,39 @@ const CODY_PORT = process.env.CODY_PORT || 9999
 export default defineConfig({
   plugins: [desktopPlugin, sentry] as any,
   server: {
-    host: "0.0.0.0",
+    host: \"0.0.0.0\",
     allowedHosts: true,
     port: 3000,
     proxy: {
-      "/api": {
-        target: `http://localhost:${CODY_PORT}`,
+      \"/api\": {
+        target: \`http://localhost:\${CODY_PORT}\`,
         changeOrigin: true,
       },
-      "/socket.io": {
-        target: `ws://localhost:${CODY_PORT}`,
+      \"/socket.io\": {
+        target: \`ws://localhost:\${CODY_PORT}\`,
         ws: true,
       },
     },
   },
   build: {
-    target: "esnext",
+    target: \"esnext\",
     sourcemap: true,
     chunkSizeWarningLimit: 4000,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("context/global-sync") || id.includes("context/sync")) return "shared-context"
-          if (id.includes("node_modules")) return "vendor"
+          if (id.includes(\"context/global-sync\") || id.includes(\"context/sync\")) return \"shared-context\"
+          if (id.includes(\"node_modules\")) {
+            if (id.includes(\"monaco-editor\")) return \"vendor-monaco\"
+            if (id.includes(\"@sentry\")) return \"vendor-sentry\"
+            if (id.includes(\"solid-js\")) return \"vendor-solid\"
+            if (id.includes(\"@solidjs\")) return \"vendor-solid-router\"
+            if (id.includes(\"lucide\")) return \"vendor-lucide\"
+            if (id.includes(\"xterm\")) return \"vendor-xterm\"
+            if (id.includes(\"katex\")) return \"vendor-katex\"
+            if (id.includes(\"shiki\")) return \"vendor-shiki\"
+            return \"vendor\"
+          }
         },
       },
     },
