@@ -1,0 +1,150 @@
+param(
+  [Parameter(Mandatory = $false)]
+  [string]$Root = "",
+  [switch]$Force
+)
+
+$ErrorActionPreference = "Stop"
+
+# ── Style helpers (matching script/install.ps1) ────────────────────────
+function Write-Step($Message) {
+  Write-Host ">> $Message" -ForegroundColor Cyan
+}
+
+function Write-Ok($Message) {
+  Write-Host "[ok] $Message" -ForegroundColor Green
+}
+
+function Write-Warn($Message) {
+  Write-Host "[warn] $Message" -ForegroundColor Yellow
+}
+
+function Write-Err($Message) {
+  Write-Host "[error] $Message" -ForegroundColor Red
+}
+
+function Write-Section($Number, $Label) {
+  Write-Host ""
+  Write-Host "╔══ $Number. $Label ═══" -ForegroundColor Cyan
+}
+
+# ── Banner ─────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "  codyx — Global Command Installer" -ForegroundColor Cyan
+Write-Host "  Installs the codyx CLI shim, Start Menu shortcuts,"
+Write-Host "  and creates an install marker for clean uninstall."
+Write-Host ""
+
+# ── Resolve root ───────────────────────────────────────────────────────
+if (-not $Root -or -not (Test-Path -LiteralPath $Root)) {
+  $Root = $env:CODY_INSTALL_ROOT
+}
+if (-not $Root -or -not (Test-Path -LiteralPath $Root)) {
+  $Root = "$env:LOCALAPPDATA\codyx"
+}
+if (-not (Test-Path -LiteralPath "$Root\package.json")) {
+  Write-Err "Cannot find codyx checkout at $Root"
+  exit 1
+}
+
+$npmDir = "$env:APPDATA\npm"
+if (-not (Test-Path -LiteralPath $npmDir)) {
+  $null = New-Item -ItemType Directory -Path $npmDir -Force
+}
+
+$markerPath = "$Root\.codyx-install-marker"
+$marker = @{
+  root       = $Root
+  installed  = @()
+  pathAdds   = @()
+  shortcuts  = @()
+  shims      = @()
+}
+
+# ── 1. codyx.cmd shim ─────────────────────────────────────────────────
+Write-Section 1 "Batch shim"
+
+$cmdShim = "$npmDir\codyx.cmd"
+$cmdContent = @"
+@echo off
+setlocal
+set "CODY_INSTALL_ROOT=%~dp0..\..\codyx"
+"%~dp0..\..\codyx\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "%~dp0..\..\codyx\packages\codyx" src\index.ts %*
+if errorlevel 1 exit /b %errorlevel%
+"@
+[System.IO.File]::WriteAllText($cmdShim, $cmdContent, [System.Text.UTF8Encoding]::new($false))
+Write-Ok "Created shim: $cmdShim"
+$marker.shims += $cmdShim
+$marker.installed += $cmdShim
+
+# ── 2. codyx.ps1 shim ─────────────────────────────────────────────────
+Write-Section 2 "PowerShell shim"
+
+$psShim = "$npmDir\codyx.ps1"
+$psContent = @"
+#!/usr/bin/env pwsh
+`$env:CODY_INSTALL_ROOT = "$Root"
+& "$Root\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "$Root\packages\codyx" src\index.ts @args
+"@
+[System.IO.File]::WriteAllText($psShim, $psContent, [System.Text.UTF8Encoding]::new($false))
+Write-Ok "Created shim: $psShim"
+$marker.shims += $psShim
+$marker.installed += $psShim
+
+# ── 3. User PATH ──────────────────────────────────────────────────────
+Write-Section 3 "User PATH"
+
+$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($currentPath -and $currentPath -notlike "*$npmDir*") {
+  $newPath = "$npmDir;$currentPath"
+  [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+  Write-Ok "Added $npmDir to User PATH"
+  $marker.pathAdds += $npmDir
+} else {
+  Write-Ok "$npmDir already in User PATH"
+}
+
+# ── 4. Start Menu shortcuts ───────────────────────────────────────────
+Write-Section 4 "Start Menu shortcuts"
+
+$startMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\codyx"
+$null = New-Item -ItemType Directory -Force -Path $startMenuDir
+
+$shell = New-Object -ComObject WScript.Shell
+$launchShortcut = $shell.CreateShortcut("$startMenuDir\codyx.lnk")
+$launchShortcut.TargetPath = "cmd.exe"
+$launchShortcut.Arguments = "/c `"`"$npmDir\codyx.cmd`"`""
+$launchShortcut.Description = "Launch codyx"
+$launchShortcut.WorkingDirectory = $Root
+$launchShortcut.Save()
+Write-Ok "Created shortcut: codyx.lnk"
+$marker.shortcuts += "$startMenuDir\codyx.lnk"
+$marker.installed += "$startMenuDir\codyx.lnk"
+
+$webShortcut = $shell.CreateShortcut("$startMenuDir\codyx Web.lnk")
+$webShortcut.TargetPath = "cmd.exe"
+$webShortcut.Arguments = "/c `"`"$npmDir\codyx.cmd`" web"
+$webShortcut.Description = "Launch codyx web UI"
+$webShortcut.WorkingDirectory = $Root
+$webShortcut.Save()
+Write-Ok "Created shortcut: codyx Web.lnk"
+$marker.shortcuts += "$startMenuDir\codyx Web.lnk"
+$marker.installed += "$startMenuDir\codyx Web.lnk"
+
+# ── 5. Install marker ─────────────────────────────────────────────────
+Write-Section 5 "Install marker"
+
+$markerJson = $marker | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText($markerPath, $markerJson, [System.Text.UTF8Encoding]::new($false))
+Write-Ok "Install marker: $markerPath"
+
+# ── Done ──────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "  ╔═══════════════════════════════════════╗" -ForegroundColor Green
+Write-Host "  ║   Global codyx command installed!     ║" -ForegroundColor Green
+Write-Host "  ╚═══════════════════════════════════════╝" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Use 'codyx' from any terminal." -ForegroundColor White
+Write-Host "  (You may need to open a new terminal for PATH changes to take effect.)" -ForegroundColor DarkGray
+Write-Host ""
+exit 0

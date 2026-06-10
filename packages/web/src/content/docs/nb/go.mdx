@@ -1,0 +1,188 @@
+---
+title: Go
+description: Lavkostnadsabonnement for åpne kodemodeller.
+---
+
+import config from "../../../../config.mjs"
+export const console = config.console
+export const email = `mailto:${config.email}`
+
+Cody Go er et lavkostnadsabonnement — **$5 for din første måned**, deretter **$10/måned** — som gir deg pålitelig tilgang til populære åpne kodemodeller.
+
+:::note
+Cody Go er for øyeblikket i beta.
+:::
+
+Go fungerer som enhver annen leverandør i Cody. Du abonnerer på Cody Go og
+får din API-nøkkel. Det er **helt valgfritt**, og du trenger ikke å bruke det for å
+bruke Cody.
+
+Det er primært utformet for internasjonale brukere, med modeller driftet i USA, EU og Singapore for stabil global tilgang.
+
+---
+
+## Bakgrunn
+
+Åpne modeller har blitt veldig gode. De oppnår nå ytelse nær
+proprietære modeller for kodeoppgaver. Og fordi mange leverandører kan tilby dem
+konkurransedyktig, er de vanligvis mye billigere.
+
+Imidlertid kan det være vanskelig å få pålitelig tilgang med lav forsinkelse til dem. Leverandører
+varierer i kvalitet og tilgjengelighet.
+
+:::tip
+Vi testet en utvalgt gruppe modeller og leverandører som fungerer godt med Cody.
+:::
+
+For å fikse dette, gjorde vi et par ting:
+
+1. Vi testet en utvalgt gruppe åpne modeller og snakket med teamene deres om hvordan de
+   best kan kjøres.
+2. Deretter samarbeidet vi med noen få leverandører for å sikre at disse ble levert
+   riktig.
+3. Til slutt utførte vi ytelsestester på kombinasjonen av modell og leverandør, og kom frem
+   til en liste som vi trygt kan anbefale.
+
+Cody Go gir deg tilgang til disse modellene for **$5 for din første måned**, deretter **$10/måned**.
+
+---
+
+## Hvordan det fungerer
+
+Cody Go fungerer som enhver annen leverandør i Cody.
+
+1. Du logger inn på **<a href={console}>Cody Zen</a>**, abonnerer på Go, og
+   kopierer din API-nøkkel.
+2. Du kjører kommandoen `/connect` i TUI-en, velger `Cody Go`, og limer inn
+   din API-nøkkel.
+3. Kjør `/models` i TUI-en for å se listen over modeller som er tilgjengelige gjennom Go.
+
+:::note
+Kun ett medlem per arbeidsområde kan abonnere på Cody Go.
+:::
+
+Den nåværende listen over modeller inkluderer:
+
+- **GLM-5**
+- **GLM-5.1**
+- **Kimi K2.5**
+- **Kimi K2.6**
+- **MiMo-V2.5**
+- **MiMo-V2.5-Pro**
+- **MiniMax M2.5**
+- **Qwen3.5 Plus**
+- **Qwen3.6 Plus**
+- **MiniMax M2.7**
+- **DeepSeek V4 Pro**
+- **DeepSeek V4 Flash**
+
+Listen over modeller kan endres etter hvert som vi tester og legger til nye.
+
+---
+
+## Bruksgrenser
+
+Cody Go inkluderer følgende grenser:
+
+- **5-timers grense** — $12 i bruk
+- **Ukentlig grense** — $30 i bruk
+- **Månedlig grense** — $60 i bruk
+
+Grensene er definert i dollarverdi. Dette betyr at ditt faktiske antall forespørsler avhenger av modellen du bruker. Billigere modeller som MiniMax M2.5 tillater flere forespørsler, mens dyrere modeller som GLM-5.1 tillater færre.
+
+Tabellen nedenfor gir et estimert antall forespørsler basert på typiske bruksmønstre for Go:
+
+| Model              | forespørsler per 5 timer | forespørsler per uke | forespørsler per måned |
+| ------------------ | ------------------------ | -------------------- | ---------------------- |
+| GLM-5.1            | 880                      | 2,150                | 4,300                  |
+| GLM-5              | 1,150                    | 2,880                | 5,750                  |
+| Kimi K2.5          | 1,850                    | 4,630                | 9,250                  |
+| Kimi K2.6          | 1,150                    | 2,880                | 5,750                  |
+| MiMo-V2.5 (≤ 256K) | 2,150                    | 5,450                | 10,900                 |
+| MiMo-V2.5-Pro      | 1,290                    | 3,225                | 6,450                  |
+| MiniMax M2.7       | 3,400                    | 8,500                | 17,000                 |
+| MiniMax M2.5       | 6,300                    | 15,900               | 31,800                 |
+| Qwen3.6 Plus       | 3,300                    | 8,200                | 16,300                 |
+| Qwen3.5 Plus       | 10,200                   | 25,200               | 50,500                 |
+| DeepSeek V4 Pro    | 3,450                    | 8,550                | 17,150                 |
+| DeepSeek V4 Flash  | 31,650                   | 79,050               | 158,150                |
+
+Estimatene er basert på observerte gjennomsnittlige forespørselsmønstre:
+
+- GLM-5/5.1 — 700 input, 52 000 bufret, 150 output-tokens per forespørsel
+- Kimi K2.5/K2.6 — 870 input, 55 000 bufret, 200 output-tokens per forespørsel
+- DeepSeek V4 Pro — 750 input, 82 000 bufret, 290 output-tokens per forespørsel
+- DeepSeek V4 Flash — 790 input, 68 000 bufret, 280 output-tokens per forespørsel
+- MiniMax M2.7/M2.5 — 300 input, 55 000 bufret, 125 output-tokens per forespørsel
+- Qwen3.5 Plus — 410 input, 47 000 bufret, 140 output-tokens per forespørsel
+- Qwen3.6 Plus — 500 input, 57 000 bufret, 190 output-tokens per forespørsel
+- MiMo-V2.5 — 1000 input, 60 000 bufret, 140 output-tokens per forespørsel
+- MiMo-V2.5-Pro — 350 input, 41 000 bufret, 250 output-tokens per forespørsel
+
+Du kan spore din nåværende bruk i **<a href={console}>konsollen</a>**.
+
+:::tip
+Hvis du når bruksgrensen, kan du fortsette å bruke gratismodellene.
+:::
+
+Bruksgrenser kan endres etter hvert som vi lærer fra tidlig bruk og tilbakemeldinger.
+
+---
+
+### Bruk utover grensene
+
+Hvis du også har kreditt på din Zen-saldo, kan du aktivere alternativet **Bruk saldo**
+i konsollen. Når dette er aktivert, vil Go falle tilbake på din Zen-saldo
+etter at du har nådd bruksgrensene dine, i stedet for å blokkere forespørsler.
+
+---
+
+## Endepunkter
+
+Du kan også få tilgang til Go-modeller gjennom følgende API-endepunkter.
+
+| Modell            | Modell-ID         | Endepunkt                                        | AI SDK Package              |
+| ----------------- | ----------------- | ------------------------------------------------ | --------------------------- |
+| GLM-5.1           | glm-5.1           | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| GLM-5             | glm-5             | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.5         | kimi-k2.5         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.6         | kimi-k2.6         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Pro   | deepseek-v4-pro   | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Flash | deepseek-v4-flash | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5         | mimo-v2.5         | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5-Pro     | mimo-v2.5-pro     | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiniMax M2.7      | minimax-m2.7      | `https://cody.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| MiniMax M2.5      | minimax-m2.5      | `https://cody.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.6 Plus      | qwen3.6-plus      | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/alibaba`           |
+| Qwen3.5 Plus      | qwen3.5-plus      | `https://cody.ai/zen/go/v1/chat/completions` | `@ai-sdk/alibaba`           |
+
+[Modell-ID-en](/docs/config/#models) i din Cody-konfigurasjon
+bruker formatet `cody-go/<model-id>`. For eksempel, for Kimi K2.6, vil du
+bruke `cody-go/kimi-k2.6` i konfigurasjonen din.
+
+---
+
+### Modeller
+
+Du kan hente hele listen over tilgjengelige modeller og metadataene deres fra:
+
+```
+https://cody.ai/zen/go/v1/models
+```
+
+---
+
+## Personvern
+
+Planen er primært utformet for internasjonale brukere, med modeller hostet i US, EU og Singapore for stabil global tilgang. Våre leverandører følger en zero-retention-policy og bruker ikke dataene dine til modelltrening.
+
+---
+
+## Mål
+
+Vi opprettet Cody Go for å:
+
+1. Gjøre AI-koding **tilgjengelig** for flere mennesker med et lavkostnadsabonnement.
+2. Gi **pålitelig** tilgang til de beste åpne kodemodellene.
+3. Kuratere modeller som er **testet og ytelsesmålt** for bruk av kodeagenter.
+4. Ha **ingen innelåsing** ved å la deg bruke en hvilken som helst annen leverandør med Cody også.
