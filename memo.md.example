@@ -1,0 +1,6 @@
+# Private Workspace Memo
+*Note: This file is Gitignored and contains private machine-specific info.*
+
+## Infrastructure
+- **Proxmox Host:** 192.168.68.68
+- **Local Proxy Gateway:** http://192.168.68.68:8888

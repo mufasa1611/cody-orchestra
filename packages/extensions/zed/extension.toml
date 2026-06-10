@@ -1,0 +1,36 @@
+id = "cody"
+name = "Cody"
+description = "The open source coding agent."
+version = "1.14.41"
+schema_version = 1
+authors = ["Anomaly"]
+repository = "https://github.com/your-org/cody"
+
+[agent_servers.cody]
+name = "Cody"
+icon = "./icons/cody.svg"
+
+[agent_servers.cody.targets.darwin-aarch64]
+archive = "https://github.com/your-org/cody/releases/download/v1.14.41/cody-darwin-arm64.zip"
+cmd = "./cody"
+args = ["acp"]
+
+[agent_servers.cody.targets.darwin-x86_64]
+archive = "https://github.com/your-org/cody/releases/download/v1.14.41/cody-darwin-x64.zip"
+cmd = "./cody"
+args = ["acp"]
+
+[agent_servers.cody.targets.linux-aarch64]
+archive = "https://github.com/your-org/cody/releases/download/v1.14.41/cody-linux-arm64.tar.gz"
+cmd = "./cody"
+args = ["acp"]
+
+[agent_servers.cody.targets.linux-x86_64]
+archive = "https://github.com/your-org/cody/releases/download/v1.14.41/cody-linux-x64.tar.gz"
+cmd = "./cody"
+args = ["acp"]
+
+[agent_servers.cody.targets.windows-x86_64]
+archive = "https://github.com/your-org/cody/releases/download/v1.14.41/cody-windows-x64.zip"
+cmd = "./cody.exe"
+args = ["acp"]

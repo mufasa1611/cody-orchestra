@@ -1,0 +1,29 @@
+/**
+ * Application-wide constants and configuration
+ */
+export const config = {
+  // Base URL
+  baseUrl: "https://cody.ai",
+
+  // GitHub
+  github: {
+    repoUrl: "https://github.com/your-org/cody",
+    starsFormatted: {
+      compact: "150K",
+      full: "150,000",
+    },
+  },
+
+  // Social links
+  social: {
+    twitter: "https://x.com/cody",
+    discord: "https://discord.gg/cody",
+  },
+
+  // Static stats (used on landing page)
+  stats: {
+    contributors: "850",
+    commits: "11,000",
+    monthlyUsers: "6.5M",
+  },
+} as const

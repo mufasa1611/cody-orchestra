@@ -1,0 +1,72 @@
+﻿.DS_Store
+node_modules
+.worktrees
+.sst
+.env
+.env.proxy
+.env.local
+.idea
+.vscode
+.codex
+.cody-pro-backups/
+.cody/generated/
+.cody/node_modules/
+.cody/package.json
+.cody/package-lock.json
+.cody/bun.lock
+.cody/references/
+.cody/plans/
+*~
+playground
+tmp
+dist
+ts-dist
+.turbo
+**/.serena
+.serena/
+/result
+refs
+Session.vim
+/cody.json
+a.out
+target
+.scripts
+.direnv/
+
+# Local dev files
+cody-dev
+UPCOMING_CHANGELOG.md
+logs/
+*.bun-build
+tsconfig.tsbuildinfo
+
+# Local codyx planning notes
+CODY_PLAN.md
+CODY_STATUS.md
+CODY_TODO.md
+CODY_TEST_LOG.md
+CODY_LEGACY_AUDIT.md
+
+# Backup files
+*.bak
+# Personal planning
+personalize-todo-list.md
+
+# Log files
+*.log
+
+# Noise: Chrome debug directories
+.chrome*
+
+# Noise: test results
+test-results/
+
+# Noise: ad-hoc db check/fix scripts
+_check_db*
+_fix_db*
+check-db.ts
+_check_journal*
+
+cody-x_todolist.md
+.cody/session-log.md
+memo.md
