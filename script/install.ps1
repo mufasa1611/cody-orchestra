@@ -47,7 +47,7 @@ $DefaultParent = Join-Path $env:LOCALAPPDATA "codyx"
 $Root = if ($InstallRoot) { $InstallRoot } else { $DefaultParent }
 $GlobalBin = Join-Path $env:APPDATA "npm"
 $GlobalCmd = Join-Path $GlobalBin "codyx.cmd"
-$ScriptDir = Split-Path -Parent $PSScriptRoot
+$ScriptDir = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { Get-Location }
 $IsStandalone = -not (Test-Path (Join-Path $ScriptDir "codyx.cmd"))
 $CreatedRepo = $false
 
