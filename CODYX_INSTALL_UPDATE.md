@@ -14,9 +14,24 @@ Or from CMD:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.ps1 | iex"
 ```
 
-The installer clones the repository, installs Git and Bun 1.3.13+ when needed, runs
-`bun install`, builds the web UI, discovers optional local models, and verifies the
-global `codyx` command before finishing.
+The Windows installer installs Git and Bun 1.3.13+ when needed, then pauses for
+email ownership verification before cloning the repository or continuing with
+the rest of installation. It explains what is collected, sends a six-digit code,
+and stores only a signed receipt under:
+
+```text
+%LOCALAPPDATA%\codyx-installer\verification.json
+```
+
+The local receipt contains no display name or email address. A valid receipt lets
+later runs continue automatically. `-Yes` does not bypass verification, and a
+noninteractive run without a valid receipt exits with instructions.
+
+After verification, the installer clones the repository, runs `bun install`,
+builds the web UI, discovers optional local models, and verifies the global
+`codyx` command before finishing. The privacy notice is available at
+https://install.kingkung.men/privacy and deletion requests can be sent to
+`privacy@kingkung.men`.
 
 If you prefer to clone manually first:
 

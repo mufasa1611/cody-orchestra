@@ -3,11 +3,11 @@
 .SYNOPSIS
     Install codyx on Windows — single-command setup for novice users.
 .DESCRIPTION
-    Detects prerequisites (Git, Bun, cloudflared), installs what's missing,
-    clones/updates the repo, installs dependencies, builds the web UI,
-    configures the Cloudflare proxy tunnel, and installs the global codyx command.
+    Detects prerequisites, verifies email ownership, installs what's missing,
+    clones/updates the repo, installs dependencies, builds the web UI, configures
+    the Cloudflare proxy tunnel, and installs the global codyx command.
 .PARAMETER Yes
-    Auto-confirm all prompts (non-interactive mode).
+    Auto-confirm optional installer prompts. Email verification is never bypassed.
 .PARAMETER Branch
     Git branch to clone/checkout (default: main).
 .PARAMETER NoScan
@@ -40,6 +40,7 @@ try { $Host.UI.RawUI.WindowTitle = "codyx Installer" } catch {}
 $Script:CODY_VERSION = "1.0.0"
 $Script:REPO_URL = "https://github.com/mufasa1611/cody-orchestra.git"
 $Script:CREDITS = "Builder: M. Farid (Mufasa) | Repo: $REPO_URL"
+$Script:VERIFICATION_URL = "https://install.kingkung.men"
 
 # ── Configuration ────────────────────────────────────────────────────
 $RepoUrl = $Script:REPO_URL
@@ -92,6 +93,11 @@ function Test-BunVersion {
   } catch {
     return $false
   }
+}
+
+function Test-InteractiveHost {
+  if (-not [Environment]::UserInteractive) { return $false }
+  try { return -not [Console]::IsInputRedirected } catch { return $true }
 }
 
 function Add-UserPathEntry($entry) {
@@ -233,6 +239,42 @@ if (-not (Test-BunVersion)) {
   Write-Ok "Bun 1.3.13+ installed."
 } else {
   Write-Ok "Bun 1.3.13+ found."
+}
+
+# Email verification intentionally runs after Git/Bun and before any remaining
+# installation work. The -Yes switch never bypasses this gate.
+Write-Step "Loading installer email verification..."
+$verificationPath = if ($CheckoutRoot) {
+  Join-Path $CheckoutRoot "script\installer-verification.ps1"
+} else {
+  $null
+}
+$verificationParameters = @{
+  InstallerVersion = $Script:CODY_VERSION
+  ServiceUrl = $Script:VERIFICATION_URL
+  ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json")
+  NonInteractive = -not (Test-InteractiveHost)
+}
+
+if ($verificationPath -and (Test-Path -LiteralPath $verificationPath)) {
+  $verificationResult = & $verificationPath @verificationParameters
+} else {
+  $verificationSource = $null
+  $verificationScriptUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/installer-verification.ps1"
+  try {
+    Invoke-WithRetry {
+      $Script:verificationSource = Invoke-RestMethod -Uri $verificationScriptUrl -TimeoutSec 20
+    } "verification helper download"
+  } catch {
+    Write-Err "Could not load the installer verification step."
+    Write-Err "Git and Bun will remain installed. Rerun the installer when GitHub is available."
+    exit 1
+  }
+  $verificationResult = & ([scriptblock]::Create($Script:verificationSource)) @verificationParameters
+}
+
+if (-not $verificationResult.Success) {
+  exit 1
 }
 
 if (-not $NoProxy) {
