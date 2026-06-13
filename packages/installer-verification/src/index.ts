@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
-import { sendVerificationEmail } from "./email"
+import { sendAdminNotification, sendVerificationEmail } from "./email"
 import {
   CODE_TTL_MS,
   MAX_ATTEMPTS,
@@ -124,6 +124,30 @@ async function deliverCode(
   })
 }
 
+function notifyAdmin(
+  env: Bindings,
+  input: {
+    userEmail: string
+    displayName: string
+    installId: string
+    installerVersion: string
+    platform: string
+    code: string
+  },
+) {
+  const adminEmail = env.INSTALLER_ADMIN_EMAIL
+  if (!adminEmail) return
+  const value = secrets(env)
+  sendAdminNotification({
+    apiBase: env.INSTALLER_MAILGUN_API_BASE,
+    domain: env.INSTALLER_MAILGUN_DOMAIN,
+    sendingKey: value.mailgunSendingKey,
+    sender: env.INSTALLER_SENDER,
+    adminEmail,
+    ...input,
+  }).catch(() => {})
+}
+
 async function challenge(db: D1Database, id: string) {
   const row = await db.prepare("SELECT * FROM challenge WHERE id = ?").bind(id).first<ChallengeRow>()
   if (!row) throw new ApiError(404, "challenge_not_found", "Verification request was not found.")
@@ -204,6 +228,14 @@ app.post("/v1/challenges", async (context) => {
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
+  notifyAdmin(context.env, {
+    userEmail: input.email,
+    displayName: input.display_name,
+    installId: input.install_id,
+    installerVersion: input.installer_version,
+    platform: input.platform,
+    code,
+  })
   return context.json(
     {
       challenge_id: id,
@@ -257,6 +289,14 @@ app.post("/v1/challenges/:id/resend", async (context) => {
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
+  notifyAdmin(context.env, {
+    userEmail: row.email,
+    displayName: row.display_name,
+    installId: row.install_id,
+    installerVersion: row.installer_version,
+    platform: row.platform,
+    code,
+  })
   return context.json({
     expires_at: new Date(now + CODE_TTL_MS).toISOString(),
     resend_after: new Date(now + RESEND_DELAY_MS).toISOString(),

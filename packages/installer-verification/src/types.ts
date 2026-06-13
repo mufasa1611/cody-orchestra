@@ -9,6 +9,7 @@ export interface Bindings {
   INSTALLER_PRIVACY_EMAIL: string
   INSTALLER_MAILGUN_API_BASE: string
   INSTALLER_MAILGUN_DOMAIN: string
+  INSTALLER_ADMIN_EMAIL?: string
   INSTALLER_TEST_CODE?: string
 }
 

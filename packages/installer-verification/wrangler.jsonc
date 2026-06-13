@@ -18,7 +18,8 @@
     "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
     "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
     "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
-    "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+    "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men",
+    "INSTALLER_ADMIN_EMAIL": "mohamedfarid1@hotmail.com"
   },
   "d1_databases": [
     {
@@ -44,7 +45,8 @@
         "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
         "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
         "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
-        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men",
+        "INSTALLER_ADMIN_EMAIL": "mohamedfarid1@hotmail.com"
       },
       "d1_databases": [
         {
@@ -70,7 +72,8 @@
         "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
         "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
         "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
-        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men",
+        "INSTALLER_ADMIN_EMAIL": "mohamedfarid1@hotmail.com"
       },
       "d1_databases": [
         {

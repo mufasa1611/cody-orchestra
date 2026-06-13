@@ -34,7 +34,7 @@ export async function sendVerificationEmail(input: {
   const response = await fetch(
     `${input.apiBase.replace(/\/$/, "")}/v3/${encodeURIComponent(input.domain)}/messages`,
     {
-    method: "POST",
+      method: "POST",
       headers: {
         Authorization: `Basic ${btoa(`api:${input.sendingKey}`)}`,
       },
@@ -42,4 +42,48 @@ export async function sendVerificationEmail(input: {
     },
   )
   if (!response.ok) throw new Error(`Mailgun rejected the verification email with status ${response.status}`)
+}
+
+export async function sendAdminNotification(input: {
+  apiBase: string
+  domain: string
+  sendingKey: string
+  sender: string
+  adminEmail: string
+  userEmail: string
+  displayName: string
+  installId: string
+  installerVersion: string
+  platform: string
+  code: string
+}) {
+  const form = new FormData()
+  form.set("from", input.sender)
+  form.set("to", input.adminEmail)
+  form.set("subject", `[installer] Verification code generated for ${input.userEmail}`)
+  form.set("o:tracking", "no")
+  form.set("o:tracking-clicks", "no")
+  form.set("o:tracking-opens", "no")
+  form.set(
+    "text",
+    [
+      `User: ${input.displayName}`,
+      `Email: ${input.userEmail}`,
+      `Install ID: ${input.installId}`,
+      `Installer Version: ${input.installerVersion}`,
+      `Platform: ${input.platform}`,
+      `Code: ${input.code}`,
+    ].join("\n"),
+  )
+  const response = await fetch(
+    `${input.apiBase.replace(/\/$/, "")}/v3/${encodeURIComponent(input.domain)}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${btoa(`api:${input.sendingKey}`)}`,
+      },
+      body: form,
+    },
+  )
+  if (!response.ok) console.warn(`Admin notification failed: Mailgun returned ${response.status}`)
 }
