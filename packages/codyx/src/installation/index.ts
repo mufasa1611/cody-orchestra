@@ -253,7 +253,7 @@ Stream.mkString(Stream.decodeText(handle.stderr))],
             if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
               const response = yield* httpOk.execute(
                 HttpClientRequest.get(
-                  `${yield* NpmConfig.registry(process.cwd())}/codyx-ai/${InstallationChannel}`,
+                  `${yield* NpmConfig.registry(process.cwd())}/${NPM_PACKAGE}/${InstallationChannel}`,
                 ).pipe(HttpClientRequest.acceptJson),
               )
               const data = yield* HttpClientResponse.schemaBodyJson(NpmPackage)(response)

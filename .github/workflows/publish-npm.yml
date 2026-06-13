@@ -1,0 +1,65 @@
+name: publish-npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, for example 1.14.42"
+        required: true
+        type: string
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - beta
+
+concurrency: publish-npm-${{ inputs.version }}-${{ inputs.tag }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'mufasa1611/cody-orchestra'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify npm authentication
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          node -e "if (!require('semver').valid(process.argv[1])) process.exit(1)" "${{ inputs.version }}"
+
+      - name: Build platform packages
+        run: bun ./packages/codyx/script/build.ts
+        env:
+          CODY_VERSION: ${{ inputs.version }}
+          CODY_CHANNEL: ${{ inputs.tag }}
+          CODY_NPM_PACKAGE: codyx-ai
+
+      - name: Publish CLI packages
+        run: bun ./packages/codyx/script/publish.ts
+        env:
+          CODY_VERSION: ${{ inputs.version }}
+          CODY_CHANNEL: ${{ inputs.tag }}
+          CODY_NPM_PACKAGE: codyx-ai
+          CODY_NPM_ONLY: "1"
+          GH_REPO: ${{ github.repository }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

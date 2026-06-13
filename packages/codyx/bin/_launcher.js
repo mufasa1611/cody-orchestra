@@ -2,6 +2,7 @@ const childProcess = require("child_process")
 const fs = require("fs")
 const path = require("path")
 const os = require("os")
+const { binaryName, packageNames } = require("./_platform.cjs")
 
 const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"]
 
@@ -45,80 +46,10 @@ module.exports = function (name) {
   const envPath = process.env.CODY_BIN_PATH
   const scriptPath = fs.realpathSync(process.argv[1])
   const scriptDir = path.dirname(scriptPath)
-  const cached = path.join(scriptDir, ".cody")
+  const cached = path.join(scriptDir, os.platform() === "win32" ? ".cody.exe" : ".cody")
 
-  const platformMap = {
-    darwin: "darwin",
-    linux: "linux",
-    win32: "windows",
-  }
-  const archMap = {
-    x64: "x64",
-    arm64: "arm64",
-    arm: "arm",
-  }
-
-  let platform = platformMap[os.platform()] || os.platform()
-  let arch = archMap[os.arch()] || os.arch()
-  const base = `@cody/codyx-${platform}-${arch}`
-  const binary = platform === "windows" ? "codyx.exe" : "codyx"
-
-  function supportsAvx2() {
-    if (arch !== "x64") return false
-    if (platform === "linux") {
-      try { return /(^|\s)avx2(\s|$)/i.test(fs.readFileSync("/proc/cpuinfo", "utf8")) } catch { return false }
-    }
-    if (platform === "darwin") {
-      try {
-        const result = childProcess.spawnSync("sysctl", ["-n", "hw.optional.avx2_0"], { encoding: "utf8", timeout: 1500 })
-        return result.status === 0 && (result.stdout || "").trim() === "1"
-      } catch { return false }
-    }
-    if (platform === "windows") {
-      const cmd = '(Add-Type -MemberDefinition "[DllImport(""kernel32.dll"")] public static extern bool IsProcessorFeaturePresent(int ProcessorFeature);" -Name Kernel32 -Namespace Win32 -PassThru)::IsProcessorFeaturePresent(40)'
-      for (const exe of ["powershell.exe", "pwsh.exe", "pwsh", "powershell"]) {
-        try {
-          const result = childProcess.spawnSync(exe, ["-NoProfile", "-NonInteractive", "-Command", cmd], { encoding: "utf8", timeout: 3000, windowsHide: true })
-          if (result.status !== 0) continue
-          const out = (result.stdout || "").trim().toLowerCase()
-          if (out === "true" || out === "1") return true
-        } catch { continue }
-      }
-    }
-    return false
-  }
-
-  const names = (() => {
-    const avx2 = supportsAvx2()
-    const baseline = arch === "x64" && !avx2
-    if (platform === "linux") {
-      const musl = (() => {
-        try { if (fs.existsSync("/etc/alpine-release")) return true } catch {}
-        try {
-          const result = childProcess.spawnSync("ldd", ["--version"], { encoding: "utf8" })
-          if (((result.stdout || "") + (result.stderr || "")).toLowerCase().includes("musl")) return true
-        } catch {}
-        return false
-      })()
-      if (musl) {
-        if (arch === "x64") {
-          if (baseline) return [`${base}-baseline-musl`, `${base}-musl`, `${base}-baseline`, base]
-          return [`${base}-musl`, `${base}-baseline-musl`, base, `${base}-baseline`]
-        }
-        return [`${base}-musl`, base]
-      }
-      if (arch === "x64") {
-        if (baseline) return [`${base}-baseline`, base, `${base}-baseline-musl`, `${base}-musl`]
-        return [base, `${base}-baseline`, `${base}-musl`, `${base}-baseline-musl`]
-      }
-      return [base, `${base}-musl`]
-    }
-    if (arch === "x64") {
-      if (baseline) return [`${base}-baseline`, base]
-      return [base, `${base}-baseline`]
-    }
-    return [base]
-  })()
+  const binary = binaryName()
+  const names = packageNames()
 
   function findBinary(startDir) {
     let current = startDir

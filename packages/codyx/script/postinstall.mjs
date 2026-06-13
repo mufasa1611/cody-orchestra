@@ -8,79 +8,28 @@ import { createRequire } from "module"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
-
-function detectPlatformAndArch() {
-  // Map platform names
-  let platform
-  switch (os.platform()) {
-    case "darwin":
-      platform = "darwin"
-      break
-    case "linux":
-      platform = "linux"
-      break
-    case "win32":
-      platform = "windows"
-      break
-    default:
-      platform = os.platform()
-      break
-  }
-
-  // Map architecture names
-  let arch
-  switch (os.arch()) {
-    case "x64":
-      arch = "x64"
-      break
-    case "arm64":
-      arch = "arm64"
-      break
-    case "arm":
-      arch = "arm"
-      break
-    default:
-      arch = os.arch()
-      break
-  }
-
-  return { platform, arch }
-}
+const { binaryName, packageNames } = require("./bin/_platform.cjs")
 
 function findBinary() {
-  const { platform, arch } = detectPlatformAndArch()
-  const packageName = `@cody/codyx-${platform}-${arch}`
-  const binaryName = platform === "windows" ? "codyx.exe" : "codyx"
-
-  try {
-    // Use require.resolve to find the package
-    const packageJsonPath = require.resolve(`${packageName}/package.json`)
-    const packageDir = path.dirname(packageJsonPath)
-    const binaryPath = path.join(packageDir, "bin", binaryName)
-
-    if (!fs.existsSync(binaryPath)) {
-      throw new Error(`Binary not found at ${binaryPath}`)
+  const binary = binaryName()
+  const errors = []
+  for (const packageName of packageNames()) {
+    try {
+      const packageJsonPath = require.resolve(`${packageName}/package.json`)
+      const binaryPath = path.join(path.dirname(packageJsonPath), "bin", binary)
+      if (fs.existsSync(binaryPath)) return binaryPath
+      errors.push(`Binary not found at ${binaryPath}`)
+    } catch (error) {
+      errors.push(`${packageName}: ${error.message}`)
     }
-
-    return { binaryPath, binaryName }
-  } catch (error) {
-    throw new Error(`Could not find package ${packageName}: ${error.message}`, { cause: error })
   }
+  throw new Error(errors.join("; "))
 }
 
 async function main() {
   try {
-    if (os.platform() === "win32") {
-      // On Windows, the .exe is already included in the package and bin field points to it
-      // No postinstall setup needed
-      console.log("Windows detected: binary setup not needed (using packaged .exe)")
-      return
-    }
-
-    // On non-Windows platforms, just verify the binary package exists
-    // Don't replace the wrapper script - it handles binary execution
-    const { binaryPath } = findBinary()
-    const target = path.join(__dirname, "bin", ".cody")
+    const binaryPath = findBinary()
+    const target = path.join(__dirname, "bin", os.platform() === "win32" ? ".cody.exe" : ".cody")
     if (fs.existsSync(target)) fs.unlinkSync(target)
     try {
       fs.linkSync(binaryPath, target)
