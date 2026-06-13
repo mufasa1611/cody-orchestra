@@ -28,6 +28,7 @@ Assert-NotContains "CODYX_INSTALL_UPDATE.md" "master/install\.ps1" "Install guid
 Assert-Contains "script/install.ps1" 'install-codyx-global\.ps1.*-Root \$Root' "Windows installer propagates InstallRoot"
 Assert-Contains "script/install.ps1" '\& \$GlobalCmd --version' "Windows installer verifies the global shim"
 Assert-NotContains "script/install.ps1" '\& powershell ' "Windows installer has no ambiguous bare PowerShell invocation"
+Assert-NotContains "script/install.ps1" '(git clone|git fetch|git switch|git pull|bun install|bun run build)[^\r\n]*2>&1' "Windows native tools do not merge stderr into PowerShell errors"
 Assert-Contains "script/install.ps1" '\$CheckoutRoot.*Split-Path -Parent \$PSScriptRoot' "Windows installer detects a local checkout"
 Assert-Contains "script/install.ps1" 'Test-BunVersion' "Windows installer enforces the supported Bun version"
 Assert-Contains "script/install.ps1" 'VERIFICATION_URL = "https://install\.kingkung\.men"' "Windows installer uses the production verification service"
