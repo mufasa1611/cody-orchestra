@@ -101,13 +101,35 @@ function Add-GgufModel([string]$Path) {
   Show-CodyScan "found GGUF model: $name at $full"
 }
 
+function Get-FilesBeforeDeadline([string]$SearchRoot, [string]$Filter, [string]$Label) {
+  if (-not (Test-Path -LiteralPath $SearchRoot) -or (Test-Expired)) { return @() }
+  $remaining = [math]::Max(1, [math]::Ceiling(($deadline - (Get-Date)).TotalSeconds))
+  $job = Start-Job -ScriptBlock {
+    param($Path, $FileFilter)
+    Get-ChildItem -LiteralPath $Path -File -Filter $FileFilter -Recurse -Force -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty FullName
+  } -ArgumentList $SearchRoot, $Filter
+  try {
+    if (Wait-Job -Job $job -Timeout $remaining) {
+      return @(Receive-Job -Job $job -ErrorAction SilentlyContinue)
+    }
+    $notes.Add("$Label stopped at the model-discovery deadline.")
+    Show-CodyScan "$Label reached the time limit; continuing"
+    return @()
+  } finally {
+    if ($job.State -eq "Running") { Stop-Job -Job $job -ErrorAction SilentlyContinue }
+    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Add-OllamaManifestModels([string]$ManifestRoot) {
   if (-not (Test-Path $ManifestRoot)) { return }
   Show-CodyScan "reading Ollama manifests: $ManifestRoot"
   $rootFull = [System.IO.Path]::GetFullPath($ManifestRoot).TrimEnd('\')
-  Get-ChildItem -LiteralPath $ManifestRoot -File -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+  Get-FilesBeforeDeadline $ManifestRoot "*" "Ollama manifest scan" | ForEach-Object {
     if (Test-Expired) { return }
-    $relative = $_.FullName.Substring($rootFull.Length).TrimStart('\')
+    $fullName = "$_"
+    $relative = $fullName.Substring($rootFull.Length).TrimStart('\')
     $parts = $relative -split '[\\/]'
     if ($parts.Length -lt 3) { return }
     $registry = $parts[0]
@@ -118,28 +140,22 @@ function Add-OllamaManifestModels([string]$ManifestRoot) {
       $modelParts = $modelParts[1..($modelParts.Length - 1)]
     }
     if (-not $modelParts -or $modelParts.Length -eq 0) { return }
-    Add-OllamaModel ("{0}:{1}" -f ($modelParts -join "/"), $tag) "manifest:$($_.FullName)"
+    Add-OllamaModel ("{0}:{1}" -f ($modelParts -join "/"), $tag) "manifest:$fullName"
   }
 }
 
 function Find-OllamaModels {
   Show-CodyScan "checking Ollama local registry"
-  $ollama = Get-Command ollama -ErrorAction SilentlyContinue
-  if ($ollama) {
-    Show-CodyScan "running: ollama list"
-    try {
-      & $ollama.Source list 2>$null | Select-Object -Skip 1 | ForEach-Object {
-        $line = "$_".Trim()
-        if (-not $line) { return }
-        $name = ($line -split '\s+')[0]
-        Add-OllamaModel $name "ollama list"
-      }
-    } catch {
-      $notes.Add("ollama list failed: $($_.Exception.Message)")
-      Show-CodyScan "ollama list failed; continuing with manifest scan"
+  try {
+    $timeout = [math]::Max(1, [math]::Min(5, [math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)))
+    $response = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec $timeout
+    @($response.models) | ForEach-Object {
+      $name = if ($_.name) { "$($_.name)" } else { "$($_.model)" }
+      Add-OllamaModel $name "ollama api"
     }
-  } else {
-    Show-CodyScan "ollama executable not found on PATH; checking manifests only"
+  } catch {
+    $notes.Add("Ollama API was unavailable; checked manifests instead.")
+    Show-CodyScan "Ollama API unavailable; checking manifests"
   }
 
   $roots = New-Object 'System.Collections.Generic.HashSet[string]'
@@ -148,17 +164,6 @@ function Find-OllamaModels {
   }
   [void]$roots.Add((Join-Path $HOME ".ollama\models\manifests"))
 
-  Get-PSDrive -PSProvider FileSystem | ForEach-Object {
-    $driveRoot = $_.Root
-    [void]$roots.Add((Join-Path $driveRoot ".ollama\models\manifests"))
-    $users = Join-Path $driveRoot "Users"
-    if (Test-Path $users) {
-      Get-ChildItem -LiteralPath $users -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
-        [void]$roots.Add((Join-Path $_.FullName ".ollama\models\manifests"))
-      }
-    }
-  }
-
   foreach ($root in $roots) {
     if (Test-Expired) { break }
     Add-OllamaManifestModels $root
@@ -166,59 +171,38 @@ function Find-OllamaModels {
 }
 
 function Find-GgufModels {
-  Show-CodyScan "scanning fixed drives for *.gguf files; max seconds: $MaxSeconds"
-  $skipNames = New-Object 'System.Collections.Generic.HashSet[string]'
+  $roots = New-Object 'System.Collections.Generic.HashSet[string]'
+  if ($env:CODY_GGUF_PATHS) {
+    $env:CODY_GGUF_PATHS -split [IO.Path]::PathSeparator | ForEach-Object {
+      if ($_ -and $_.Trim()) { [void]$roots.Add($_.Trim()) }
+    }
+  }
   @(
-    "Windows", "Program Files", "Program Files (x86)", "System Volume Information",
-    '$Recycle.Bin', "Recovery", "node_modules", ".git", ".svn", ".hg",
-    ".turbo", "target", "__pycache__", "site-packages", ".cache", ".conda",
-    "AppData", "ProgramData", "cache", "dist-info", "venv", ".venv", "env",
-    ".env", "bun", "npm", "pip", "share", "include", "lib", "libs",
-    "Conda", "conda", "PKG-INFO", ".github", ".vscode", "extensions",
-    "common7", "CommonExtensions", "VSSDK", "MSBuild", "dotnet",
-    "WindowsPowerShell", "PowerShell", "System32", "SysWOW64",
-    "assembly", "GAC", "WinMetadata",
-    "fontconfig", "freetype", "icu", "harfbuzz",
-    ".cargo", "registry", ".rustup",
-    ".openclaw", ".codex", "codex", "plugins", "vendor_imports",
-    "anything-llm", "crew-agent", "conda_envs",
-    "pinokio", "store", "files", "index-v5"
-  ) | ForEach-Object { [void]$skipNames.Add($_) }
+    (Join-Path $HOME "Models"),
+    (Join-Path $HOME "Documents\Models"),
+    (Join-Path $HOME ".cache\lm-studio\models"),
+    (Join-Path $env:LOCALAPPDATA "LM-Studio\models"),
+    (Join-Path $env:LOCALAPPDATA "llama.cpp\models")
+  ) | ForEach-Object {
+    if ($_ -and (Test-Path -LiteralPath $_)) { [void]$roots.Add($_) }
+  }
 
-  $queue = New-Object 'System.Collections.Generic.Queue[string]'
-  Get-PSDrive -PSProvider FileSystem | ForEach-Object {
-    if ($_.Root -match '^[A-Za-z]:\\$' -and (Test-Path $_.Root)) {
-      $queue.Enqueue($_.Root)
+  if ($roots.Count -eq 0) {
+    Show-CodyScan "no standard GGUF model directories found"
+    return
+  }
+
+  Show-CodyScan "scanning known GGUF model directories; max seconds: $MaxSeconds"
+  foreach ($root in $roots) {
+    if (Test-Expired) { break }
+    Show-CodyScan "checking GGUF directory: $root"
+    Get-FilesBeforeDeadline $root "*.gguf" "GGUF scan for $root" | ForEach-Object {
+      Add-GgufModel "$_"
     }
   }
-  Show-CodyScan ("drives queued: " + ($queue -join ", "))
 
-  $visited = 0
-  while ($queue.Count -gt 0) {
-    if (Test-Expired) {
-      $notes.Add("GGUF scan stopped after $MaxSeconds seconds.")
-      break
-    }
-
-    $dir = $queue.Dequeue()
-    $visited++
-    if (($visited % 500) -eq 0) {
-      Show-CodyScan "visited $visited folders, found $($ggufModels.Count) GGUF models"
-    }
-
-    Get-ChildItem -LiteralPath $dir -File -Filter "*.gguf" -Force -ErrorAction SilentlyContinue | ForEach-Object {
-      Add-GgufModel $_.FullName
-    }
-
-    Get-ChildItem -LiteralPath $dir -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
-      if ($skipNames.Contains($_.Name)) { return }
-      if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return }
-      $queue.Enqueue($_.FullName)
-    }
-  }
-  
   $elapsed = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
-  Show-CodyScan "GGUF scan done: $ggufModels.Count models found, visited $visited folders in ${elapsed}s"
+  Show-CodyScan "GGUF scan done: $($ggufModels.Count) models found in ${elapsed}s"
 }
 
 Show-CodyScan "starting first-run local model discovery"

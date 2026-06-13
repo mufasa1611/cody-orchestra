@@ -48,12 +48,22 @@ set "CODY_CONFIG_DIR=%ROOT%.cody\generated"
 rem ------------------------------------------------------------------
 rem Load proxy configuration
 rem ------------------------------------------------------------------
+set "CODY_ORIGINAL_HTTP_PROXY=!HTTP_PROXY!"
+set "CODY_ORIGINAL_HTTPS_PROXY=!HTTPS_PROXY!"
+set "CODY_ORIGINAL_NO_PROXY=!NO_PROXY!"
 if exist "%ROOT%.env.proxy" (
   for /f "usebackq eol=# delims=" %%A in ("%ROOT%.env.proxy") do (
     for /f "tokens=1,* delims==" %%B in ("%%A") do (
       if not defined %%B set "%%B=%%C"
     )
   )
+)
+
+rem A disabled Cody proxy must not override the user's normal network path.
+if not "%CODY_PROXY_ENABLED%"=="1" (
+  set "HTTP_PROXY=!CODY_ORIGINAL_HTTP_PROXY!"
+  set "HTTPS_PROXY=!CODY_ORIGINAL_HTTPS_PROXY!"
+  set "NO_PROXY=!CODY_ORIGINAL_NO_PROXY!"
 )
 
 if "%CODY_PROXY_ENABLED%"=="1" (

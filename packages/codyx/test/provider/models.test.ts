@@ -119,6 +119,14 @@ const initialState: MockState = {
 }
 
 describe("ModelsDev Service", () => {
+  it.live("bundled fallback contains the default model and free alternatives", () =>
+    Effect.sync(() => {
+      expect(ModelsDev.fallback.opencode.models["big-pickle"]).toBeDefined()
+      expect(ModelsDev.fallback.opencode.models["deepseek-v4-flash-free"]).toBeDefined()
+      expect(ModelsDev.fallback.opencode.models["nemotron-3-super-free"]).toBeDefined()
+    }),
+  )
+
   it.live("get() returns providers from disk when cache file exists", () =>
     Effect.gen(function* () {
       yield* writeCache(fixture)
