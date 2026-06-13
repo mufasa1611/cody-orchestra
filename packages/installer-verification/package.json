@@ -7,12 +7,13 @@
   "license": "MIT",
   "scripts": {
     "typecheck": "tsgo --noEmit",
-    "test": "wrangler deploy --dry-run --outdir .test-dist --config wrangler.jsonc && bun test",
-    "db:local": "wrangler d1 execute installer-verification-local --local --file migrations/0001_initial.sql --config wrangler.jsonc"
+    "test": "wrangler deploy --dry-run --env=\"\" --outdir .test-dist --config wrangler.jsonc && bun test",
+    "db:local": "wrangler d1 execute installer-verification-local --local --file migrations/0001_initial.sql --config wrangler.jsonc",
+    "deploy:staging": "wrangler deploy --env staging --config wrangler.jsonc",
+    "deploy:production": "wrangler deploy --env production --config wrangler.jsonc"
   },
   "dependencies": {
     "hono": "catalog:",
-    "sst": "3.18.10",
     "zod": "catalog:"
   },
   "devDependencies": {

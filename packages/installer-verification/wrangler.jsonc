@@ -1,9 +1,25 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "installer-verification-local",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-13",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
+  "vars": {
+    "INSTALLER_ENVIRONMENT": "local",
+    "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
+    "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
+    "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
+    "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+  },
   "d1_databases": [
     {
       "binding": "InstallerVerificationDatabase",
@@ -11,5 +27,59 @@
       "database_id": "local",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "codyx-installer-verification-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "install-staging.kingkung.men",
+          "custom_domain": true
+        }
+      ],
+      "vars": {
+        "INSTALLER_ENVIRONMENT": "staging",
+        "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
+        "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
+        "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
+        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+      },
+      "d1_databases": [
+        {
+          "binding": "InstallerVerificationDatabase",
+          "database_name": "installer-staging-installerverificationdatabasedatabase-uuvomxeh",
+          "database_id": "94bfc1bc-f839-447d-863e-8e6cd5c52314",
+          "migrations_dir": "migrations"
+        }
+      ]
+    },
+    "production": {
+      "name": "codyx-installer-verification",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "install.kingkung.men",
+          "custom_domain": true
+        }
+      ],
+      "vars": {
+        "INSTALLER_ENVIRONMENT": "production",
+        "INSTALLER_SENDER": "Codyx Installer <installer@verification.kingkung.men>",
+        "INSTALLER_PRIVACY_EMAIL": "privacy@kingkung.men",
+        "INSTALLER_MAILGUN_API_BASE": "https://api.eu.mailgun.net",
+        "INSTALLER_MAILGUN_DOMAIN": "verification.kingkung.men"
+      },
+      "d1_databases": [
+        {
+          "binding": "InstallerVerificationDatabase",
+          "database_name": "codyx-installer-verification-production",
+          "database_id": "03053f53-fdc7-495f-b9c7-192f0dff276f",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
 }

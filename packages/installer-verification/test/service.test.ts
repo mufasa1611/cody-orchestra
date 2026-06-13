@@ -69,11 +69,6 @@ beforeAll(async () => {
     d1Databases: {
       InstallerVerificationDatabase: "installer-verification-test",
     },
-    ratelimits: {
-      InstallerVerificationIpRateLimit: {
-        simple: { limit: 10, period: 60 },
-      },
-    },
     bindings: {
       INSTALLER_ENVIRONMENT: "test",
       INSTALLER_SENDER: "Codyx Installer <installer@verification.kingkung.men>",
@@ -81,11 +76,10 @@ beforeAll(async () => {
       INSTALLER_MAILGUN_API_BASE: "https://api.eu.mailgun.net",
       INSTALLER_MAILGUN_DOMAIN: "verification.kingkung.men",
       INSTALLER_TEST_CODE: code,
-      SST_RESOURCE_INSTALLER_RECEIPT_SECRET: JSON.stringify({ value: receiptSecret }),
-      SST_RESOURCE_INSTALLER_OTP_PEPPER: JSON.stringify({ value: otpSecret }),
-      SST_RESOURCE_INSTALLER_ADMIN_SECRET: JSON.stringify({ value: adminSecret }),
-      SST_RESOURCE_INSTALLER_MAILGUN_SENDING_KEY: JSON.stringify({ value: "test-sending-key" }),
-      SST_RESOURCE_App: JSON.stringify({ name: "cody", stage: "test" }),
+      INSTALLER_RECEIPT_SECRET: receiptSecret,
+      INSTALLER_OTP_PEPPER: otpSecret,
+      INSTALLER_ADMIN_SECRET: adminSecret,
+      INSTALLER_MAILGUN_SENDING_KEY: "test-sending-key",
     },
   })
 })
@@ -187,6 +181,20 @@ describe("installer verification service", () => {
     expect((await limited.json()) as { error: string }).toMatchObject({ error: "email_rate_limited" })
   })
 
+  test("enforces the email send limit under concurrent requests", async () => {
+    const email = `${crypto.randomUUID()}@example.com`
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        request("/v1/challenges", {
+          method: "POST",
+          body: JSON.stringify(challengeBody(crypto.randomUUID(), email)),
+        }),
+      ),
+    )
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(5)
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(1)
+  })
+
   test("exports registrations and deletion revokes receipts", async () => {
     const created = await createChallenge()
     const verified = await verifyChallenge(created.response.challenge_id)
@@ -238,25 +246,19 @@ describe("installer verification service", () => {
 
   test("applies the per-IP service rate limit", async () => {
     const ip = "203.0.113.10"
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const response = await request("/v1/receipts/validate", {
-        method: "POST",
-        headers: { "CF-Connecting-IP": ip },
-        body: JSON.stringify({
-          install_id: crypto.randomUUID(),
-          receipt: "invalid.receipt",
+    const responses = await Promise.all(
+      Array.from({ length: 11 }, () =>
+        request("/v1/receipts/validate", {
+          method: "POST",
+          headers: { "CF-Connecting-IP": ip },
+          body: JSON.stringify({
+            install_id: crypto.randomUUID(),
+            receipt: "invalid.receipt",
+          }),
         }),
-      })
-      expect(response.status).toBe(200)
-    }
-    const limited = await request("/v1/receipts/validate", {
-      method: "POST",
-      headers: { "CF-Connecting-IP": ip },
-      body: JSON.stringify({
-        install_id: crypto.randomUUID(),
-        receipt: "invalid.receipt",
-      }),
-    })
-    expect(limited.status).toBe(429)
+      ),
+    )
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(10)
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(1)
   })
 })

@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS revocation (
 CREATE INDEX IF NOT EXISTS revocation_retain_until_idx
   ON revocation (retain_until);
 
+CREATE TABLE IF NOT EXISTS request_event (
+  id TEXT PRIMARY KEY,
+  client_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS request_event_client_created_idx
+  ON request_event (client_hash, created_at);
+
 CREATE TABLE IF NOT EXISTS send_event (
   id TEXT PRIMARY KEY,
   email_hash TEXT NOT NULL,
