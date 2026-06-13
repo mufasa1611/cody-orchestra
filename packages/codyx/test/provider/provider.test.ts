@@ -1962,6 +1962,45 @@ test("models.dev normalization fills required response fields", () => {
   expect(model.release_date).toBe("")
 })
 
+test("OpenCode cosmetic names do not change API model ids", () => {
+  const provider = {
+    id: "opencode",
+    name: "OpenCode Zen",
+    env: ["OPENCODE_API_KEY"],
+    api: "https://opencode.ai/zen/v1",
+    models: {
+      "big-pickle": {
+        id: "big-pickle",
+        name: "Big Pickle",
+        release_date: "2025-10-17",
+        attachment: false,
+        reasoning: true,
+        temperature: true,
+        tool_call: true,
+        limit: { context: 200000, output: 128000 },
+      },
+      "deepseek-v4-flash-free": {
+        id: "deepseek-v4-flash-free",
+        name: "DeepSeek V4 Flash Free",
+        release_date: "2026-04-24",
+        attachment: false,
+        reasoning: true,
+        temperature: true,
+        tool_call: true,
+        limit: { context: 200000, output: 128000 },
+      },
+    },
+  } as unknown as ModelsDev.Provider
+
+  const models = Provider.fromModelsDevProvider(provider).models
+  expect(models["big-pickle"].name).toBe("Sandra_pickle")
+  expect(models["big-pickle"].id).toBe("big-pickle")
+  expect(models["big-pickle"].api.id).toBe("big-pickle")
+  expect(models["deepseek-v4-flash-free"].name).toBe("Sandra_seek")
+  expect(models["deepseek-v4-flash-free"].id).toBe("deepseek-v4-flash-free")
+  expect(models["deepseek-v4-flash-free"].api.id).toBe("deepseek-v4-flash-free")
+})
+
 test("model variants are generated for reasoning models", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {

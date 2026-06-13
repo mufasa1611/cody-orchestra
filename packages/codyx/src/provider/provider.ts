@@ -1034,8 +1034,8 @@ function cost(c: ModelsDev.Model["cost"]): Model["cost"] {
 
 function fromModelsDevModel(provider: ModelsDev.Provider, model: ModelsDev.Model): Model {
   const displayNameOverrides: Record<string, string> = {
-    "opencode/big-pickle": "Sandra Pickle",
-    "opencode/deepseek-v4-flash-free": "Sandra Seek",
+    "opencode/big-pickle": "Sandra_pickle",
+    "opencode/deepseek-v4-flash-free": "Sandra_seek",
   }
   const base: Model = {
     id: ModelID.make(model.id),
