@@ -34,7 +34,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Host.UI.RawUI.WindowTitle = "codyx Installer"
+try { $Host.UI.RawUI.WindowTitle = "codyx Installer" } catch {}
 
 # ── Version & credits ───────────────────────────────────────────────
 $Script:CODY_VERSION = "1.0.0"
@@ -47,8 +47,8 @@ $DefaultParent = Join-Path $env:LOCALAPPDATA "codyx"
 $Root = if ($InstallRoot) { $InstallRoot } else { $DefaultParent }
 $GlobalBin = Join-Path $env:APPDATA "npm"
 $GlobalCmd = Join-Path $GlobalBin "codyx.cmd"
-$ScriptDir = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { Get-Location }
-$IsStandalone = -not (Test-Path (Join-Path $ScriptDir "codyx.cmd"))
+$CheckoutRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { $null }
+$IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "codyx.cmd")))
 $CreatedRepo = $false
 
 # ── Verbose logging ─────────────────────────────────────────────────
@@ -83,6 +83,15 @@ function Write-VerboseMsg($Message) {
 
 function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Test-BunVersion {
+  if (-not (Test-Command bun)) { return $false }
+  try {
+    return [version](& bun --version) -ge [version]"1.3.13"
+  } catch {
+    return $false
+  }
 }
 
 function Add-UserPathEntry($entry) {
@@ -210,15 +219,20 @@ if ($env:HTTP_PROXY -or $env:HTTPS_PROXY) {
   $env:GIT_HTTPS_PROXY = $proxy
 }
 
-if (-not (Test-Command bun)) {
-  Write-Step "Bun not found. Installing Bun..."
-  $null = & powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://bun.sh/install.ps1 | iex"
+if (-not (Test-BunVersion)) {
+  if (Test-Command bun) {
+    Write-Warn "Bun 1.3.13 or newer is required. Updating Bun..."
+  } else {
+    Write-Step "Bun not found. Installing Bun..."
+  }
+  $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  $null = & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -Command "irm https://bun.sh/install.ps1 | iex"
   if ($LASTEXITCODE -ne 0) { Write-Err "Bun installation failed."; exit 1 }
   $env:PATH = "$env:USERPROFILE\.bun\bin;$env:APPDATA\npm;$env:PATH"
-  if (-not (Test-Command bun)) { Write-Err "Bun still not found after install. Open a new terminal and rerun."; exit 1 }
-  Write-Ok "Bun installed."
+  if (-not (Test-BunVersion)) { Write-Err "Bun 1.3.13+ is still unavailable after install."; exit 1 }
+  Write-Ok "Bun 1.3.13+ installed."
 } else {
-  Write-Ok "Bun found."
+  Write-Ok "Bun 1.3.13+ found."
 }
 
 if (-not $NoProxy) {
@@ -281,7 +295,7 @@ if ($IsStandalone) {
     Write-Ok "Repository up to date."
   }
 } else {
-  $Root = Resolve-Path (Join-Path $ScriptDir "..")
+  $Root = $CheckoutRoot
   Write-Ok "Running from local checkout: $Root"
 }
 
@@ -354,12 +368,12 @@ Write-Section 6 "Model discovery"
 if (-not $NoScan) {
   if ($Yes) {
     Write-Step "Running model discovery..."
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
+    & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
   } else {
     Write-Host ""
     $scan = Read-Host "Scan for local Ollama/GGUF models? [y/N] "
     if ($scan -eq "y") {
-      & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
+      & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
     } else {
       Write-Ok "Model discovery skipped. Run later: .\script\discover-local-models.ps1"
     }
@@ -371,14 +385,14 @@ if (-not $NoScan) {
 # Ensure default config
 $generatedDir = Join-Path $Root ".cody\generated"
 $null = New-Item -ItemType Directory -Force -Path $generatedDir
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
+& (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
 
 # ── Phase 7: Global command ─────────────────────────────────────────
 
 Write-Section 7 "Global command"
 
 Write-Step "Installing global codyx command..."
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "script\install-codyx-global.ps1")
+& (Join-Path $Root "script\install-codyx-global.ps1") -Root $Root
 if ($LASTEXITCODE -ne 0) {
   Write-Err "Global command install failed."
   exit 1
@@ -389,17 +403,19 @@ if ($LASTEXITCODE -ne 0) {
 Write-Section 8 "Health check"
 
 Write-Step "Running health check..."
-Push-Location (Join-Path $Root "packages\codyx")
 $version = $null
 try {
-  $version = & bun run --conditions=browser src\index.ts --version 2>$null
-  if ($version) {
-    Write-Ok "codyx version: $version"
-  }
+  $previousSkipUpdate = $env:CODY_SKIP_UPDATE_CHECK
+  $env:CODY_SKIP_UPDATE_CHECK = "1"
+  $version = & $GlobalCmd --version 2>$null | Select-Object -Last 1
+  if ($LASTEXITCODE -ne 0 -or -not $version) { throw "global command failed" }
+  Write-Ok "codyx version: $version"
 } catch {
-  Write-Warn "Health check could not start codyx."
+  Write-Err "The global codyx command could not start."
+  exit 1
+} finally {
+  $env:CODY_SKIP_UPDATE_CHECK = $previousSkipUpdate
 }
-Pop-Location
 
 # ── Phase 9: Shortcuts ──────────────────────────────────────────────
 

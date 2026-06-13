@@ -5,23 +5,25 @@
 Install with one command from PowerShell:
 
 ```powershell
-iwr https://raw.githubusercontent.com/mufasa1611/cody-orchestra/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.ps1 | iex
 ```
 
 Or from CMD:
 
 ```cmd
-powershell -NoP -c "iwr https://raw.githubusercontent.com/mufasa1611/cody-orchestra/master/install.ps1 | iex"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.ps1 | iex"
 ```
 
-The installer clones the repository, checks Git/Node.js/Bun (installing missing tools with `winget` when possible), runs `bun install`, marks the checkout as a Git safe directory, and creates the global `codyx` command.
+The installer clones the repository, installs Git and Bun 1.3.13+ when needed, runs
+`bun install`, builds the web UI, discovers optional local models, and verifies the
+global `codyx` command before finishing.
 
 If you prefer to clone manually first:
 
 ```powershell
 git clone https://github.com/mufasa1611/cody-orchestra.git
-cd codyx
-.\install.bat
+cd cody-orchestra
+.\script\install.ps1
 ```
 
 If Git is not installed, the installer tries to install Git with `winget` before cloning.
@@ -38,8 +40,11 @@ Both shims route to the `codyx.cmd` file in your checkout. The folder name is hi
 macOS/Linux users can run:
 
 ```bash
-./install
+curl -fsSL https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.sh | bash
 ```
+
+The Unix installer writes the launcher to `~/.local/bin/codyx` and adds that
+directory to the current shell configuration when necessary.
 
 ## Start Command
 
@@ -55,27 +60,28 @@ codyx --agent operator
 
 ## Update Policy
 
-codyx updates through git from the local checkout. Re-run `install.bat`:
+codyx updates through git from the local checkout. Use:
 
 ```powershell
-.\install.bat
+codyx upgrade
 ```
 
-This pulls the latest changes (handles Git's "dubious ownership" check automatically) and reinstalls dependencies. To update manually:
+To refresh dependencies and rebuild the installation, rerun the unified installer
+from the checkout:
 
 ```powershell
 git pull --ff-only
-.\install.bat
+.\script\install.ps1
 ```
 
-Do not add an auto-update command until after the first TUI test. The current fork is local and may contain user changes, so automatic pulls would be too risky.
+Updates use `git pull --ff-only`, so local divergent changes are not overwritten.
 
 ## Reinstall Global Command
 
 If the global shim is missing or stale:
 
 ```powershell
-.\install.bat
+.\script\install-codyx-global.ps1 -Root (Get-Location)
 ```
 
 ## Release Checkpoint Criteria

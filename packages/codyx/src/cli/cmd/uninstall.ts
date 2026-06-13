@@ -82,11 +82,11 @@ export const UninstallCommand = {
       return
     }
 
-    const removalLog = await executeUninstall(method, targets, args)
+    const removalLog = await executeUninstall(method, targets)
 
     await generateRemovalLog(removalLog)
 
-    await askRemoveOptionalDeps()
+    if (!args.force) await askRemoveOptionalDeps()
 
     prompts.outro("Done")
   },
@@ -152,19 +152,19 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string> = {
-      npm: "npm uninstall -g cody-ai",
-      pnpm: "pnpm uninstall -g cody-ai",
-      bun: "bun remove -g cody-ai",
-      yarn: "yarn global remove cody-ai",
-      brew: "brew uninstall cody",
-      choco: "choco uninstall cody",
-      scoop: "scoop uninstall cody",
+      npm: "npm uninstall -g codyx-ai",
+      pnpm: "pnpm uninstall -g codyx-ai",
+      bun: "bun remove -g codyx-ai",
+      yarn: "yarn global remove codyx-ai",
+      brew: "brew uninstall codyx",
+      choco: "choco uninstall codyx",
+      scoop: "scoop uninstall codyx",
     }
-    prompts.log.info(`  ✓ Package: ${cmds[method] || method}`)
+    if (cmds[method]) prompts.log.info(`  ✓ Package: ${cmds[method]}`)
   }
 }
 
-async function executeUninstall(method: Installation.Method, targets: RemovalTargets, args: UninstallArgs) {
+async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
   const spinner = prompts.spinner()
   const errors: string[] = []
   const removed: string[] = []
@@ -240,23 +240,16 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     }
   }
 
-  // Remove User PATH entry for %APPDATA%\npm
-  try {
-    removeNpmPathEntry()
-  } catch (e: any) {
-    errors.push(`PATH cleanup: ${e.message}`)
-  }
-
   // Package manager uninstall
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "cody-ai"],
-      pnpm: ["pnpm", "uninstall", "-g", "cody-ai"],
-      bun: ["bun", "remove", "-g", "cody-ai"],
-      yarn: ["yarn", "global", "remove", "cody-ai"],
-      brew: ["brew", "uninstall", "cody"],
-      choco: ["choco", "uninstall", "cody"],
-      scoop: ["scoop", "uninstall", "cody"],
+      npm: ["npm", "uninstall", "-g", "codyx-ai"],
+      pnpm: ["pnpm", "uninstall", "-g", "codyx-ai"],
+      bun: ["bun", "remove", "-g", "codyx-ai"],
+      yarn: ["yarn", "global", "remove", "codyx-ai"],
+      brew: ["brew", "uninstall", "codyx"],
+      choco: ["choco", "uninstall", "codyx"],
+      scoop: ["scoop", "uninstall", "codyx"],
     }
 
     const cmd = cmds[method]
@@ -359,12 +352,25 @@ async function findStartMenuShortcut(): Promise<string | null> {
 }
 
 async function findGlobalShims(): Promise<string[]> {
-  if (os.platform() !== "win32") return []
   const shims: string[] = []
-  const candidates = [
-    path.join(process.env.APPDATA || "", "npm", "codyx.cmd"),
-    path.join(process.env.APPDATA || "", "npm", "codyx.ps1"),
-  ]
+  const candidates =
+    os.platform() === "win32"
+      ? [
+          path.join(process.env.APPDATA || "", "npm", "codyx.cmd"),
+          path.join(process.env.APPDATA || "", "npm", "codyx.ps1"),
+        ]
+      : [
+          ...(process.env.CODY_GLOBAL_BIN_DIR
+            ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")]
+            : []),
+          path.join(os.homedir(), ".local", "bin", "codyx"),
+          path.join(
+            process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
+            "codyx",
+            "bin",
+            "codyx",
+          ),
+        ]
   for (const c of candidates) {
     const exists = await fs.access(c).then(() => true).catch(() => false)
     if (exists) shims.push(c)
@@ -382,24 +388,6 @@ async function findEnvProxy(): Promise<string | null> {
   } catch {
     return null
   }
-}
-
-function removeNpmPathEntry() {
-  if (os.platform() !== "win32") return
-  const npmBin = path.join(process.env.APPDATA || "", "npm")
-  const full = path.resolve(npmBin).replace(/\\+$/, "")
-
-  try {
-    const { execSync } = require("child_process")
-    const current = execSync(`reg query HKCU\\Environment /v Path 2>nul`, { encoding: "utf8", windowsHide: true })
-    if (current && current.includes(full)) {
-      const cleaned = current.replace(full + ";", "").replace(";" + full, "")
-      execSync(
-        `reg add HKCU\\Environment /v Path /t REG_EXPAND_SZ /d "${cleaned}" /f`,
-        { windowsHide: true },
-      )
-    }
-  } catch {}
 }
 
 async function getShellConfigFile(): Promise<string | null> {
@@ -433,7 +421,12 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    if (content.includes("# cody") || content.includes(".cody/bin")) {
+    if (
+      content.includes("# >>> codyx installer >>>") ||
+      content.includes("# codyx") ||
+      content.includes(".cody/bin") ||
+      content.includes("/codyx/bin")
+    ) {
       return file
     }
   }
@@ -447,25 +440,37 @@ async function cleanShellConfig(file: string) {
 
   const filtered: string[] = []
   let skip = false
+  let skipInstallerBlock = false
 
   for (const line of lines) {
     const trimmed = line.trim()
 
-    if (trimmed === "# cody") {
+    if (trimmed === "# >>> codyx installer >>>") {
+      skipInstallerBlock = true
+      continue
+    }
+
+    if (skipInstallerBlock) {
+      if (trimmed === "# <<< codyx installer <<<") skipInstallerBlock = false
+      continue
+    }
+
+    if (trimmed === "# cody" || trimmed === "# codyx") {
       skip = true
       continue
     }
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".cody/bin") || trimmed.includes("fish_add_path")) {
+      if (trimmed.includes(".cody/bin") || trimmed.includes("/codyx/bin") || trimmed.includes("fish_add_path")) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && trimmed.includes(".cody/bin")) ||
-      (trimmed.startsWith("fish_add_path") && trimmed.includes(".cody"))
+      (trimmed.startsWith("export PATH=") &&
+        (trimmed.includes(".cody/bin") || trimmed.includes("/codyx/bin"))) ||
+      (trimmed.startsWith("fish_add_path") && trimmed.includes("codyx/bin"))
     ) {
       continue
     }

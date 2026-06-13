@@ -19,7 +19,7 @@ everything through plugins, agents, and custom tools.
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/mufasa1611/cody-orchestra/master/script/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.sh | bash
 
 # Windows PowerShell
 irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/install.ps1 | iex
@@ -28,7 +28,8 @@ irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/inst
 codyx
 ```
 
-> Requires [Bun](https://bun.sh) 1.3+ or Node.js 22+.  
+> The installer sets up Git and [Bun](https://bun.sh) 1.3.13+ when possible, installs `codyx`
+> for the current user, and verifies the global command before finishing.
 > Docker images are available for headless/server deployments.
 
 ---
