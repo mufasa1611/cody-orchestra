@@ -18,6 +18,7 @@ import { Script } from "@cody/script"
 import pkg from "../package.json"
 
 const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
+const ghRepo = process.env.GH_REPO || "mufasa1611/cody-orchestra"
 
 // Load migrations from migration directories
 const migrationDirs = (
@@ -246,6 +247,12 @@ for (const item of targets) {
       {
         name,
         version: Script.version,
+        description: `Codyx CLI binary for ${item.os} ${item.arch}`,
+        license: pkg.license,
+        repository: {
+          type: "git",
+          url: `https://github.com/${ghRepo}.git`,
+        },
         os: [item.os],
         cpu: [item.arch],
       },
