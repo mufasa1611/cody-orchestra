@@ -118,7 +118,7 @@ Three extension surfaces:
 
 
 ### Private by Default
-- **Private project data** — Codyx does not collect your code, prompts, conversations, or project content. The official Windows installer submits the display name and email address you provide for email ownership verification and essential service or security notices. The display name is not independently verified, the data is not used for marketing, and deletion can be requested at `privacy@kingkung.men`; see [the installer privacy notice](https://install.kingkung.men/privacy).
+- **Private project data** — Codyx does not collect your code, prompts, conversations, or project content. After email verification succeeds, the official Windows installer records the display name and verified email address you provide and sends an operational registration notice to the Codyx administrator. The notice never contains the verification code. The display name is not independently verified, the data is not used for marketing, and deletion can be requested at `privacy@kingkung.men`; see [the installer privacy notice](https://install.kingkung.men/privacy). Manual clones and repository downloads are not tracked by this installer service.
 - **No cloud dependency** — Works fully offline with local models (Ollama, llama.cpp)
 - **Local database** — All sessions, config, and state stored in local SQLite
 - **Self-contained** — Single binary with no external service requirements

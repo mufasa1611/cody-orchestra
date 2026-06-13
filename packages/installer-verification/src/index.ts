@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
-import { sendAdminNotification, sendVerificationEmail } from "./email"
+import { sendAdminRegistrationNotification, sendVerificationEmail } from "./email"
 import {
   CODE_TTL_MS,
   MAX_ATTEMPTS,
@@ -12,7 +12,6 @@ import {
   RETENTION_MS,
   SEND_WINDOW_MS,
   canResend,
-  codeUsable,
 } from "./policy"
 import { privacyPage } from "./privacy"
 import type { Bindings, ChallengeRow } from "./types"
@@ -132,20 +131,22 @@ function notifyAdmin(
     installId: string
     installerVersion: string
     platform: string
-    code: string
+    verifiedAt: string
   },
 ) {
   const adminEmail = env.INSTALLER_ADMIN_EMAIL
-  if (!adminEmail) return
+  if (!adminEmail) return Promise.resolve()
   const value = secrets(env)
-  sendAdminNotification({
+  return sendAdminRegistrationNotification({
     apiBase: env.INSTALLER_MAILGUN_API_BASE,
     domain: env.INSTALLER_MAILGUN_DOMAIN,
     sendingKey: value.mailgunSendingKey,
     sender: env.INSTALLER_SENDER,
     adminEmail,
     ...input,
-  }).catch(() => {})
+  }).catch(() => {
+    console.warn(JSON.stringify({ status: 502, error: "admin_notification_failed" }))
+  })
 }
 
 async function challenge(db: D1Database, id: string) {
@@ -228,14 +229,6 @@ app.post("/v1/challenges", async (context) => {
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
-  notifyAdmin(context.env, {
-    userEmail: input.email,
-    displayName: input.display_name,
-    installId: input.install_id,
-    installerVersion: input.installer_version,
-    platform: input.platform,
-    code,
-  })
   return context.json(
     {
       challenge_id: id,
@@ -289,14 +282,6 @@ app.post("/v1/challenges/:id/resend", async (context) => {
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
-  notifyAdmin(context.env, {
-    userEmail: row.email,
-    displayName: row.display_name,
-    installId: row.install_id,
-    installerVersion: row.installer_version,
-    platform: row.platform,
-    code,
-  })
   return context.json({
     expires_at: new Date(now + CODE_TTL_MS).toISOString(),
     resend_after: new Date(now + RESEND_DELAY_MS).toISOString(),
@@ -325,8 +310,6 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       remaining === 0 ? "Too many incorrect verification attempts." : "The verification code is incorrect.",
     )
   }
-  if (!codeUsable({ attempts: row.attempts, expiresAt: row.expires_at, verifiedAt: row.verified_at, now }))
-    throw new ApiError(409, "code_unusable", "The verification code cannot be used.")
   const receiptId = row.id
   const expiresAt = now + RECEIPT_TTL_MS
   await db.batch([
@@ -361,6 +344,16 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       .prepare("INSERT INTO receipt (id, install_id, issued_at, expires_at) VALUES (?, ?, ?, ?)")
       .bind(receiptId, row.install_id, now, expiresAt),
   ])
+  context.executionCtx.waitUntil(
+    notifyAdmin(context.env, {
+      userEmail: row.email,
+      displayName: row.display_name,
+      installId: row.install_id,
+      installerVersion: row.installer_version,
+      platform: row.platform,
+      verifiedAt: new Date(now).toISOString(),
+    }),
+  )
   return context.json({
     receipt: await signReceipt(value.receipt, {
       install_id: row.install_id,

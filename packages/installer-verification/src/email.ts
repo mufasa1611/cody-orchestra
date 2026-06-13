@@ -44,7 +44,7 @@ export async function sendVerificationEmail(input: {
   if (!response.ok) throw new Error(`Mailgun rejected the verification email with status ${response.status}`)
 }
 
-export async function sendAdminNotification(input: {
+export async function sendAdminRegistrationNotification(input: {
   apiBase: string
   domain: string
   sendingKey: string
@@ -55,12 +55,12 @@ export async function sendAdminNotification(input: {
   installId: string
   installerVersion: string
   platform: string
-  code: string
+  verifiedAt: string
 }) {
   const form = new FormData()
   form.set("from", input.sender)
   form.set("to", input.adminEmail)
-  form.set("subject", `[installer] Verification code generated for ${input.userEmail}`)
+  form.set("subject", `[installer] Verified installation ${input.installId}`)
   form.set("o:tracking", "no")
   form.set("o:tracking-clicks", "no")
   form.set("o:tracking-opens", "no")
@@ -72,7 +72,7 @@ export async function sendAdminNotification(input: {
       `Install ID: ${input.installId}`,
       `Installer Version: ${input.installerVersion}`,
       `Platform: ${input.platform}`,
-      `Code: ${input.code}`,
+      `Email Verified At: ${input.verifiedAt}`,
     ].join("\n"),
   )
   const response = await fetch(
@@ -85,5 +85,5 @@ export async function sendAdminNotification(input: {
       body: form,
     },
   )
-  if (!response.ok) console.warn(`Admin notification failed: Mailgun returned ${response.status}`)
+  if (!response.ok) throw new Error(`Mailgun rejected the admin notification with status ${response.status}`)
 }
