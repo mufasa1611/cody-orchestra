@@ -449,7 +449,8 @@ $version = $null
 try {
   $previousSkipUpdate = $env:CODY_SKIP_UPDATE_CHECK
   $env:CODY_SKIP_UPDATE_CHECK = "1"
-  $version = & $GlobalCmd --version 2>$null | Select-Object -Last 1
+  $versionCommand = "`"`"$GlobalCmd`" --version 2>&1`""
+  $version = & $env:ComSpec /d /s /c $versionCommand | Select-Object -Last 1
   if ($LASTEXITCODE -ne 0 -or -not $version) { throw "global command failed" }
   Write-Ok "codyx version: $version"
 } catch {
