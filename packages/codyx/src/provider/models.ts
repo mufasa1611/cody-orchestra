@@ -89,6 +89,60 @@ export const Provider = Schema.Struct({
 
 export type Provider = Schema.Schema.Type<typeof Provider>
 
+export const fallback: Record<string, Provider> = {
+  opencode: {
+    id: "opencode",
+    name: "OpenCode Zen",
+    env: ["OPENCODE_API_KEY"],
+    npm: "@ai-sdk/openai-compatible",
+    api: "https://opencode.ai/zen/v1",
+    models: {
+      "big-pickle": {
+        id: "big-pickle",
+        name: "Big Pickle",
+        family: "big-pickle",
+        release_date: "2025-10-17",
+        attachment: false,
+        reasoning: true,
+        temperature: true,
+        tool_call: true,
+        interleaved: { field: "reasoning_content" },
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 200000, output: 128000 },
+        cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+      },
+      "deepseek-v4-flash-free": {
+        id: "deepseek-v4-flash-free",
+        name: "DeepSeek V4 Flash Free",
+        family: "deepseek-flash-free",
+        release_date: "2026-04-24",
+        attachment: false,
+        reasoning: true,
+        temperature: true,
+        tool_call: true,
+        interleaved: { field: "reasoning_content" },
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 200000, output: 128000 },
+        cost: { input: 0, output: 0, cache_read: 0 },
+      },
+      "nemotron-3-super-free": {
+        id: "nemotron-3-super-free",
+        name: "Nemotron 3 Super Free",
+        family: "nemotron-free",
+        release_date: "2026-03-11",
+        attachment: false,
+        reasoning: true,
+        temperature: true,
+        tool_call: true,
+        interleaved: { field: "reasoning_content" },
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 204800, output: 128000 },
+        cost: { input: 0, output: 0, cache_read: 0 },
+      },
+    },
+  },
+}
+
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
   readonly refresh: (force?: boolean) => Effect.Effect<void>
@@ -147,18 +201,27 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | HttpClie
     const populate = Effect.gen(function* () {
       const fromDisk = yield* loadFromDisk
       if (fromDisk) return fromDisk
+      if (Flag.CODY_DISABLE_MODELS_FETCH) return {}
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
-      if (Flag.CODY_DISABLE_MODELS_FETCH) return {}
       // Flock is cross-process: concurrent cody CLIs can race on this cache file.
-      const text = yield* Effect.scoped(
+      return yield* Effect.scoped(
         Effect.gen(function* () {
           yield* Flock.effect(lockKey)
           return yield* fetchAndWrite()
         }),
+      ).pipe(
+        Effect.flatMap((text) =>
+          Effect.try({
+            try: () => JSON.parse(text) as Record<string, Provider>,
+            catch: (error) => error,
+          }),
+        ),
+        Effect.catch(() =>
+          Effect.logWarning("Could not load models.dev; using the bundled fallback catalog").pipe(Effect.as(fallback)),
+        ),
       )
-      return JSON.parse(text) as Record<string, Provider>
-    }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
+    }).pipe(Effect.withSpan("ModelsDev.populate"))
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
 

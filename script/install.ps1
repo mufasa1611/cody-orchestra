@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Install codyx on Windows — single-command setup for novice users.
+    Install codyx on Windows - single-command setup for novice users.
 .DESCRIPTION
     Detects prerequisites, verifies email ownership, installs what's missing,
     clones/updates the repo, installs dependencies, builds the web UI, configures
@@ -36,13 +36,13 @@ param(
 $ErrorActionPreference = "Stop"
 try { $Host.UI.RawUI.WindowTitle = "codyx Installer" } catch {}
 
-# ── Version & credits ───────────────────────────────────────────────
+# Version & credits
 $Script:CODY_VERSION = "1.0.0"
 $Script:REPO_URL = "https://github.com/mufasa1611/cody-orchestra.git"
 $Script:CREDITS = "Builder: M. Farid (Mufasa) | Repo: $REPO_URL"
 $Script:VERIFICATION_URL = "https://install.kingkung.men"
 
-# ── Configuration ────────────────────────────────────────────────────
+# Configuration
 $RepoUrl = $Script:REPO_URL
 $DefaultParent = Join-Path $env:LOCALAPPDATA "codyx"
 $Root = if ($InstallRoot) { $InstallRoot } else { $DefaultParent }
@@ -52,10 +52,10 @@ $CheckoutRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { $
 $IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "codyx.cmd")))
 $CreatedRepo = $false
 
-# ── Verbose logging ─────────────────────────────────────────────────
+# Verbose logging
 $VerbosePref = if ($Verbose) { "Continue" } else { "SilentlyContinue" }
 
-# ── Helpers ──────────────────────────────────────────────────────────
+# Helpers
 
 function Write-Step($Message) {
   Write-Host ">> $Message" -ForegroundColor Cyan
@@ -75,7 +75,7 @@ function Write-Err($Message) {
 
 function Write-Section($Number, $Label) {
   Write-Host ""
-  Write-Host "╔══ $Number. $Label ═══" -ForegroundColor Cyan
+  Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
 }
 
 function Write-VerboseMsg($Message) {
@@ -126,7 +126,7 @@ function Add-UserPathEntry($entry) {
   if (-not $inCurrent) { $env:PATH = "$full;$env:PATH" }
 }
 
-# ── Installation helpers ─────────────────────────────────────────────
+# Installation helpers
 
 function Install-WithWinget($Id, $Label) {
   if (-not (Test-Command winget)) {
@@ -199,15 +199,15 @@ function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
   }
 }
 
-# ── Banner ───────────────────────────────────────────────────────────
+# Banner
 
 Write-Host ""
-Write-Host "  ╔═══════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "  ║       codyx Windows Installer v$($Script:CODY_VERSION)       ║" -ForegroundColor Cyan
-Write-Host "  ╚═══════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "  =======================================" -ForegroundColor Cyan
+Write-Host "       codyx Windows Installer v$($Script:CODY_VERSION)" -ForegroundColor Cyan
+Write-Host "  =======================================" -ForegroundColor Cyan
 Write-Host "  $($Script:CREDITS)" -ForegroundColor DarkGray
 
-# ── Phase 1: Prerequisites ──────────────────────────────────────────
+# Phase 1: Prerequisites
 
 Write-Section 1 "Prerequisites"
 
@@ -289,7 +289,7 @@ if (-not $NoProxy) {
   Write-Ok "Proxy setup skipped (--NoProxy)."
 }
 
-# ── Phase 2: Clone or update repo ───────────────────────────────────
+# Phase 2: Clone or update repo
 
 Write-Section 2 "Repository"
 
@@ -343,7 +343,7 @@ if ($IsStandalone) {
 
 Set-Location $Root
 
-# ── Phase 3: Dependencies ───────────────────────────────────────────
+# Phase 3: Dependencies
 
 Write-Section 3 "Dependencies"
 
@@ -359,7 +359,7 @@ Write-Progress -Activity $activity -Completed
 
 Write-Ok "Dependencies installed."
 
-# ── Phase 4: Web UI ─────────────────────────────────────────────────
+# Phase 4: Web UI
 
 if (-not $NoBuild) {
   Write-Section 4 "Web UI"
@@ -380,7 +380,7 @@ if (-not $NoBuild) {
   Write-Ok "Web UI build skipped (--NoBuild)."
 }
 
-# ── Phase 5: Proxy ──────────────────────────────────────────────────
+# Phase 5: Proxy
 
 Write-Section 5 "Proxy configuration"
 
@@ -403,7 +403,7 @@ NO_PROXY=localhost,127.0.0.1,::1
   Write-Ok "Proxy configuration skipped (--NoProxy)."
 }
 
-# ── Phase 6: Model discovery ────────────────────────────────────────
+# Phase 6: Model discovery
 
 Write-Section 6 "Model discovery"
 
@@ -429,7 +429,7 @@ $generatedDir = Join-Path $Root ".cody\generated"
 $null = New-Item -ItemType Directory -Force -Path $generatedDir
 & (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
 
-# ── Phase 7: Global command ─────────────────────────────────────────
+# Phase 7: Global command
 
 Write-Section 7 "Global command"
 
@@ -440,7 +440,7 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
-# ── Phase 8: Health check ───────────────────────────────────────────
+# Phase 8: Health check
 
 Write-Section 8 "Health check"
 
@@ -460,7 +460,7 @@ try {
   $env:CODY_SKIP_UPDATE_CHECK = $previousSkipUpdate
 }
 
-# ── Phase 9: Shortcuts ──────────────────────────────────────────────
+# Phase 9: Shortcuts
 
 Write-Section 9 "Shortcuts"
 
@@ -477,12 +477,12 @@ $shortcut.WorkingDirectory = $Root
 $shortcut.Save()
 Write-Ok "Uninstall shortcut created."
 
-# ── Done ────────────────────────────────────────────────────────────
+# Done
 
 Write-Host ""
-Write-Host "  ╔═══════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║     codyx installed successfully!     ║" -ForegroundColor Green
-Write-Host "  ╚═══════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  =======================================" -ForegroundColor Green
+Write-Host "       codyx installed successfully!     " -ForegroundColor Green
+Write-Host "  =======================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Installed to:  $Root" -ForegroundColor White
 Write-Host "  Global command: codyx" -ForegroundColor White

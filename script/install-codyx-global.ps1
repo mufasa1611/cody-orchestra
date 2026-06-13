@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ── Style helpers (matching script/install.ps1) ────────────────────────
+# Style helpers (matching script/install.ps1)
 function Write-Step($Message) {
   Write-Host ">> $Message" -ForegroundColor Cyan
 }
@@ -25,17 +25,17 @@ function Write-Err($Message) {
 
 function Write-Section($Number, $Label) {
   Write-Host ""
-  Write-Host "╔══ $Number. $Label ═══" -ForegroundColor Cyan
+  Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
 }
 
-# ── Banner ─────────────────────────────────────────────────────────────
+# Banner
 Write-Host ""
-Write-Host "  codyx — Global Command Installer" -ForegroundColor Cyan
+Write-Host "  codyx - Global Command Installer" -ForegroundColor Cyan
 Write-Host "  Installs the codyx CLI shim, Start Menu shortcuts,"
 Write-Host "  and creates an install marker for clean uninstall."
 Write-Host ""
 
-# ── Resolve root ───────────────────────────────────────────────────────
+# Resolve root
 if (-not $Root -or -not (Test-Path -LiteralPath $Root)) {
   $Root = $env:CODY_INSTALL_ROOT
 }
@@ -67,7 +67,7 @@ $marker = @{
   shims      = @()
 }
 
-# ── 1. codyx.cmd shim ─────────────────────────────────────────────────
+# 1. codyx.cmd shim
 Write-Section 1 "Batch shim"
 
 $cmdShim = "$npmDir\codyx.cmd"
@@ -83,7 +83,7 @@ Write-Ok "Created shim: $cmdShim"
 $marker.shims += $cmdShim
 $marker.installed += $cmdShim
 
-# ── 2. codyx.ps1 shim ─────────────────────────────────────────────────
+# 2. codyx.ps1 shim
 Write-Section 2 "PowerShell shim"
 
 $psShim = "$npmDir\codyx.ps1"
@@ -98,7 +98,7 @@ Write-Ok "Created shim: $psShim"
 $marker.shims += $psShim
 $marker.installed += $psShim
 
-# ── 3. User PATH ──────────────────────────────────────────────────────
+# 3. User PATH
 Write-Section 3 "User PATH"
 
 $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -125,7 +125,7 @@ if (($env:PATH -split ";") -notcontains $npmDir) {
   $env:PATH = "$npmDir;$env:PATH"
 }
 
-# ── 4. Start Menu shortcuts ───────────────────────────────────────────
+# 4. Start Menu shortcuts
 Write-Section 4 "Start Menu shortcuts"
 
 $startMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\codyx"
@@ -152,18 +152,18 @@ Write-Ok "Created shortcut: codyx Web.lnk"
 $marker.shortcuts += "$startMenuDir\codyx Web.lnk"
 $marker.installed += "$startMenuDir\codyx Web.lnk"
 
-# ── 5. Install marker ─────────────────────────────────────────────────
+# 5. Install marker
 Write-Section 5 "Install marker"
 
 $markerJson = $marker | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText($markerPath, $markerJson, [System.Text.UTF8Encoding]::new($false))
 Write-Ok "Install marker: $markerPath"
 
-# ── Done ──────────────────────────────────────────────────────────────
+# Done
 Write-Host ""
-Write-Host "  ╔═══════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║   Global codyx command installed!     ║" -ForegroundColor Green
-Write-Host "  ╚═══════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  =======================================" -ForegroundColor Green
+Write-Host "     Global codyx command installed!     " -ForegroundColor Green
+Write-Host "  =======================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Use 'codyx' from any terminal." -ForegroundColor White
 Write-Host "  (You may need to open a new terminal for PATH changes to take effect.)" -ForegroundColor DarkGray
