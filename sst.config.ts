@@ -20,6 +20,7 @@ export default $config({
   async run() {
     await import("./infra/app.js")
     await import("./infra/console.js")
+    await import("./infra/installer-verification.js")
     await import("./infra/enterprise.js")
     if ($app.stage === "production" || $app.stage === "vimtor") {
       await import("./infra/monitoring.js")

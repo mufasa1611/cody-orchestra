@@ -116,7 +116,7 @@ Three extension surfaces:
 
 
 ### Private by Default
-- **No telemetry** — Zero data leaves your machine unless you explicitly connect a provider
+- **Private project data** — Codyx does not collect your code, prompts, or project content. The official Windows installer submits the display name and email address you provide for email verification; see [the installer privacy notice](https://install.kingkung.men/privacy).
 - **No cloud dependency** — Works fully offline with local models (Ollama, llama.cpp)
 - **Local database** — All sessions, config, and state stored in local SQLite
 - **Self-contained** — Single binary with no external service requirements
