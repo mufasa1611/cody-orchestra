@@ -57,10 +57,10 @@ verification messages.
 Set unique values independently for staging and production:
 
 ```bash
-bunx sst secret set INSTALLER_RECEIPT_SECRET <random-32+-bytes> --stage installer-staging
-bunx sst secret set INSTALLER_OTP_PEPPER <different-random-32+-bytes> --stage installer-staging
-bunx sst secret set INSTALLER_ADMIN_SECRET <different-random-32+-bytes> --stage installer-staging
-bunx sst secret set INSTALLER_MAILGUN_SENDING_KEY <domain-sending-key> --stage installer-staging
+bunx sst secret set INSTALLER_RECEIPT_SECRET <random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
+bunx sst secret set INSTALLER_OTP_PEPPER <different-random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
+bunx sst secret set INSTALLER_ADMIN_SECRET <different-random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
+bunx sst secret set INSTALLER_MAILGUN_SENDING_KEY <domain-sending-key> --stage installer-staging --config sst.installer.config.ts
 ```
 
 Repeat with `--stage production`.
@@ -69,12 +69,15 @@ Repeat with `--stage production`.
 
 1. Authenticate SST with a Cloudflare token that can manage Workers, D1,
    rate-limit bindings, DNS, and routes for `kingkung.men`.
-2. Deploy staging with `bunx sst deploy --stage installer-staging`.
+2. Deploy staging with
+   `bunx sst deploy --stage installer-staging --config sst.installer.config.ts`.
 3. Apply `migrations/0001_initial.sql` to the created staging D1 database.
 4. Verify `https://install-staging.kingkung.men/health`, the privacy
    page, a real mailbox OTP, receipt validation, export, and deletion.
-5. Deploy with `bunx sst deploy --stage production`, apply the same migration,
-   and repeat the production checks at `https://install.kingkung.men`.
+5. Deploy with
+   `bunx sst deploy --stage production --config sst.installer.config.ts`, apply
+   the same migration, and repeat the production checks at
+   `https://install.kingkung.men`.
 6. Only after production email delivery and receipt validation are healthy,
    merge the separate Windows installer-gating branch.
 
