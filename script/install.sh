@@ -9,6 +9,7 @@ NO_SCAN="${CODY_NO_SCAN:-0}"
 NO_PROXY="${CODY_NO_PROXY:-0}"
 NO_BUILD="${CODY_NO_BUILD:-0}"
 YES="${CODY_YES:-0}"
+REBOOT="${CODY_REBOOT:-0}"
 CODY_PORT="${CODY_PORT:-4096}"
 CODY_HOST="${CODY_HOST:-0.0.0.0}"
 PROXY_PORT="${PROXY_PORT:-9999}"
@@ -34,6 +35,18 @@ err()   { echo -e "${RED}[error]${NC} $1"; }
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+bun_version_supported() {
+  local version="${1%%-*}"
+  local major=0
+  local minor=0
+  local patch=0
+  IFS=. read -r major minor patch <<< "$version"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  (( major > 1 || (major == 1 && (minor > 3 || (minor == 3 && patch >= 13))) ))
 }
 
 is_root() {
@@ -237,8 +250,12 @@ if ! command_exists git; then
 fi
 ok "Git found."
 
-if ! command_exists bun; then
-  step "Bun not found. Installing..."
+if ! command_exists bun || ! bun_version_supported "$(bun --version 2>/dev/null || echo 0.0.0)"; then
+  if command_exists bun; then
+    warn "Bun 1.3.13 or newer is required. Updating..."
+  else
+    step "Bun not found. Installing..."
+  fi
   # bun install script needs unzip
   if [ -n "$PKG_MGR" ] && (is_root || command_exists sudo); then
     pkg_install unzip 2>/dev/null || true
@@ -254,13 +271,13 @@ if ! command_exists bun; then
   if [ -f "$HOME/.bun/bin/bun" ]; then
     export PATH="$HOME/.bun/bin:$PATH"
   fi
-  if ! command_exists bun; then
-    err "Bun installation failed. Install manually: https://bun.sh"
+  if ! command_exists bun || ! bun_version_supported "$(bun --version 2>/dev/null || echo 0.0.0)"; then
+    err "Bun 1.3.13+ installation failed. Install manually: https://bun.sh"
     exit 1
   fi
-  ok "Bun installed."
+  ok "Bun 1.3.13+ installed."
 else
-  ok "Bun found."
+  ok "Bun 1.3.13+ found."
 fi
 
 # ── Phase 1b: Desktop cloudflared check ────────────────────────────────
@@ -686,10 +703,10 @@ else
 fi
 cd "$ROOT"
 
-# ── Phase 10: Global command (symlink) ─────────────────────────────────
+# ── Phase 10: Global command ───────────────────────────────────────────
 
 step "Installing global command..."
-GLOBAL_BIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/codyx/bin"
+GLOBAL_BIN_DIR="${CODY_GLOBAL_BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$GLOBAL_BIN_DIR"
 write_unix_launcher() {
   local launcher="$1"
@@ -698,6 +715,7 @@ write_unix_launcher() {
 set -euo pipefail
 
 ROOT="$ROOT"
+export CODY_INSTALL_ROOT="\${CODY_INSTALL_ROOT:-\$ROOT}"
 BUN="\$(command -v bun || true)"
 if [ -z "\$BUN" ] && [ -x "\$HOME/.bun/bin/bun" ]; then
   BUN="\$HOME/.bun/bin/bun"
@@ -728,22 +746,53 @@ LAUNCHEREOF
 write_unix_launcher "$GLOBAL_BIN_DIR/codyx"
 ok "Global launcher written to $GLOBAL_BIN_DIR/codyx"
 
-# Check if already on PATH
-if ! command_exists codyx; then
-  shell_config=""
+export PATH="$GLOBAL_BIN_DIR:$PATH"
+
+if ! grep -qs "$GLOBAL_BIN_DIR" "$HOME/.profile" "${ZDOTDIR:-$HOME}/.zshrc" "$HOME/.bashrc" \
+  "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" 2>/dev/null; then
   case "${SHELL:-}" in
-    *zsh*) shell_config="${ZDOTDIR:-$HOME}/.zshrc" ;;
-    *bash*) shell_config="$HOME/.bashrc" ;;
-    *fish*) shell_config="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" ;;
+    *fish*)
+      shell_config="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
+      mkdir -p "$(dirname "$shell_config")"
+      touch "$shell_config"
+      {
+        echo ""
+        echo "# >>> codyx installer >>>"
+        echo "fish_add_path \"$GLOBAL_BIN_DIR\""
+        echo "# <<< codyx installer <<<"
+      } >> "$shell_config"
+      ;;
+    *zsh*)
+      shell_config="${ZDOTDIR:-$HOME}/.zshrc"
+      mkdir -p "$(dirname "$shell_config")"
+      touch "$shell_config"
+      {
+        echo ""
+        echo "# >>> codyx installer >>>"
+        echo "export PATH=\"$GLOBAL_BIN_DIR:\$PATH\""
+        echo "# <<< codyx installer <<<"
+      } >> "$shell_config"
+      ;;
+    *)
+      shell_config="$HOME/.profile"
+      touch "$shell_config"
+      {
+        echo ""
+        echo "# >>> codyx installer >>>"
+        echo "export PATH=\"$GLOBAL_BIN_DIR:\$PATH\""
+        echo "# <<< codyx installer <<<"
+      } >> "$shell_config"
+      ;;
   esac
-  if [ -n "$shell_config" ] && [ -f "$shell_config" ]; then
-    echo "" >> "$shell_config"
-    echo "# codyx" >> "$shell_config"
-    echo "export PATH=\"\$PATH:$GLOBAL_BIN_DIR\"" >> "$shell_config"
-    ok "Added codyx to PATH in $shell_config"
-  fi
-  export PATH="$PATH:$GLOBAL_BIN_DIR"
+  ok "Added codyx to PATH in $shell_config"
 fi
+
+version=$("$GLOBAL_BIN_DIR/codyx" --version 2>/dev/null || true)
+if [ -z "$version" ]; then
+  err "The global codyx command could not start."
+  exit 1
+fi
+ok "Global command verified: codyx $version"
 
 # ── Show onion address if available ────────────────────────────────────
 
@@ -764,10 +813,12 @@ if [ "$IS_SERVER" = "1" ] && is_root; then
     if [ -f "$(systemd_unit_dir)/codyx-proxy-tunnel.service" ]; then
       systemctl start codyx-proxy-tunnel.service 2>/dev/null || warn "tunnel service failed to start"
     fi
-  elif [ "$YES" = "1" ]; then
+  elif [ "$YES" = "1" ] && [ "$REBOOT" = "1" ]; then
     step "Installation complete. Rebooting in 10 seconds..."
     sleep 10
     reboot
+  elif [ "$YES" = "1" ]; then
+    step "Services are configured. Reboot later, or set CODY_REBOOT=1 to reboot automatically."
   else
     echo ""
     echo -e "${CYAN}>>${NC} Installation complete."
@@ -802,7 +853,7 @@ echo "  ║   codyx installed successfully!      ║"
 echo "  ╚═══════════════════════════════════════╝"
 echo ""
 echo "  Installed to:  $ROOT"
-echo "  Global command: codyx (after opening a new terminal)"
+echo "  Global command: codyx"
 echo ""
 
 if [ "$IS_SERVER" = "1" ]; then

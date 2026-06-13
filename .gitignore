@@ -5,6 +5,7 @@ node_modules
 .env
 .env.proxy
 .env.local
+.codyx-install-marker
 .idea
 .vscode
 .codex

