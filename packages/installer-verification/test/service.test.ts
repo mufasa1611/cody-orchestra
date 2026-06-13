@@ -7,7 +7,12 @@ const receiptSecret = "receipt-test-secret"
 const otpSecret = "otp-test-secret"
 let worker: Miniflare
 
-function request(path: string, init?: RequestInit) {
+type DispatchRequestInit = NonNullable<Parameters<Miniflare["dispatchFetch"]>[1]>
+type TestRequestInit = Omit<DispatchRequestInit, "headers"> & {
+  headers?: Record<string, string>
+}
+
+function request(path: string, init?: TestRequestInit) {
   return worker.dispatchFetch(
     `https://install.test${path}`,
     {
@@ -17,11 +22,11 @@ function request(path: string, init?: RequestInit) {
         "CF-Connecting-IP": crypto.randomUUID(),
         ...init?.headers,
       },
-    } as never,
+    },
   )
 }
 
-function admin(path: string, init?: RequestInit) {
+function admin(path: string, init?: TestRequestInit) {
   return request(path, {
     ...init,
     headers: {
@@ -100,6 +105,8 @@ describe("installer verification service", () => {
     expect(notice).toContain("display name is not independently verified")
     expect(notice).toContain("privacy@kingkung.men")
     expect(notice).toContain("It is not used for marketing")
+    expect(notice).toContain("operational registration notice")
+    expect(notice).toContain("Verification codes are never included")
   })
 
   test("issues a receipt, validates it, and prevents challenge replay", async () => {
@@ -139,10 +146,10 @@ describe("installer verification service", () => {
     expect((await expiredResponse.json()) as { error: string }).toMatchObject({ error: "code_expired" })
 
     const attempted = await createChallenge()
-    for (const remaining of [4, 3, 2, 1]) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       const response = await verifyChallenge(attempted.response.challenge_id, "000000")
       expect(response.status).toBe(409)
-      expect(remaining).toBeGreaterThan(0)
+      expect((await response.json()) as { error: string }).toMatchObject({ error: "incorrect_code" })
     }
     const fifth = await verifyChallenge(attempted.response.challenge_id, "000000")
     expect(fifth.status).toBe(429)

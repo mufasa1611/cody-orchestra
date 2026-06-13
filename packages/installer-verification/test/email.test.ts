@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
-import { sendAdminNotification, sendVerificationEmail } from "../src/email"
+import { sendAdminRegistrationNotification, sendVerificationEmail } from "../src/email"
 
 const originalFetch = globalThis.fetch
 
@@ -48,7 +48,7 @@ test("sends verification codes through the Mailgun EU message API", async () => 
   expect(body.get("o:tracking-opens")).toBe("no")
 })
 
-test("sends admin notification with installer user info", async () => {
+test("sends admin notification for a verified installation without the code", async () => {
   let requestUrl = ""
   let requestInit: RequestInit | undefined
   globalThis.fetch = Object.assign(
@@ -60,7 +60,7 @@ test("sends admin notification with installer user info", async () => {
     { preconnect: originalFetch.preconnect },
   )
 
-  await sendAdminNotification({
+  await sendAdminRegistrationNotification({
     apiBase: "https://api.eu.mailgun.net/",
     domain: "verification.kingkung.men",
     sendingKey: "mailgun-test-key",
@@ -71,7 +71,7 @@ test("sends admin notification with installer user info", async () => {
     installId: "550e8400-e29b-41d4-a716-446655440000",
     installerVersion: "1.14.41",
     platform: "windows",
-    code: "123456",
+    verifiedAt: "2026-06-13T16:00:00.000Z",
   })
 
   expect(requestUrl).toBe(
@@ -88,7 +88,7 @@ test("sends admin notification with installer user info", async () => {
   )
   expect(body.get("to")).toBe("admin@example.com")
   expect(body.get("subject")).toBe(
-    "[installer] Verification code generated for user@example.com",
+    "[installer] Verified installation 550e8400-e29b-41d4-a716-446655440000",
   )
   const text = body.get("text") as string
   expect(text).toContain("Test User")
@@ -96,6 +96,8 @@ test("sends admin notification with installer user info", async () => {
   expect(text).toContain("550e8400-e29b-41d4-a716-446655440000")
   expect(text).toContain("1.14.41")
   expect(text).toContain("windows")
-  expect(text).toContain("123456")
+  expect(text).toContain("2026-06-13T16:00:00.000Z")
+  expect(text).not.toContain("123456")
+  expect(text).not.toContain("Code:")
   expect(body.get("o:tracking")).toBe("no")
 })

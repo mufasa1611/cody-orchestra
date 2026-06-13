@@ -27,6 +27,13 @@ The local receipt contains no display name or email address. A valid receipt let
 later runs continue automatically. `-Yes` does not bypass verification, and a
 noninteractive run without a valid receipt exits with instructions.
 
+After email verification succeeds, the service stores the registration and
+sends an operational notice with the display name, verified email, installation
+ID, installer version, platform, and verification time to the Codyx
+administrator. The notice never contains the verification code. This identifies
+successful users of the official Windows installer; it does not track manual
+clones or repository downloads.
+
 After verification, the installer clones the repository, runs `bun install`,
 builds the web UI, discovers optional local models, and verifies the global
 `codyx` command before finishing. The privacy notice is available at
