@@ -17,6 +17,8 @@ await import("./generate.ts")
 import { Script } from "@cody/script"
 import pkg from "../package.json"
 
+const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
+
 // Load migrations from migration directories
 const migrationDirs = (
   await fs.promises.readdir(path.join(dir, "migration"), {
@@ -173,7 +175,7 @@ if (!skipInstall) {
 }
 for (const item of targets) {
   const name = [
-    pkg.name,
+    npmPackage,
     // changing to win32 flags npm for some reason
     item.os === "win32" ? "windows" : item.os,
     item.arch,
@@ -208,7 +210,7 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: name.replace(pkg.name, "bun") as any,
+      target: name.replace(npmPackage, "bun") as any,
       outfile: `dist/${name}/bin/codyx`,
       execArgv: [`--user-agent=cody/${Script.version}`, "--use-system-ca", "--"],
       windows: {},

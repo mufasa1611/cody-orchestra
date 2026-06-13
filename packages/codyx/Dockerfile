@@ -7,10 +7,10 @@ ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
 RUN apk add libgcc libstdc++ ripgrep
 
 FROM base AS build-amd64
-COPY dist/@cody/codyx-linux-x64/bin/codyx /usr/local/bin/codyx
+COPY dist/codyx-ai-linux-x64/bin/codyx /usr/local/bin/codyx
 
 FROM base AS build-arm64
-COPY dist/@cody/codyx-linux-arm64/bin/codyx /usr/local/bin/codyx
+COPY dist/codyx-ai-linux-arm64/bin/codyx /usr/local/bin/codyx
 
 ARG TARGETARCH
 FROM build-${TARGETARCH}

@@ -3,11 +3,16 @@ import { $ } from "bun"
 import pkg from "../package.json"
 import { Script } from "@cody/script"
 import { fileURLToPath } from "url"
+import fs from "fs"
+import path from "path"
 
 const dir = fileURLToPath(new URL("..", import.meta.url))
 process.chdir(dir)
 
 const GH_REPO = process.env.GH_REPO || "mufasa1611/cody-orchestra"
+const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
+const npmOnly = process.env.CODY_NPM_ONLY === "1"
+const dryRun = process.env.CODY_NPM_DRY_RUN === "1"
 
 async function published(name: string, version: string) {
   return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
@@ -15,39 +20,60 @@ async function published(name: string, version: string) {
 
 async function publish(dir: string, name: string, version: string) {
   if (process.platform !== "win32") await $`chmod -R 755 .`.cwd(dir)
-  if (await published(name, version)) {
+  if (!dryRun && (await published(name, version))) {
     console.log(`already published ${name}@${version}`)
     return
   }
+  await Promise.all(
+    (await fs.promises.readdir(dir))
+      .filter((entry) => entry.endsWith(".tgz"))
+      .map((entry) => fs.promises.unlink(path.join(dir, entry))),
+  )
   await $`bun pm pack`.cwd(dir)
+  if (dryRun) return
   await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir)
 }
 
 const binaries: Record<string, string> = {}
 for (const filepath of new Bun.Glob("**/package.json").scanSync({ cwd: "./dist" })) {
   const pkg = await Bun.file(`./dist/${filepath}`).json()
+  if (pkg.name === npmPackage) continue
   binaries[pkg.name] = pkg.version
 }
 console.log("binaries", binaries)
 const version = Object.values(binaries)[0]
+if (!version) throw new Error("No platform packages found in packages/codyx/dist")
 
-await $`mkdir -p ./dist/${pkg.name}`
-await $`cp -r ./bin ./dist/${pkg.name}/bin`
-await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
-await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
+const wrapperDir = path.join(dir, "dist", npmPackage)
+await fs.promises.mkdir(wrapperDir, { recursive: true })
+await fs.promises.cp(path.join(dir, "bin"), path.join(wrapperDir, "bin"), { recursive: true })
+await fs.promises.copyFile(path.join(dir, "script", "postinstall.mjs"), path.join(wrapperDir, "postinstall.mjs"))
+await Bun.file(`./dist/${npmPackage}/LICENSE`).write(await Bun.file("../../LICENSE").text())
 
-await Bun.file(`./dist/${pkg.name}/package.json`).write(
+await Bun.file(`./dist/${npmPackage}/package.json`).write(
   JSON.stringify(
     {
-      name: pkg.name + "-ai",
+      name: npmPackage,
+      description: "Codyx local-first coding agent CLI",
       bin: {
-        "codyx": "./bin/codyx", "cody": "./bin/cody",
+        codyx: "./bin/codyx",
+        cody: "./bin/cody",
       },
       scripts: {
         postinstall: "bun ./postinstall.mjs || node ./postinstall.mjs",
       },
-      version: version,
+      version,
       license: pkg.license,
+      repository: {
+        type: "git",
+        url: `git+https://github.com/${GH_REPO}.git`,
+      },
+      homepage: `https://github.com/${GH_REPO}`,
+      bugs: `https://github.com/${GH_REPO}/issues`,
+      engines: {
+        node: ">=18",
+      },
+      files: ["bin/", "postinstall.mjs", "LICENSE"],
       optionalDependencies: binaries,
     },
     null,
@@ -55,24 +81,23 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
   ),
 )
 
-const tasks = Object.entries(binaries).map(async ([name]) => {
+for (const [name] of Object.entries(binaries)) {
   await publish(`./dist/${name}`, name, binaries[name])
-})
-await Promise.all(tasks)
-await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
+}
+await publish(`./dist/${npmPackage}`, npmPackage, version)
 
 const image = process.env.CODY_DOCKER_IMAGE || "ghcr.io/mufasa1611/cody-orchestra"
 const platforms = "linux/amd64,linux/arm64"
 const tags = [`${image}:${version}`, `${image}:${Script.channel}`]
 const tagFlags = tags.flatMap((t) => ["-t", t])
 
-if (!Script.preview) {
+if (!Script.preview && !npmOnly) {
   await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`
 
-  const arm64Sha = await $`sha256sum ./dist/${pkg.name}-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
-  const x64Sha = await $`sha256sum ./dist/${pkg.name}-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
-  const macX64Sha = await $`sha256sum ./dist/${pkg.name}-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
-  const macArm64Sha = await $`sha256sum ./dist/${pkg.name}-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
+  const arm64Sha = await $`sha256sum ./dist/${npmPackage}-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
+  const x64Sha = await $`sha256sum ./dist/${npmPackage}-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
+  const macX64Sha = await $`sha256sum ./dist/${npmPackage}-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
+  const macArm64Sha = await $`sha256sum ./dist/${npmPackage}-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
 
   const [pkgver, _subver = ""] = Script.version.split(/(-.*)/, 2)
 
@@ -93,9 +118,9 @@ if (!Script.preview) {
     "conflicts=('codyx')",
     "depends=('ripgrep')",
     "",
-    `source_aarch64=("\${pkgname}_\${pkgver}_aarch64.tar.gz::https://github.com/${GH_REPO}/releases/download/v\${pkgver}\${_subver}/${pkg.name}-linux-arm64.tar.gz")`,
+    `source_aarch64=("\${pkgname}_\${pkgver}_aarch64.tar.gz::https://github.com/${GH_REPO}/releases/download/v\${pkgver}\${_subver}/${npmPackage}-linux-arm64.tar.gz")`,
     `sha256sums_aarch64=('${arm64Sha}')`,
-    `source_x86_64=("\${pkgname}_\${pkgver}_x86_64.tar.gz::https://github.com/${GH_REPO}/releases/download/v\${pkgver}\${_subver}/${pkg.name}-linux-x64.tar.gz")`,
+    `source_x86_64=("\${pkgname}_\${pkgver}_x86_64.tar.gz::https://github.com/${GH_REPO}/releases/download/v\${pkgver}\${_subver}/${npmPackage}-linux-x64.tar.gz")`,
     `sha256sums_x86_64=('${x64Sha}')`,
     "",
     "package() {",
@@ -137,7 +162,7 @@ if (!Script.preview) {
     "",
     "  on_macos do",
     "    if Hardware::CPU.intel?",
-    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${pkg.name}-darwin-x64.zip"`,
+    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${npmPackage}-darwin-x64.zip"`,
     `      sha256 "${macX64Sha}"`,
     "",
     "      def install",
@@ -145,7 +170,7 @@ if (!Script.preview) {
     "      end",
     "    end",
     "    if Hardware::CPU.arm?",
-    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${pkg.name}-darwin-arm64.zip"`,
+    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${npmPackage}-darwin-arm64.zip"`,
     `      sha256 "${macArm64Sha}"`,
     "",
     "      def install",
@@ -156,14 +181,14 @@ if (!Script.preview) {
     "",
     "  on_linux do",
     "    if Hardware::CPU.intel? and Hardware::CPU.is_64_bit?",
-    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${pkg.name}-linux-x64.tar.gz"`,
+    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${npmPackage}-linux-x64.tar.gz"`,
     `      sha256 "${x64Sha}"`,
     "      def install",
     '        bin.install "codyx"',
     "      end",
     "    end",
     "    if Hardware::CPU.arm? and Hardware::CPU.is_64_bit?",
-    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${pkg.name}-linux-arm64.tar.gz"`,
+    `      url "https://github.com/${GH_REPO}/releases/download/v${Script.version}/${npmPackage}-linux-arm64.tar.gz"`,
     `      sha256 "${arm64Sha}"`,
     "      def install",
     '        bin.install "codyx"',
