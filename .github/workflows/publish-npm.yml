@@ -52,6 +52,7 @@ jobs:
           CODY_VERSION: ${{ inputs.version }}
           CODY_CHANNEL: ${{ inputs.tag }}
           CODY_NPM_PACKAGE: codyx-ai
+          GH_REPO: ${{ github.repository }}
 
       - name: Publish CLI packages
         run: bun ./packages/codyx/script/publish.ts
