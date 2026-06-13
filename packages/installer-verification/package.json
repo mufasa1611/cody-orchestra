@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@cody/installer-verification",
+  "version": "1.14.41",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "test": "wrangler deploy --dry-run --outdir .test-dist --config wrangler.jsonc && bun test",
+    "db:local": "wrangler d1 execute installer-verification-local --local --file migrations/0001_initial.sql --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "hono": "catalog:",
+    "sst": "3.18.10",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@tsconfig/node22": "22.0.2",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "miniflare": "4.20260611.0",
+    "typescript": "catalog:",
+    "wrangler": "4.100.0"
+  }
+}

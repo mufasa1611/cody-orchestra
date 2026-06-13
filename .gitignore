@@ -61,6 +61,8 @@ personalize-todo-list.md
 
 # Noise: test results
 test-results/
+**/.test-dist/
+**/.wrangler/
 
 # Noise: ad-hoc db check/fix scripts
 _check_db*
