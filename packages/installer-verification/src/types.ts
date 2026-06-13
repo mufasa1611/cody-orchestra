@@ -1,6 +1,9 @@
 export interface Bindings {
   InstallerVerificationDatabase: D1Database
-  InstallerVerificationIpRateLimit: RateLimit
+  INSTALLER_RECEIPT_SECRET: string
+  INSTALLER_OTP_PEPPER: string
+  INSTALLER_ADMIN_SECRET: string
+  INSTALLER_MAILGUN_SENDING_KEY: string
   INSTALLER_ENVIRONMENT: string
   INSTALLER_SENDER: string
   INSTALLER_PRIVACY_EMAIL: string

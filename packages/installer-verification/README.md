@@ -10,8 +10,9 @@ ownership before installation continues.
 - A challenge permits five verification attempts.
 - Resends require a 60-second delay and are limited to five sends per email per
   hour.
-- Raw IP addresses are used only by Cloudflare's rate-limit binding and are
-  never written to D1 or application logs.
+- Raw IP addresses are never written to D1 or application logs. Rate-limit
+  events contain only keyed HMAC hashes that cannot be reversed without the
+  private OTP pepper.
 - Signed receipts contain only installation ID, receipt ID, issue time, and
   expiry time. They expire after 12 months.
 - Unverified challenges are deleted after one hour, verified challenges after
@@ -52,31 +53,33 @@ Keep the API base set to `https://api.eu.mailgun.net`. Confirm SPF, DKIM, and
 DMARC alignment before production rollout. Mailgun tracking is disabled for
 verification messages.
 
-## SST secrets
+## Worker secrets
 
 Set unique values independently for staging and production:
 
 ```bash
-bunx sst secret set INSTALLER_RECEIPT_SECRET <random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
-bunx sst secret set INSTALLER_OTP_PEPPER <different-random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
-bunx sst secret set INSTALLER_ADMIN_SECRET <different-random-32+-bytes> --stage installer-staging --config sst.installer.config.ts
-bunx sst secret set INSTALLER_MAILGUN_SENDING_KEY <domain-sending-key> --stage installer-staging --config sst.installer.config.ts
+cd packages/installer-verification
+bunx wrangler secret put INSTALLER_RECEIPT_SECRET --env staging
+bunx wrangler secret put INSTALLER_OTP_PEPPER --env staging
+bunx wrangler secret put INSTALLER_ADMIN_SECRET --env staging
+bunx wrangler secret put INSTALLER_MAILGUN_SENDING_KEY --env staging
 ```
 
-Repeat with `--stage production`.
+Repeat with `--env production`. Wrangler prompts for each value without placing
+it in shell history.
 
 ## Rollout
 
-1. Authenticate SST with a Cloudflare token that can manage Workers, D1,
-   rate-limit bindings, DNS, and routes for `kingkung.men`.
-2. Deploy staging with
-   `bunx sst deploy --stage installer-staging --config sst.installer.config.ts`.
-3. Apply `migrations/0001_initial.sql` to the created staging D1 database.
+1. Authenticate Wrangler with a Cloudflare identity that can manage Workers,
+   D1, DNS, and Worker custom domains for `kingkung.men`.
+2. Apply the staging migration:
+   `bunx wrangler d1 migrations apply installer-staging-installerverificationdatabasedatabase-uuvomxeh --remote --env staging`.
+3. Deploy staging with `bun run deploy:staging`.
 4. Verify `https://install-staging.kingkung.men/health`, the privacy
    page, a real mailbox OTP, receipt validation, export, and deletion.
-5. Deploy with
-   `bunx sst deploy --stage production --config sst.installer.config.ts`, apply
-   the same migration, and repeat the production checks at
+5. Apply the production migration with
+   `bunx wrangler d1 migrations apply codyx-installer-verification-production --remote --env production`,
+   deploy with `bun run deploy:production`, and repeat the checks at
    `https://install.kingkung.men`.
 6. Only after production email delivery and receipt validation are healthy,
    merge the separate Windows installer-gating branch.

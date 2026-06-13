@@ -493,7 +493,6 @@
       "version": "1.14.41",
       "dependencies": {
         "hono": "catalog:",
-        "sst": "3.18.10",
         "zod": "catalog:",
       },
       "devDependencies": {

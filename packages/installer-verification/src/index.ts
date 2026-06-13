@@ -1,5 +1,4 @@
 import { Hono } from "hono"
-import { Resource } from "sst"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
@@ -46,12 +45,12 @@ class ApiError extends Error {
   }
 }
 
-function secrets() {
+function secrets(env: Bindings) {
   return {
-    receipt: Resource.INSTALLER_RECEIPT_SECRET.value,
-    otp: Resource.INSTALLER_OTP_PEPPER.value,
-    admin: Resource.INSTALLER_ADMIN_SECRET.value,
-    mailgunSendingKey: Resource.INSTALLER_MAILGUN_SENDING_KEY.value,
+    receipt: env.INSTALLER_RECEIPT_SECRET,
+    otp: env.INSTALLER_OTP_PEPPER,
+    admin: env.INSTALLER_ADMIN_SECRET,
+    mailgunSendingKey: env.INSTALLER_MAILGUN_SENDING_KEY,
   }
 }
 
@@ -74,21 +73,40 @@ function clientKey(request: Request) {
 }
 
 async function applyIpRateLimit(env: Bindings, request: Request) {
-  const result = await env.InstallerVerificationIpRateLimit.limit({ key: clientKey(request) })
-  if (!result.success) throw new ApiError(429, "rate_limited", "Too many requests. Try again shortly.", 60)
+  const now = Date.now()
+  const hash = await keyedHash(secrets(env).otp, `ip:${clientKey(request)}`)
+  const result = await env.InstallerVerificationDatabase.prepare(
+    `INSERT INTO request_event (id, client_hash, created_at)
+     SELECT ?, ?, ?
+     WHERE (
+       SELECT COUNT(*) FROM request_event WHERE client_hash = ? AND created_at >= ?
+     ) < 10`,
+  )
+    .bind(crypto.randomUUID(), hash, now, hash, now - 60_000)
+    .run()
+  if (result.meta.changes === 0)
+    throw new ApiError(429, "rate_limited", "Too many requests. Try again shortly.", 60)
 }
 
-async function emailHash(email: string) {
-  return keyedHash(secrets().otp, email)
+async function emailHash(env: Bindings, email: string) {
+  return keyedHash(secrets(env).otp, email)
 }
 
-async function enforceEmailSendLimit(db: D1Database, hash: string, now: number) {
+async function reserveEmailSend(db: D1Database, hash: string, now: number) {
+  const id = crypto.randomUUID()
   const result = await db
-    .prepare("SELECT COUNT(*) AS count FROM send_event WHERE email_hash = ? AND created_at >= ?")
-    .bind(hash, now - SEND_WINDOW_MS)
-    .first<{ count: number }>()
-  if ((result?.count ?? 0) >= MAX_SENDS_PER_WINDOW)
+    .prepare(
+      `INSERT INTO send_event (id, email_hash, created_at)
+       SELECT ?, ?, ?
+       WHERE (
+         SELECT COUNT(*) FROM send_event WHERE email_hash = ? AND created_at >= ?
+       ) < ?`,
+    )
+    .bind(id, hash, now, hash, now - SEND_WINDOW_MS, MAX_SENDS_PER_WINDOW)
+    .run()
+  if (result.meta.changes === 0)
     throw new ApiError(429, "email_rate_limited", "Too many codes were sent to this email. Try again later.", 3600)
+  return id
 }
 
 async function deliverCode(
@@ -96,7 +114,7 @@ async function deliverCode(
   input: { email: string; displayName: string; code: string },
 ) {
   if (env.INSTALLER_ENVIRONMENT === "test" && env.INSTALLER_TEST_CODE) return
-  const value = secrets()
+  const value = secrets(env)
   await sendVerificationEmail({
     apiBase: env.INSTALLER_MAILGUN_API_BASE,
     domain: env.INSTALLER_MAILGUN_DOMAIN,
@@ -112,10 +130,10 @@ async function challenge(db: D1Database, id: string) {
   return row
 }
 
-async function requireAdmin(request: Request) {
+async function requireAdmin(env: Bindings, request: Request) {
   const authorization = request.headers.get("Authorization")
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : ""
-  const value = secrets()
+  const value = secrets(env)
   if (!token || !(await timingSafeEqual(value.otp, token, value.admin)))
     throw new ApiError(401, "unauthorized", "A valid administrator token is required.")
 }
@@ -150,33 +168,29 @@ app.post("/v1/challenges", async (context) => {
   const now = Date.now()
   const id = crypto.randomUUID()
   const code = context.env.INSTALLER_TEST_CODE ?? generateCode()
-  const hash = await emailHash(input.email)
-  await enforceEmailSendLimit(db, hash, now)
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO challenge
-          (id, install_id, display_name, email, email_hash, code_hash, installer_version, platform,
-           attempts, created_at, last_sent_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        input.install_id,
-        input.display_name,
-        input.email,
-        hash,
-        await keyedHash(secrets().otp, `${id}:${code}`),
-        input.installer_version,
-        input.platform,
-        now,
-        now,
-        now + CODE_TTL_MS,
-      ),
-    db
-      .prepare("INSERT INTO send_event (id, email_hash, created_at) VALUES (?, ?, ?)")
-      .bind(crypto.randomUUID(), hash, now),
-  ])
+  const hash = await emailHash(context.env, input.email)
+  const sendEventId = await reserveEmailSend(db, hash, now)
+  await db
+    .prepare(
+      `INSERT INTO challenge
+        (id, install_id, display_name, email, email_hash, code_hash, installer_version, platform,
+         attempts, created_at, last_sent_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      input.install_id,
+      input.display_name,
+      input.email,
+      hash,
+      await keyedHash(secrets(context.env).otp, `${id}:${code}`),
+      input.installer_version,
+      input.platform,
+      now,
+      now,
+      now + CODE_TTL_MS,
+    )
+    .run()
   try {
     await deliverCode(context.env, {
       email: input.email,
@@ -186,7 +200,7 @@ app.post("/v1/challenges", async (context) => {
   } catch {
     await db.batch([
       db.prepare("DELETE FROM challenge WHERE id = ?").bind(id),
-      db.prepare("DELETE FROM send_event WHERE email_hash = ? AND created_at = ?").bind(hash, now),
+      db.prepare("DELETE FROM send_event WHERE id = ?").bind(sendEventId),
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
@@ -211,18 +225,19 @@ app.post("/v1/challenges/:id/resend", async (context) => {
     const wait = Math.ceil((RESEND_DELAY_MS - (now - row.last_sent_at)) / 1000)
     throw new ApiError(429, "resend_too_soon", "Wait before requesting another code.", wait)
   }
-  await enforceEmailSendLimit(db, row.email_hash, now)
+  const sendEventId = await reserveEmailSend(db, row.email_hash, now)
   const code = context.env.INSTALLER_TEST_CODE ?? generateCode()
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE challenge SET code_hash = ?, attempts = 0, last_sent_at = ?, expires_at = ? WHERE id = ?",
-      )
-      .bind(await keyedHash(secrets().otp, `${row.id}:${code}`), now, now + CODE_TTL_MS, row.id),
-    db
-      .prepare("INSERT INTO send_event (id, email_hash, created_at) VALUES (?, ?, ?)")
-      .bind(crypto.randomUUID(), row.email_hash, now),
-  ])
+  await db
+    .prepare(
+      "UPDATE challenge SET code_hash = ?, attempts = 0, last_sent_at = ?, expires_at = ? WHERE id = ?",
+    )
+    .bind(
+      await keyedHash(secrets(context.env).otp, `${row.id}:${code}`),
+      now,
+      now + CODE_TTL_MS,
+      row.id,
+    )
+    .run()
   try {
     await deliverCode(context.env, {
       email: row.email,
@@ -237,8 +252,8 @@ app.post("/v1/challenges/:id/resend", async (context) => {
         )
         .bind(row.code_hash, row.attempts, row.last_sent_at, row.expires_at, row.id),
       db
-        .prepare("DELETE FROM send_event WHERE email_hash = ? AND created_at = ?")
-        .bind(row.email_hash, now),
+        .prepare("DELETE FROM send_event WHERE id = ?")
+        .bind(sendEventId),
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
@@ -259,8 +274,9 @@ app.post("/v1/challenges/:id/verify", async (context) => {
   if (row.expires_at <= now) throw new ApiError(409, "code_expired", "The verification code has expired.")
   if (row.attempts >= MAX_ATTEMPTS)
     throw new ApiError(429, "attempts_exhausted", "Too many incorrect verification attempts.")
-  const expected = await keyedHash(secrets().otp, `${row.id}:${input.code}`)
-  if (!(await timingSafeEqual(secrets().otp, expected, row.code_hash))) {
+  const value = secrets(context.env)
+  const expected = await keyedHash(value.otp, `${row.id}:${input.code}`)
+  if (!(await timingSafeEqual(value.otp, expected, row.code_hash))) {
     await db.prepare("UPDATE challenge SET attempts = attempts + 1 WHERE id = ?").bind(row.id).run()
     const remaining = Math.max(0, MAX_ATTEMPTS - row.attempts - 1)
     throw new ApiError(
@@ -306,7 +322,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       .bind(receiptId, row.install_id, now, expiresAt),
   ])
   return context.json({
-    receipt: await signReceipt(secrets().receipt, {
+    receipt: await signReceipt(value.receipt, {
       install_id: row.install_id,
       receipt_id: receiptId,
       issued_at: now,
@@ -319,7 +335,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
 app.post("/v1/receipts/validate", async (context) => {
   await applyIpRateLimit(context.env, context.req.raw)
   const input = parse(receiptSchema, await jsonBody(context.req.raw))
-  const payload = await verifyReceipt(secrets().receipt, input.receipt)
+  const payload = await verifyReceipt(secrets(context.env).receipt, input.receipt)
   const now = Date.now()
   if (!payload || payload.install_id !== input.install_id || payload.expires_at <= now)
     return context.json({ valid: false })
@@ -349,7 +365,7 @@ app.post("/v1/receipts/validate", async (context) => {
 })
 
 app.get("/v1/admin/installations", async (context) => {
-  await requireAdmin(context.req.raw)
+  await requireAdmin(context.env, context.req.raw)
   const format = context.req.query("format") ?? "json"
   if (format !== "json" && format !== "csv")
     throw new ApiError(400, "invalid_format", "Format must be json or csv.")
@@ -383,7 +399,7 @@ app.get("/v1/admin/installations", async (context) => {
 })
 
 app.delete("/v1/admin/installations/:installID", async (context) => {
-  await requireAdmin(context.req.raw)
+  await requireAdmin(context.env, context.req.raw)
   const db = context.env.InstallerVerificationDatabase
   const installId = parse(z.string().uuid(), context.req.param("installID"))
   const now = Date.now()
@@ -407,7 +423,7 @@ app.delete("/v1/admin/installations/:installID", async (context) => {
 })
 
 app.post("/internal/cleanup", async (context) => {
-  await requireAdmin(context.req.raw)
+  await requireAdmin(context.env, context.req.raw)
   await cleanup(context.env.InstallerVerificationDatabase)
   return context.json({ cleaned: true })
 })
@@ -425,4 +441,10 @@ app.onError((error, context) => {
   return context.json({ error: "internal_error", message: "The service could not process the request." }, 500)
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  async scheduled(_controller: ScheduledController, env: Bindings) {
+    await ensureSchema(env.InstallerVerificationDatabase)
+    await cleanup(env.InstallerVerificationDatabase)
+  },
+}

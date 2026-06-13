@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS revocation (
   retain_until INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS revocation_retain_until_idx ON revocation (retain_until);
+CREATE TABLE IF NOT EXISTS request_event (
+  id TEXT PRIMARY KEY,
+  client_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS request_event_client_created_idx ON request_event (client_hash, created_at);
 CREATE TABLE IF NOT EXISTS send_event (
   id TEXT PRIMARY KEY,
   email_hash TEXT NOT NULL,
@@ -82,6 +88,7 @@ export async function cleanup(db: D1Database, now = Date.now()) {
     db.prepare("DELETE FROM receipt WHERE expires_at < ?").bind(now),
     db.prepare("DELETE FROM registration WHERE retain_until < ?").bind(now),
     db.prepare("DELETE FROM revocation WHERE retain_until < ?").bind(now),
+    db.prepare("DELETE FROM request_event WHERE created_at < ?").bind(sendCutoff),
   ])
 }
 
