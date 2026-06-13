@@ -133,7 +133,7 @@ function Install-WithWinget($Id, $Label) {
     return $null
   }
   Write-Step "Installing $Label with winget..."
-  $result = & winget install --id $Id --exact --source winget --accept-package-agreements --accept-source-agreements 2>&1
+  & winget install --id $Id --exact --source winget --accept-package-agreements --accept-source-agreements
   if ($LASTEXITCODE -ne 0) {
     Write-Warn "winget install failed."
     return $false
@@ -147,7 +147,7 @@ function Install-WithChoco($Label) {
     return $null
   }
   Write-Step "Installing $Label with Chocolatey..."
-  & choco install $Label -y --no-progress 2>&1 | Out-Null
+  & choco install $Label -y --no-progress | Out-Null
   if ($LASTEXITCODE -ne 0) {
     Write-Warn "Chocolatey install failed."
     return $false
@@ -307,7 +307,7 @@ if ($IsStandalone) {
     $null = New-Item -ItemType Directory -Force -Path $DefaultParent
     $activity = "Cloning codyx repository"
     Invoke-WithRetry {
-      & git clone --branch $Branch $RepoUrl $Root 2>&1
+      & git clone --branch $Branch $RepoUrl $Root
       if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
     } "git clone"
     git config --global --add safe.directory "$Root" 2>$null
@@ -322,15 +322,15 @@ if ($IsStandalone) {
     if ($currentBranch -and $currentBranch -ne $Branch) {
       Write-Step "Switching to branch $Branch..."
       Invoke-WithRetry {
-        & git fetch origin $Branch --quiet 2>&1
+        & git fetch origin $Branch --quiet
         if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-        & git switch $Branch 2>&1
+        & git switch $Branch
         if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
       } "git fetch/switch"
     }
     Write-VerboseMsg "Pulling latest changes..."
     Invoke-WithRetry {
-      & git pull --ff-only 2>&1
+      & git pull --ff-only
       if ($LASTEXITCODE -ne 0) { throw "git pull failed" }
     } "git pull"
     Pop-Location
@@ -352,7 +352,7 @@ Write-Step "Installing dependencies..."
 $activity = "Installing npm/bun dependencies"
 Write-Progress -Activity $activity -Status "Running bun install..." -PercentComplete 30
 Invoke-WithRetry {
-  $result = & bun install 2>&1
+  & bun install
   if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
 } "bun install"
 Write-Progress -Activity $activity -Completed
@@ -368,7 +368,7 @@ if (-not $NoBuild) {
   Push-Location (Join-Path $Root "packages\app")
   $activity = "Building web UI"
   Write-Progress -Activity $activity -Status "Running bun run build..." -PercentComplete 50
-  $result = & bun run build 2>&1
+  & bun run build
   if ($LASTEXITCODE -ne 0) {
     Write-Warn "Web UI build failed. Server will proxy to app.codyx.ai."
   } else {
