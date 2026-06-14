@@ -3,9 +3,9 @@
 .SYNOPSIS
     Install codyx on Windows - single-command setup for novice users.
 .DESCRIPTION
-    Detects prerequisites, verifies email ownership, installs what's missing,
-    clones/updates the repo, installs dependencies, builds the web UI, configures
-    the Cloudflare proxy tunnel, and installs the global codyx command.
+    Public/streamed use installs Node.js LTS when needed, verifies email
+    ownership, and installs codyx-ai from npm. Running this file from a codyx
+    source checkout retains the Git/Bun developer installation workflow.
 .PARAMETER Yes
     Auto-confirm optional installer prompts. Email verification is never bypassed.
 .PARAMETER Branch
@@ -51,6 +51,18 @@ $GlobalCmd = Join-Path $GlobalBin "codyx.cmd"
 $CheckoutRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { $null }
 $IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "codyx.cmd")))
 $CreatedRepo = $false
+
+if ($IsStandalone) {
+  $npmInstallerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/install-npm.ps1"
+  try {
+    $npmInstaller = Invoke-RestMethod -Uri $npmInstallerUrl -TimeoutSec 30
+    & ([scriptblock]::Create($npmInstaller)) -Yes:$Yes -Branch $Branch -Verbose:$Verbose
+    exit $LASTEXITCODE
+  } catch {
+    Write-Host "[error] Could not start the npm installer: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+  }
+}
 
 # Verbose logging
 $VerbosePref = if ($Verbose) { "Continue" } else { "SilentlyContinue" }
