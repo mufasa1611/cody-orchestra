@@ -8,6 +8,19 @@ import { tmpdir } from "../fixture/fixture"
 afterEach(resetDatabase)
 
 describe("web user storage", () => {
+  test("creates a verified first administrator with normalized email", () => {
+    const user = AuthService.createVerifiedAdmin("owner", "OWNER@Example.com", "password123")
+    expect(user).toMatchObject({
+      username: "owner",
+      email: "owner@example.com",
+      role: "admin",
+      status: "active",
+    })
+    expect(() => AuthService.createVerifiedAdmin("other", "other@example.com", "password123")).toThrow(
+      "Server setup is already complete",
+    )
+  })
+
   test("imports valid users from a legacy database only when the current table is empty", async () => {
     await using tmp = await tmpdir()
     const legacyPath = path.join(tmp.path, "cody-x.db")

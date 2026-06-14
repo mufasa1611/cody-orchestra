@@ -12,6 +12,8 @@ import { ensureSecret } from "../../src/server/auth/jwt"
 void Log.init({ print: false })
 
 const originalHttpApi = Flag.CODY_EXPERIMENTAL_HTTPAPI
+const originalMode = process.env["CODY_SERVER_MODE"]
+const originalFetch = globalThis.fetch
 
 function app() {
   Flag.CODY_EXPERIMENTAL_HTTPAPI = true
@@ -39,23 +41,51 @@ function app() {
 
 afterEach(async () => {
   Flag.CODY_EXPERIMENTAL_HTTPAPI = originalHttpApi
+  if (originalMode === undefined) delete process.env["CODY_SERVER_MODE"]
+  else process.env["CODY_SERVER_MODE"] = originalMode
+  globalThis.fetch = originalFetch
   await disposeAllInstances()
   await resetDatabase()
 })
 
 describe("HttpApi auth endpoints", () => {
-  test("GET /api/auth/status reports whether account auth is active", async () => {
+  test("GET /api/auth/status keeps local mode account-free", async () => {
     const server = app()
     const initial = await server.request("/api/auth/status")
 
     expect(initial.status).toBe(200)
-    expect(await initial.json()).toEqual({ accountAuthRequired: false })
+    expect(await initial.json()).toEqual({
+      mode: "local",
+      accountAuthRequired: false,
+      setupRequired: false,
+      registrationMode: "closed",
+      privacyUrl: "https://install.kingkung.men/privacy",
+    })
 
     AuthService.createUser("status-user", "testpass123")
     const afterUser = await server.request("/api/auth/status")
 
     expect(afterUser.status).toBe(200)
-    expect(await afterUser.json()).toEqual({ accountAuthRequired: true })
+    expect((await afterUser.json()).accountAuthRequired).toBe(false)
+  })
+
+  test("GET /api/auth/status requires bootstrap only in server mode", async () => {
+    process.env["CODY_SERVER_MODE"] = "server"
+    const server = app()
+    expect(await (await server.request("/api/auth/status")).json()).toMatchObject({
+      mode: "server",
+      accountAuthRequired: true,
+      setupRequired: true,
+      registrationMode: "bootstrap",
+    })
+
+    AuthService.createUser("status-user", "testpass123")
+    expect(await (await server.request("/api/auth/status")).json()).toMatchObject({
+      mode: "server",
+      accountAuthRequired: true,
+      setupRequired: false,
+      registrationMode: "closed",
+    })
   })
 
   test("POST /api/auth/login returns token for valid credentials", async () => {
@@ -104,48 +134,94 @@ describe("HttpApi auth endpoints", () => {
     expect(response.status).toBe(400)
   })
 })
-﻿describe("HttpApi register endpoint", () => {
-  test("POST /api/auth/register creates a new user and returns token", async () => {
+describe("HttpApi verified owner registration", () => {
+  test("creates the first server administrator after email verification", async () => {
     ensureSecret()
+    process.env["CODY_SERVER_MODE"] = "server"
+    globalThis.fetch = Object.assign(
+      async (input: Parameters<typeof fetch>[0]) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString())
+        if (url.pathname === "/v1/challenges") {
+          return Response.json(
+            {
+              challenge_id: "challenge-1",
+              expires_at: "2026-06-14T12:10:00.000Z",
+              resend_after: "2026-06-14T12:01:00.000Z",
+            },
+            { status: 201 },
+          )
+        }
+        if (url.pathname === "/v1/challenges/challenge-1/verify") {
+          return Response.json({ receipt: "verified.receipt", expires_at: "2026-06-14T12:10:00.000Z" })
+        }
+        if (url.pathname === "/v1/receipts/validate") return Response.json({ valid: true })
+        return Response.json({ error: "not_found" }, { status: 404 })
+      },
+      { preconnect: originalFetch.preconnect },
+    )
     const server = app()
+    const registrationID = "35c1f30f-7740-4427-b321-5c375e8d7abe"
+    const challenge = await server.request("/api/auth/register/challenge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        registration_id: registrationID,
+        username: "owner",
+        email: "owner@example.com",
+      }),
+    })
+    expect(challenge.status).toBe(201)
+    const challengeResult = await challenge.json()
+    expect(challengeResult).toMatchObject({
+      challengeID: "challenge-1",
+    })
+
+    const verification = await server.request("/api/auth/register/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ challenge_id: "challenge-1", code: "246810" }),
+    })
+    expect(verification.status).toBe(200)
+
+    const registrationPayload = {
+      username: "owner",
+      email: "owner@example.com",
+      password: "newpass123",
+      registration_id: registrationID,
+      receipt: "verified.receipt",
+    }
     const response = await server.request("/api/auth/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "newuser", password: "newpass123" }),
+      body: JSON.stringify(registrationPayload),
     })
-
+    const result = await response.json()
+    expect(result).toMatchObject({
+      token: expect.any(String),
+      user: { username: "owner", email: "owner@example.com", role: "admin", status: "active" },
+    })
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.token).toBeDefined()
-    expect(body.user).toBeDefined()
-    expect(body.user.username).toBe("newuser")
   })
 
-  test("POST /api/auth/register rejects duplicate username", async () => {
-    ensureSecret()
+  test("local mode and configured servers reject self-registration", async () => {
+    const server = app()
+    expect(
+      (
+        await server.request("/api/auth/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        })
+      ).status,
+    ).toBe(403)
+
+    process.env["CODY_SERVER_MODE"] = "server"
     AuthService.createUser("existing", "testpass123")
-    const server = app()
-    const response = await server.request("/api/auth/register", {
+    const response = await server.request("/api/auth/register/challenge", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "existing", password: "newpass123" }),
+      body: JSON.stringify({ username: "second", email: "second@example.com" }),
     })
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBeDefined()
-  })
-
-  test("POST /api/auth/register rejects short password", async () => {
-    const server = app()
-    const response = await server.request("/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "shortpwd", password: "ab" }),
-    })
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBeDefined()
+    expect(response.status).toBe(403)
   })
 })

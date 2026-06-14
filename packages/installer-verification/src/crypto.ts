@@ -10,7 +10,10 @@ function bytesToBase64Url(bytes: Uint8Array) {
 }
 
 function base64UrlToBytes(value: string) {
-  const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=")
+  const padded = value
+    .replaceAll("-", "+")
+    .replaceAll("_", "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=")
   const binary = atob(padded)
   return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
@@ -72,5 +75,10 @@ export async function verifyReceipt(secret: string, token: string): Promise<Rece
     receipt_id: value.receipt_id,
     issued_at: value.issued_at,
     expires_at: value.expires_at,
+    purpose:
+      "purpose" in value && (value.purpose === "installer" || value.purpose === "webui-registration")
+        ? value.purpose
+        : undefined,
+    email_hash: "email_hash" in value && typeof value.email_hash === "string" ? value.email_hash : undefined,
   }
 }

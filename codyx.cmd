@@ -89,25 +89,40 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
   pushd "%ROOT%"
   for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "CODY_CURRENT_BRANCH=%%B"
   if not defined CODY_CURRENT_BRANCH set "CODY_CURRENT_BRANCH=main"
-  git fetch origin !CODY_CURRENT_BRANCH! --quiet --depth 1 >nul 2>nul
+  set "CODY_SHALLOW=false"
+  for /f "delims=" %%S in ('git rev-parse --is-shallow-repository 2^>nul') do set "CODY_SHALLOW=%%S"
+  if /I "!CODY_SHALLOW!"=="true" (
+    echo %ESC%[94m[Codyx]%ESC%[0m Repairing update history...
+    git fetch origin !CODY_CURRENT_BRANCH! --quiet --unshallow >nul 2>nul
+  ) else (
+    git fetch origin !CODY_CURRENT_BRANCH! --quiet >nul 2>nul
+  )
   if errorlevel 1 (
     echo %ESC%[94m[Codyx]%ESC%[0m Network unavailable, skipping update check.
     set "CODY_FETCH_FAILED=1"
   )
   for /f "delims=" %%C in ('git rev-list --count HEAD..origin/!CODY_CURRENT_BRANCH! 2^>nul') do set "CODY_BEHIND=%%C"
+  for /f "delims=" %%C in ('git rev-list --count origin/!CODY_CURRENT_BRANCH!..HEAD 2^>nul') do set "CODY_AHEAD=%%C"
   if not defined CODY_BEHIND set "CODY_BEHIND=0"
+  if not defined CODY_AHEAD set "CODY_AHEAD=0"
   if /I not "!CODY_BEHIND!"=="0" (
-    if /I "!CODY_AUTO_UPDATE!"=="yes" (
-      set "CODY_UPDATE_ANSWER=Y"
+    if /I not "!CODY_AHEAD!"=="0" (
+      echo %ESC%[93m[Codyx]%ESC%[0m Update skipped: this checkout has !CODY_AHEAD! local commits and is !CODY_BEHIND! commits behind origin/!CODY_CURRENT_BRANCH!.
+      echo %ESC%[93m[Codyx]%ESC%[0m Preserve or move the local commits to another branch before updating.
     ) else (
-      set /p "CODY_UPDATE_ANSWER=[codyx] !CODY_BEHIND! update(s) available. Pull now? [y/N] "
-    )
-    if /I "!CODY_UPDATE_ANSWER!"=="Y" (
-      git pull --ff-only
+      if /I "!CODY_AUTO_UPDATE!"=="yes" (
+        set "CODY_UPDATE_ANSWER=Y"
+      ) else (
+        set /p "CODY_UPDATE_ANSWER=[codyx] !CODY_BEHIND! update(s) available. Pull now? [y/N] "
+      )
+      if /I "!CODY_UPDATE_ANSWER!"=="Y" (
+        git merge --ff-only origin/!CODY_CURRENT_BRANCH!
+      )
     )
   ) else if not defined CODY_FETCH_FAILED echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
   popd
 )
+set "CODY_SKIP_UPDATE_CHECK=1"
 
 if not "%*"=="" (
   call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts %*

@@ -4,6 +4,7 @@ const schema = `
 CREATE TABLE IF NOT EXISTS challenge (
   id TEXT PRIMARY KEY,
   install_id TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'installer',
   display_name TEXT NOT NULL,
   email TEXT NOT NULL,
   email_hash TEXT NOT NULL,
@@ -20,6 +21,7 @@ CREATE INDEX IF NOT EXISTS challenge_email_hash_created_idx ON challenge (email_
 CREATE INDEX IF NOT EXISTS challenge_expires_idx ON challenge (expires_at);
 CREATE TABLE IF NOT EXISTS registration (
   install_id TEXT PRIMARY KEY,
+  purpose TEXT NOT NULL DEFAULT 'installer',
   display_name TEXT NOT NULL,
   email TEXT NOT NULL,
   email_verified_at INTEGER NOT NULL,
@@ -83,6 +85,14 @@ export async function ensureSchema(db: D1Database) {
       .filter(Boolean)
       .map((statement) => db.prepare(statement)),
   )
+  const challengeColumns = await db.prepare("PRAGMA table_info(challenge)").all<{ name: string }>()
+  if (!challengeColumns.results.some((column) => column.name === "purpose")) {
+    await db.prepare("ALTER TABLE challenge ADD COLUMN purpose TEXT NOT NULL DEFAULT 'installer'").run()
+  }
+  const registrationColumns = await db.prepare("PRAGMA table_info(registration)").all<{ name: string }>()
+  if (!registrationColumns.results.some((column) => column.name === "purpose")) {
+    await db.prepare("ALTER TABLE registration ADD COLUMN purpose TEXT NOT NULL DEFAULT 'installer'").run()
+  }
 }
 
 export async function cleanup(db: D1Database, now = Date.now()) {

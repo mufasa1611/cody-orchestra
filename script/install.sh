@@ -225,8 +225,7 @@ if [ "$IS_SERVER" = "1" ]; then
   else
     step "Detected server environment (headless Linux)"
   fi
-  # Default server-friendly settings
-  [ "$NO_BUILD" != "1" ] && NO_BUILD=1 && warn "Skipping web UI build (no browser in server)"
+  # Remote users need the bundled WebUI even when the host itself is headless.
   [ "$NO_SCAN" != "1" ] && NO_SCAN=1 && warn "Skipping model scan (server environment)"
 fi
 
@@ -303,6 +302,10 @@ if [ -d "$ROOT/.git" ]; then
     step "Switching to branch $BRANCH..."
     retry "git fetch" git fetch origin "$BRANCH" --quiet
     git switch "$BRANCH"
+  fi
+  if [ "$(git rev-parse --is-shallow-repository 2>/dev/null || echo false)" = "true" ]; then
+    step "Repairing shallow repository history..."
+    retry "git history repair" git fetch origin "$BRANCH" --unshallow --quiet
   fi
   retry "git pull" git pull --ff-only
   ok "Repository up to date."
@@ -548,12 +551,7 @@ create_cody_service() {
   unit_dir=$(systemd_unit_dir)
   local svc="$unit_dir/codyx.service"
 
-  if [ -f "$svc" ]; then
-    ok "codyx.service already exists."
-    return 0
-  fi
-
-  step "Creating codyx systemd service..."
+  step "Creating or updating codyx systemd service..."
 
   local env_file_arg=""
   if [ -f "$ROOT/.env.proxy" ]; then
@@ -568,7 +566,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$ROOT
-ExecStart=$(command -v bun) run --cwd $ROOT/packages/codyx --conditions=browser src/index.ts serve --port $CODY_PORT --hostname $CODY_HOST
+Environment=CODY_SERVER_MODE=server
+Environment=CODY_VERIFICATION_URL=https://install.kingkung.men
+ExecStart=$(command -v bun) run --cwd $ROOT/packages/codyx --conditions=browser src/index.ts serve --mode server --port $CODY_PORT --hostname $CODY_HOST
 Restart=always
 RestartSec=5
 $env_file_arg
@@ -576,7 +576,7 @@ $env_file_arg
 [Install]
 WantedBy=multi-user.target
 SERVICEEOF
-  ok "codyx.service created."
+  ok "codyx.service configured for verified remote accounts."
 }
 
 create_proxy_tunnel_service() {

@@ -131,6 +131,51 @@ describe("installer verification service", () => {
     })
   })
 
+  test("binds WebUI registration receipts to their verified email and purpose", async () => {
+    const body = {
+      install_id: crypto.randomUUID(),
+      purpose: "webui-registration",
+      display_name: "Server Owner",
+      email: "owner@example.com",
+      installer_version: "1.14.42",
+      platform: "webui",
+    }
+    const created = await createChallenge(body)
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const valid = await request("/v1/receipts/validate", {
+      method: "POST",
+      body: JSON.stringify({
+        install_id: body.install_id,
+        purpose: body.purpose,
+        email: body.email,
+        receipt,
+        platform: body.platform,
+      }),
+    })
+    expect(await valid.json()).toMatchObject({ valid: true })
+
+    const wrongEmail = await request("/v1/receipts/validate", {
+      method: "POST",
+      body: JSON.stringify({
+        install_id: body.install_id,
+        purpose: body.purpose,
+        email: "attacker@example.com",
+        receipt,
+        platform: body.platform,
+      }),
+    })
+    expect(await wrongEmail.json()).toEqual({ valid: false })
+
+    const installerUse = await request("/v1/receipts/validate", {
+      method: "POST",
+      body: JSON.stringify({ install_id: body.install_id, receipt }),
+    })
+    expect(await installerUse.json()).toEqual({ valid: false })
+  })
+
   test("expires codes and enforces five attempts", async () => {
     const expired = await createChallenge()
     const db = await worker.getD1Database("InstallerVerificationDatabase")

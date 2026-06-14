@@ -15,7 +15,7 @@ import { isAllowedCorsOrigin, type CorsOptions } from "./cors"
 import { isPtyConnectPath, PTY_CONNECT_TICKET_QUERY } from "./shared/pty-ticket"
 import { isPublicUIPath } from "./shared/public-ui"
 import * as Jwt from "./auth/jwt"
-import { userCount } from "./auth/service"
+import { serverAuthRequired } from "./auth/mode"
 
 const log = Log.create({ service: "server" })
 
@@ -47,21 +47,17 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   // Browser clients sending Authorization headers will preflight with OPTIONS.
   if (c.req.method === "OPTIONS") return next()
 
-  // CLI/TUI bypass — allow all requests from the local CLI identified by the x-cody-directory header.
-  if (c.req.header("x-cody-cli-local")) return next()
+  // This compatibility header is accepted only by explicitly local servers.
+  // Remote clients can forge headers, so server mode never treats it as proof
+  // that a request originated from the local CLI.
+  if (!serverAuthRequired() && c.req.header("x-cody-cli-local")) return next()
 
   // Public auth endpoints — the web client needs status before it has a token.
   if (c.req.method === "GET" && c.req.path === "/api/auth/status") return next()
-  if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register"))
+  if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path.startsWith("/api/auth/register")))
     return next()
 
-  const accountAuthRequired = (() => {
-    try {
-      return userCount() > 0
-    } catch {
-      return false
-    }
-  })()
+  const accountAuthRequired = serverAuthRequired()
 
   // Skip auth only when neither legacy server auth nor WebUI account auth is configured.
   const password = Flag.CODY_SERVER_PASSWORD

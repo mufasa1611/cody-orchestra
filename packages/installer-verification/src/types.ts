@@ -16,6 +16,7 @@
 export interface ChallengeRow {
   id: string
   install_id: string
+  purpose: "installer" | "webui-registration"
   display_name: string
   email: string
   email_hash: string
@@ -34,6 +35,8 @@ export interface ReceiptPayload {
   receipt_id: string
   issued_at: number
   expires_at: number
+  purpose?: "installer" | "webui-registration"
+  email_hash?: string
 }
 
 export interface RemoteCommandRow {

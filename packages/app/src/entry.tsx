@@ -148,8 +148,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     },
     integrations: (integrations) => {
       return integrations.filter(
-        (i) =>
-          i.name !== "Breadcrumbs" && !(import.meta.env.CODY_CHANNEL === "prod" && i.name === "GlobalHandlers"),
+        (i) => i.name !== "Breadcrumbs" && !(import.meta.env.CODY_CHANNEL === "prod" && i.name === "GlobalHandlers"),
       )
     },
   })
@@ -159,6 +158,7 @@ function WebRoot() {
   const [authed, setAuthed] = createSignal(false)
   const [server, setServer] = createSignal<ServerConnection.Http | null>(null)
   const [ready, setReady] = createSignal(false)
+  const [setupRequired, setSetupRequired] = createSignal(false)
 
   const validateToken = async (token: string) => {
     const res = await fetch(getCurrentUrl() + "/api/auth/me", {
@@ -168,11 +168,17 @@ function WebRoot() {
     return res?.status === 200
   }
 
-  const accountAuthRequired = async () => {
+  const authStatus = async () => {
     const res = await fetch(getCurrentUrl() + "/api/auth/status", { method: "GET" }).catch(() => null)
-    if (!res?.ok) return true
-    const data = (await res.json().catch(() => null)) as { accountAuthRequired?: unknown } | null
-    return data?.accountAuthRequired === true
+    if (!res?.ok) return { accountAuthRequired: true, setupRequired: false }
+    const data = (await res.json().catch(() => null)) as {
+      accountAuthRequired?: unknown
+      setupRequired?: unknown
+    } | null
+    return {
+      accountAuthRequired: data?.accountAuthRequired === true,
+      setupRequired: data?.setupRequired === true,
+    }
   }
 
   const buildServer = (token?: string, creds?: { username: string; password: string }): ServerConnection.Http => ({
@@ -189,6 +195,20 @@ function WebRoot() {
     storeToken(token)
     setServer(buildServer(token))
     setAuthed(true)
+  }
+
+  const continueWithoutToken = async () => {
+    const status = await authStatus()
+    setSetupRequired(status.setupRequired)
+    setServer(buildServer())
+    setAuthed(!status.accountAuthRequired)
+    setReady(true)
+  }
+
+  const showLogin = () => {
+    setServer(buildServer())
+    setAuthed(false)
+    setReady(true)
   }
 
   onMount(() => {
@@ -209,34 +229,20 @@ function WebRoot() {
           if (valid) {
             setServer(buildServer(storedToken))
             setAuthed(true)
+            setReady(true)
             return
           }
           clearToken()
-          setServer(buildServer())
-          setAuthed(false)
+          return continueWithoutToken()
         })
         .catch(() => {
           clearToken()
-          setServer(buildServer())
-          setAuthed(false)
-        })
-        .finally(() => {
-          setReady(true)
+          showLogin()
         })
       return
     }
 
-    accountAuthRequired()
-      .then((required) => {
-        setServer(buildServer())
-        setAuthed(!required)
-        setReady(true)
-      })
-      .catch(() => {
-        setServer(buildServer())
-        setAuthed(false)
-        setReady(true)
-      })
+    continueWithoutToken().catch(showLogin)
   })
 
   return (
@@ -244,7 +250,7 @@ function WebRoot() {
       <AppBaseProviders>
         <Show when={ready() ? server() : null} keyed>
           {(currentServer) => (
-            <Show when={authed()} fallback={<LoginPage onLogin={onLogin} />}>
+            <Show when={authed()} fallback={<LoginPage setupRequired={setupRequired()} onLogin={onLogin} />}>
               <AppInterface
                 defaultServer={ServerConnection.Key.make(currentServer.http.url)}
                 servers={[currentServer]}

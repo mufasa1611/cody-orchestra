@@ -1,5 +1,4 @@
 import { ServerAuth } from "@/server/auth"
-import { userCount } from "@/server/auth/service"
 import * as Jwt from "@/server/auth/jwt"
 import { Effect, Encoding, Layer, Redacted } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -7,6 +6,7 @@ import { HttpApiError, HttpApiMiddleware } from "effect/unstable/httpapi"
 import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 import { UserRef } from "@/effect/instance-ref"
+import { serverAuthRequired } from "@/server/auth/mode"
 
 const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
@@ -27,11 +27,7 @@ function hasValidJwt(request: HttpServerRequest.HttpServerRequest): string | und
 }
 
 function accountAuthRequired(): boolean {
-  try {
-    return userCount() > 0
-  } catch {
-    return false
-  }
+  return serverAuthRequired()
 }
 
 function emptyCredential() {
@@ -108,7 +104,7 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
     return (effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        if (request.headers["x-cody-cli-local"]) return yield* effect
+        if (!requireAccountAuth && request.headers["x-cody-cli-local"]) return yield* effect
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
         if (hasPtyConnectTicketURL(url)) return yield* effect
@@ -141,13 +137,13 @@ export const authorizationLayer = Layer.effect(
           const jwtSub = hasValidJwt(request)
           if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
           return yield* effect
-        })
+        }),
       )
     }
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        if (request.headers["x-cody-cli-local"]) return yield* effect
+        if (!requireAccountAuth && request.headers["x-cody-cli-local"]) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
         if (requireAccountAuth) return yield* new HttpApiError.Unauthorized({})

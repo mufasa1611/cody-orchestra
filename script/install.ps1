@@ -328,6 +328,14 @@ if ($IsStandalone) {
         if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
       } "git fetch/switch"
     }
+    $isShallow = git rev-parse --is-shallow-repository 2>$null
+    if ($isShallow -eq "true") {
+      Write-Step "Repairing shallow repository history..."
+      Invoke-WithRetry {
+        & git fetch origin $Branch --unshallow --quiet
+        if ($LASTEXITCODE -ne 0) { throw "git fetch --unshallow failed" }
+      } "git history repair"
+    }
     Write-VerboseMsg "Pulling latest changes..."
     Invoke-WithRetry {
       & git pull --ff-only

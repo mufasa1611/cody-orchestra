@@ -12,21 +12,39 @@ void Log.init({ print: false })
 
 const originalPassword = Flag.CODY_SERVER_PASSWORD
 const originalJwt = Flag.CODY_JWT_SECRET
+const originalMode = process.env["CODY_SERVER_MODE"]
 
 afterEach(async () => {
   Flag.CODY_SERVER_PASSWORD = originalPassword
   Flag.CODY_JWT_SECRET = originalJwt
+  if (originalMode === undefined) delete process.env["CODY_SERVER_MODE"]
+  else process.env["CODY_SERVER_MODE"] = originalMode
   await resetDatabase()
 })
 
 describe("Hono backend auth login", () => {
+  test("accepts the local compatibility header only outside server mode", async () => {
+    const local = new Hono().use(AuthMiddleware).get("/protected", (c) => c.json({ ok: true }))
+    expect((await local.request("/protected", { headers: { "x-cody-cli-local": "1" } })).status).toBe(200)
+
+    process.env["CODY_SERVER_MODE"] = "server"
+    const remote = new Hono().use(AuthMiddleware).get("/protected", (c) => c.json({ ok: true }))
+    expect((await remote.request("/protected", { headers: { "x-cody-cli-local": "1" } })).status).toBe(401)
+  })
+
   test("GET /api/auth/status stays public when JWT auth is configured", async () => {
     Flag.CODY_JWT_SECRET = "test-secret"
     const app = new Hono().use(AuthMiddleware).route("/api/auth", AuthRoutes)
     const response = await app.request("/api/auth/status")
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ accountAuthRequired: false })
+    expect(await response.json()).toEqual({
+      mode: "local",
+      accountAuthRequired: false,
+      setupRequired: false,
+      registrationMode: "closed",
+      privacyUrl: "https://install.kingkung.men/privacy",
+    })
   })
 
   test("POST /api/auth/login works via Hono sub-app", async () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="mufasa1611/codyx"
+REPO="mufasa1611/cody-orchestra"
 BRANCH="${CODY_BRANCH:-main}"
 
 echo "[warn] This installer (root 'install.sh') is deprecated." >&2

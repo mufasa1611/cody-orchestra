@@ -23,19 +23,35 @@ const emailSchema = z
   .email()
   .max(254)
   .transform((value) => value.toLowerCase())
-const challengeSchema = z.object({
-  install_id: z.string().uuid(),
-  display_name: z.string().trim().min(2).max(100),
-  email: emailSchema,
-  installer_version: z.string().trim().min(1).max(64),
-  platform: z.literal("windows"),
-})
+const challengeSchema = z
+  .object({
+    install_id: z.string().uuid(),
+    purpose: z.enum(["installer", "webui-registration"]).default("installer"),
+    display_name: z.string().trim().min(2).max(100),
+    email: emailSchema,
+    installer_version: z.string().trim().min(1).max(64),
+    platform: z.enum(["windows", "webui"]),
+  })
+  .superRefine((input, context) => {
+    if (input.purpose === "installer" && input.platform !== "windows") {
+      context.addIssue({ code: "custom", path: ["platform"], message: "Installer verification requires Windows." })
+    }
+    if (input.purpose === "webui-registration" && input.platform !== "webui") {
+      context.addIssue({
+        code: "custom",
+        path: ["platform"],
+        message: "WebUI verification requires the webui platform.",
+      })
+    }
+  })
 const verifySchema = z.object({ code: z.string().regex(/^\d{6}$/) })
 const receiptSchema = z.object({
   install_id: z.string().uuid(),
   receipt: z.string().min(1).max(2048),
   installer_version: z.string().trim().min(1).max(64).optional(),
-  platform: z.literal("windows").optional(),
+  platform: z.enum(["windows", "webui"]).optional(),
+  purpose: z.enum(["installer", "webui-registration"]).default("installer"),
+  email: emailSchema.optional(),
 })
 const commandActionSchema = z.object({
   install_id: z.string().uuid(),
@@ -117,7 +133,15 @@ async function reserveEmailSend(db: D1Database, hash: string, now: number) {
   return id
 }
 
-async function deliverCode(env: Bindings, input: { email: string; displayName: string; code: string }) {
+async function deliverCode(
+  env: Bindings,
+  input: {
+    email: string
+    displayName: string
+    code: string
+    purpose?: "installer" | "webui-registration"
+  },
+) {
   if (env.INSTALLER_ENVIRONMENT === "test" && env.INSTALLER_TEST_CODE) return
   const value = secrets(env)
   await sendVerificationEmail({
@@ -138,6 +162,7 @@ function notifyAdmin(
     installerVersion: string
     platform: string
     verifiedAt: string
+    purpose?: "installer" | "webui-registration"
   },
 ) {
   const adminEmail = env.INSTALLER_ADMIN_EMAIL
@@ -196,7 +221,12 @@ async function requireAdmin(env: Bindings, request: Request) {
 
 async function verifyReceiptPayload(env: Bindings, installId: string, receipt: string) {
   const payload = await verifyReceipt(secrets(env).receipt, receipt)
-  if (!payload || payload.install_id !== installId || payload.expires_at <= Date.now())
+  if (
+    !payload ||
+    payload.install_id !== installId ||
+    payload.expires_at <= Date.now() ||
+    (payload.purpose ?? "installer") !== "installer"
+  )
     throw new ApiError(401, "invalid_receipt", "Receipt is invalid or expired.")
   return payload
 }
@@ -232,13 +262,14 @@ app.post("/v1/challenges", async (context) => {
   await db
     .prepare(
       `INSERT INTO challenge
-        (id, install_id, display_name, email, email_hash, code_hash, installer_version, platform,
+        (id, install_id, purpose, display_name, email, email_hash, code_hash, installer_version, platform,
          attempts, created_at, last_sent_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
     )
     .bind(
       id,
       input.install_id,
+      input.purpose,
       input.display_name,
       input.email,
       hash,
@@ -255,6 +286,7 @@ app.post("/v1/challenges", async (context) => {
       email: input.email,
       displayName: input.display_name,
       code,
+      purpose: input.purpose,
     })
   } catch {
     await db.batch([
@@ -295,6 +327,7 @@ app.post("/v1/challenges/:id/resend", async (context) => {
       email: row.email,
       displayName: row.display_name,
       code,
+      purpose: row.purpose,
     })
   } catch {
     await db.batch([
@@ -340,10 +373,11 @@ app.post("/v1/challenges/:id/verify", async (context) => {
     db
       .prepare(
         `INSERT INTO registration
-          (install_id, display_name, email, email_verified_at, installer_version, platform,
+          (install_id, purpose, display_name, email, email_verified_at, installer_version, platform,
            created_at, updated_at, retain_until)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(install_id) DO UPDATE SET
+           purpose = excluded.purpose,
            display_name = excluded.display_name,
            email = excluded.email,
            email_verified_at = excluded.email_verified_at,
@@ -354,6 +388,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       )
       .bind(
         row.install_id,
+        row.purpose,
         row.display_name,
         row.email,
         now,
@@ -375,6 +410,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       installerVersion: row.installer_version,
       platform: row.platform,
       verifiedAt: new Date(now).toISOString(),
+      purpose: row.purpose,
     }),
   )
   return context.json({
@@ -383,6 +419,8 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       receipt_id: receiptId,
       issued_at: now,
       expires_at: expiresAt,
+      purpose: row.purpose,
+      email_hash: row.email_hash,
     }),
     expires_at: new Date(expiresAt).toISOString(),
   })
@@ -393,7 +431,18 @@ app.post("/v1/receipts/validate", async (context) => {
   const input = parse(receiptSchema, await jsonBody(context.req.raw))
   const payload = await verifyReceipt(secrets(context.env).receipt, input.receipt)
   const now = Date.now()
-  if (!payload || payload.install_id !== input.install_id || payload.expires_at <= now)
+  const purpose = payload?.purpose ?? "installer"
+  const verifiedEmail =
+    input.purpose === "webui-registration" && input.email
+      ? payload?.email_hash === (await emailHash(context.env, input.email))
+      : input.purpose === "installer"
+  if (
+    !payload ||
+    payload.install_id !== input.install_id ||
+    payload.expires_at <= now ||
+    purpose !== input.purpose ||
+    !verifiedEmail
+  )
     return context.json({ valid: false })
   const db = context.env.InstallerVerificationDatabase
   const row = await db
@@ -425,8 +474,8 @@ app.get("/v1/admin/installations", async (context) => {
   const format = context.req.query("format") ?? "json"
   if (format !== "json" && format !== "csv") throw new ApiError(400, "invalid_format", "Format must be json or csv.")
   const result = await context.env.InstallerVerificationDatabase.prepare(
-    `SELECT install_id, display_name, email, email_verified_at, installer_version, platform,
-      created_at, updated_at, retain_until
+    `SELECT install_id, purpose, display_name, email, email_verified_at, installer_version, platform,
+            created_at, updated_at, retain_until
      FROM registration ORDER BY created_at DESC LIMIT 10000`,
   ).all()
   if (format === "json") return context.json({ installations: result.results })

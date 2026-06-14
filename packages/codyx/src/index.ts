@@ -104,6 +104,7 @@ function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): 
 // Auto-update at startup (skip for help/version/upgrade subcommands)
 if (
   process.env.CODY_PRO !== "0" &&
+  process.env.CODY_SKIP_UPDATE_CHECK !== "1" &&
   !rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) &&
   rawArgs[0] !== "upgrade"
 ) {

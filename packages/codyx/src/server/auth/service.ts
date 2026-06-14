@@ -14,6 +14,10 @@ const log = Log.create({ service: "server.auth" })
 export type UserRow = {
   id: string
   username: string
+  email?: string
+  email_verified_at?: number
+  role: "admin" | "user"
+  status: "active" | "disabled"
   created_at: number
 }
 
@@ -130,11 +134,28 @@ function ensureSchema(): void {
   db.run(`CREATE TABLE IF NOT EXISTS "user" (
     "id" text PRIMARY KEY,
     "username" text NOT NULL,
+    "email" text,
+    "email_normalized" text,
+    "email_verified_at" integer,
+    "role" text NOT NULL DEFAULT 'user',
+    "status" text NOT NULL DEFAULT 'active',
     "password_hash" text NOT NULL,
     "time_created" integer NOT NULL,
     "time_updated" integer NOT NULL
   )`)
+  const userColumns = db.all(`PRAGMA table_info("user")`) as { name: string }[]
+  const addUserColumn = (name: string, definition: string) => {
+    if (!userColumns.some((column) => column.name === name)) {
+      db.run(`ALTER TABLE "user" ADD "${name}" ${definition}`)
+    }
+  }
+  addUserColumn("email", "text")
+  addUserColumn("email_normalized", "text")
+  addUserColumn("email_verified_at", "integer")
+  addUserColumn("role", "text NOT NULL DEFAULT 'user'")
+  addUserColumn("status", "text NOT NULL DEFAULT 'active'")
   db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "user_username_idx" ON "user" ("username")`)
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "user_email_normalized_idx" ON "user" ("email_normalized")`)
 
   const sessionTable = db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session'`)
   if (sessionTable.length > 0) {
@@ -187,15 +208,66 @@ export function createUser(username: string, password: string): UserRow {
 
   Database.use((db) => db.insert(UserTable).values({ id, username, password_hash: passwordHash }).run())
 
-  return { id, username, created_at: Date.now() }
+  return { id, username, role: "user", status: "active", created_at: Date.now() }
+}
+
+export function createVerifiedAdmin(username: string, email: string, password: string): UserRow {
+  ensureSchema()
+  const normalizedEmail = email.trim().toLowerCase()
+  if (password.length < 8) throw new ValidationError("Password must be at least 8 characters")
+  if (username.trim().length < 2) throw new ValidationError("Username must be at least 2 characters")
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new ValidationError("Email address is invalid")
+
+  return Database.transaction(
+    (tx) => {
+      if (tx.select().from(UserTable).all().length > 0) {
+        throw new ValidationError("Server setup is already complete")
+      }
+      const id = Identifier.ascending("user") as UserID
+      const now = Date.now()
+      tx.insert(UserTable)
+        .values({
+          id,
+          username: username.trim(),
+          email: normalizedEmail,
+          email_normalized: normalizedEmail,
+          email_verified_at: now,
+          role: "admin",
+          status: "active",
+          password_hash: hashPassword(password),
+          time_created: now,
+          time_updated: now,
+        })
+        .run()
+      return {
+        id,
+        username: username.trim(),
+        email: normalizedEmail,
+        email_verified_at: now,
+        role: "admin" as const,
+        status: "active" as const,
+        created_at: now,
+      }
+    },
+    { behavior: "immediate" },
+  )
 }
 
 export function verifyCredentials(username: string, password: string): UserRow {
   ensureSchema()
   const row = Database.use((db) => db.select().from(UserTable).where(eq(UserTable.username, username)).get())
   if (!row) throw new AuthError("Invalid username or password")
+  if (row.status !== "active") throw new AuthError("Account is disabled")
   if (!verifyPassword(password, row.password_hash)) throw new AuthError("Invalid username or password")
-  return { id: row.id, username: row.username, created_at: row.time_created }
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email ?? undefined,
+    email_verified_at: row.email_verified_at ?? undefined,
+    role: row.role,
+    status: row.status,
+    created_at: row.time_created,
+  }
 }
 
 export function getUser(id: string): UserRow | undefined {
@@ -208,20 +280,45 @@ export function getUser(id: string): UserRow | undefined {
       .get(),
   )
   if (!row) return undefined
-  return { id: row.id, username: row.username, created_at: row.time_created }
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email ?? undefined,
+    email_verified_at: row.email_verified_at ?? undefined,
+    role: row.role,
+    status: row.status,
+    created_at: row.time_created,
+  }
 }
 
 export function getUserByUsername(username: string): UserRowWithPassword | undefined {
   ensureSchema()
   const row = Database.use((db) => db.select().from(UserTable).where(eq(UserTable.username, username)).get())
   if (!row) return undefined
-  return { id: row.id, username: row.username, password_hash: row.password_hash, created_at: row.time_created }
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email ?? undefined,
+    email_verified_at: row.email_verified_at ?? undefined,
+    role: row.role,
+    status: row.status,
+    password_hash: row.password_hash,
+    created_at: row.time_created,
+  }
 }
 
 export function listUsers(): UserRow[] {
   ensureSchema()
   const rows = Database.use((db) => db.select().from(UserTable).orderBy(UserTable.username).all())
-  return rows.map((r) => ({ id: r.id, username: r.username, created_at: r.time_created }))
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    email: row.email ?? undefined,
+    email_verified_at: row.email_verified_at ?? undefined,
+    role: row.role,
+    status: row.status,
+    created_at: row.time_created,
+  }))
 }
 
 export function changePassword(id: string, currentPassword: string, newPassword: string): void {

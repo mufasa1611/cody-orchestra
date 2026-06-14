@@ -10,22 +10,26 @@ export async function sendVerificationEmail(input: {
   email: string
   displayName: string
   code: string
+  purpose?: "installer" | "webui-registration"
 }) {
   const name = escapeHtml(input.displayName)
+  const account = input.purpose === "webui-registration"
+  const subject = account ? "Your Codyx account verification code" : "Your Codyx installer verification code"
+  const activity = account ? "remote Codyx account setup" : "the Codyx installer"
   const body = [
     `<p>Hello ${name},</p>`,
-    `<p>Your Codyx installer verification code is:</p>`,
+    `<p>Your Codyx ${account ? "account" : "installer"} verification code is:</p>`,
     `<p style="font-size:28px;font-weight:bold;letter-spacing:6px">${input.code}</p>`,
-    `<p>This code expires in 10 minutes. If you did not start the installer, ignore this email.</p>`,
-    `<p>Codyx uses this address only for installer verification and essential service or security notices.</p>`,
+    `<p>This code expires in 10 minutes. If you did not start ${activity}, ignore this email.</p>`,
+    `<p>Codyx uses this address only for verification and essential service or security notices.</p>`,
   ].join("")
   const form = new FormData()
   form.set("from", input.sender)
   form.set("to", input.email)
-  form.set("subject", "Your Codyx installer verification code")
+  form.set("subject", subject)
   form.set(
     "text",
-    `Hello ${input.displayName},\n\nYour Codyx installer verification code is ${input.code}.\n\nThis code expires in 10 minutes.`,
+    `Hello ${input.displayName},\n\nYour Codyx ${account ? "account" : "installer"} verification code is ${input.code}.\n\nThis code expires in 10 minutes.`,
   )
   form.set("html", body)
   form.set("o:tracking", "no")
@@ -53,11 +57,17 @@ export async function sendAdminRegistrationNotification(input: {
   installerVersion: string
   platform: string
   verifiedAt: string
+  purpose?: "installer" | "webui-registration"
 }) {
   const form = new FormData()
   form.set("from", input.sender)
   form.set("to", input.adminEmail)
-  form.set("subject", `[installer] Verified installation ${input.installId}`)
+  form.set(
+    "subject",
+    input.purpose === "webui-registration"
+      ? `[webui] Verified account registration ${input.displayName}`
+      : `[installer] Verified installation ${input.installId}`,
+  )
   form.set("o:tracking", "no")
   form.set("o:tracking-clicks", "no")
   form.set("o:tracking-opens", "no")
