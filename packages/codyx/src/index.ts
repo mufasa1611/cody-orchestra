@@ -272,6 +272,10 @@ if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v", "uninstall"].includ
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) && !rawArgs.includes("--no-banner")) {
   process.stderr.write(UI.logo() + EOL + EOL)
 }
+if (rawArgs.length === 0) {
+  cli.showHelp()
+  process.exit(0)
+}
 
 try {
   if (rawArgs.includes("-h") || rawArgs.includes("--help")) {
