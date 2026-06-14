@@ -25,6 +25,7 @@ import { createCodyClient, type CodyClient, type ToolPart } from "@cody/sdk/v2"
 import { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
+import { createLocalCliFetch } from "./run/local-fetch"
 
 const runtimeTask = import("./run/runtime")
 type ModelInput = Parameters<CodyClient["session"]["prompt"]>[0]["model"]
@@ -184,8 +185,7 @@ export const RunCommand = effectCmd({
       })
       .option("attach", {
         type: "string",
-        describe:
-          "attach to a running codyx server (e.g., http://localhost:4097)",
+        describe: "attach to a running codyx server (e.g., http://localhost:4097)",
       })
       .option("password", {
         alias: ["p"],
@@ -786,12 +786,10 @@ export const RunCommand = effectCmd({
       if (args.interactive && !args.attach && !args.session && !args.continue) {
         const model = pick(args.model)
         const { runInteractiveLocalMode } = await runtimeTask
-        const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const fetchFn = createLocalCliFetch(async (request) => {
           const { Server } = await import("@/server/server")
-          const request = new Request(input, init);
-        request.headers.set('x-cody-cli-local', '1');
           return Server.Default().app.fetch(request)
-        }) as typeof globalThis.fetch
+        })
 
         try {
           return await runInteractiveLocalMode({
@@ -819,11 +817,10 @@ export const RunCommand = effectCmd({
         return await execute(sdk)
       }
 
-      const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const fetchFn = createLocalCliFetch(async (request) => {
         const { Server } = await import("@/server/server")
-        const request = new Request(input, init)
         return Server.Default().app.fetch(request)
-      }) as typeof globalThis.fetch
+      })
       const sdk = createCodyClient({
         baseUrl: "http://cody.internal",
         fetch: fetchFn,
