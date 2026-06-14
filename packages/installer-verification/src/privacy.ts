@@ -10,5 +10,6 @@ export function privacyPage(email: string) {
 <p>This information is used only to verify official installer use and to send essential service or security notices. It is not used for marketing and does not include source code, prompts, project files, or AI-provider credentials.</p>
 <p>Identifiable installer records and operational registration notices are retained for up to 24 months. Local verification receipts expire after 12 months.</p>
 <p>To request deletion, email <a href="mailto:${email}">${email}</a>.</p>
+<p>Best Regards <span style="color:#FF6B35">M. Farid</span> (<span style="color:#4CAF50">Mufasa</span>)</p>
 </body></html>`
 }

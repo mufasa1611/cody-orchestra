@@ -201,6 +201,7 @@ Write-Host "No source code, prompts, project content, or model conversations are
 Write-Host "Verified registration data is retained for up to 24 months."
 Write-Host "Privacy: https://install.kingkung.men/privacy"
 Write-Host "Deletion requests: privacy@kingkung.men"
+Write-Host "wish you smooth installation (Mufasa)"
 Write-Host ""
 
 $displayName = $null
