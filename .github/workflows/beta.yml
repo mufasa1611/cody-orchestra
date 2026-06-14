@@ -27,8 +27,8 @@ jobs:
           cody-app-id: ${{ vars.CODY_APP_ID }}
           cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
 
-      - name: Install Cody
-        run: bun i -g cody-ai
+      - name: Install codyx-ai
+        run: bun i -g codyx-ai
 
       - name: Sync beta branch
         env:
