@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="mufasa1611/codyx"
+REPO="mufasa1611/cody-orchestra"
 BRANCH="${CODY_BRANCH:-main}"
 
 echo "[warn] This installer (root 'install.sh') is deprecated." >&2
@@ -40,7 +40,7 @@ fi
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   echo "codyx Installer for Linux/macOS"
   echo ""
-  echo "Usage: curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx/$BRANCH/install.sh | bash"
+  echo "Usage: curl -fsSL https://raw.githubusercontent.com/$REPO/$BRANCH/install.sh | bash"
   echo ""
   echo "Environment variables:"
   echo "  CODY_INSTALL_ROOT   Install to a custom path instead of $DEFAULT_ROOT"
