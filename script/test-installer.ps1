@@ -32,6 +32,7 @@ Assert-NotContains "script/install.ps1" '\& powershell ' "Windows installer has 
 Assert-NotContains "script/install.ps1" '(git clone|git fetch|git switch|git pull|bun install|bun run build)[^\r\n]*2>&1' "Windows native tools do not merge stderr into PowerShell errors"
 Assert-Contains "script/install.ps1" '\$CheckoutRoot.*Split-Path -Parent \$PSScriptRoot' "Windows installer detects a local checkout"
 Assert-Contains "script/install.ps1" 'script/install-npm\.ps1' "Streamed Windows installer dispatches to the npm bootstrap"
+Assert-Contains "script/install.ps1" '25334282c686d23b94d7fc8c0a0068e2509509ae' "Main installer pins the corrected npm bootstrap against raw branch caching"
 Assert-Contains "script/install.ps1" 'Test-BunVersion' "Windows installer enforces the supported Bun version"
 Assert-Contains "script/install.ps1" 'VERIFICATION_URL = "https://install\.kingkung\.men"' "Windows installer uses the production verification service"
 Assert-Contains "script/install.ps1" 'installer-verification\.ps1' "Windows installer loads the verification helper"
