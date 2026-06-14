@@ -189,10 +189,19 @@ if (-not (Test-Path -LiteralPath $Script:GlobalCmd)) {
   Write-Err "npm completed but did not create $($Script:GlobalCmd)."
   exit 1
 }
-$versionOutput = & $env:ComSpec /d /s /c "`"`"$($Script:GlobalCmd)`" --version 2>&1`"" |
-  Select-Object -Last 1
-if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+& $env:ComSpec /d /s /c "`"`"$($Script:GlobalCmd)`" --version`""
+if ($LASTEXITCODE -ne 0) {
   Write-Err "The installed codyx command could not start."
+  exit 1
+}
+$packageJsonPath = Join-Path $Script:NpmPrefix "node_modules\codyx-ai\package.json"
+if (-not (Test-Path -LiteralPath $packageJsonPath)) {
+  Write-Err "npm completed but the codyx-ai package metadata is missing."
+  exit 1
+}
+$installedVersion = (Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json).version
+if (-not $installedVersion) {
+  Write-Err "The installed codyx-ai version could not be determined."
   exit 1
 }
 
@@ -201,7 +210,7 @@ $null = New-Item -ItemType Directory -Force -Path $stateRoot
 @{
   method = "npm"
   package = "codyx-ai"
-  version = "$versionOutput"
+  version = "$installedVersion"
   updated_at = [DateTimeOffset]::UtcNow.ToString("o")
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot "installation.json") -Encoding UTF8
 
@@ -210,7 +219,7 @@ Write-Host "  =======================================" -ForegroundColor Green
 Write-Host "       codyx installed successfully!     " -ForegroundColor Green
 Write-Host "  =======================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Version: $versionOutput"
+Write-Host "  Version: $installedVersion"
 Write-Host "  Command: codyx"
 Write-Host "  Update:  npm install -g codyx-ai@latest"
 Write-Host ""
