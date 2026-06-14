@@ -73,7 +73,8 @@ if "%CODY_PROXY_ENABLED%"=="1" (
     where cloudflared >nul 2>nul
     if not errorlevel 1 (
       echo %ESC%[94m[Codyx]%ESC%[0m Starting Cloudflare proxy tunnel...
-      start /b cloudflared access tcp --hostname proxy.kingkung.men --url localhost:%CODY_PROXY_LOCAL_PORT% >nul 2>nul
+      if not defined CODY_TUNNEL_HOSTNAME set "CODY_TUNNEL_HOSTNAME=proxy.kingkung.men"
+      start /b cloudflared access tcp --hostname %CODY_TUNNEL_HOSTNAME% --url localhost:%CODY_PROXY_LOCAL_PORT% >nul 2>nul
       for /L %%i in (1,1,20) do (
         netstat -an | findstr ":%CODY_PROXY_LOCAL_PORT%" >nul 2>nul
         if not errorlevel 1 goto proxy_ready
@@ -107,6 +108,30 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
     )
   ) else if not defined CODY_FETCH_FAILED echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
   popd
+)
+
+rem -- npm update check (for npm-installed users without .git) ----------
+if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
+  where npm >nul 2>nul
+  if not errorlevel 1 (
+    for /f "delims=" %%L in ('npm view codyx-ai version 2^>nul') do set "CODY_NPM_LATEST=%%L"
+    for /f "delims=" %%C in ('codyx --version 2^>nul') do set "CODY_NPM_CURRENT=%%C"
+    if defined CODY_NPM_LATEST if defined CODY_NPM_CURRENT (
+      if /I not "!CODY_NPM_CURRENT!"=="!CODY_NPM_LATEST!" (
+        if /I "!CODY_AUTO_UPDATE!"=="yes" (
+          set "CODY_UPDATE_ANSWER=Y"
+        ) else (
+          set /p "CODY_UPDATE_ANSWER=[codyx] Update available: !CODY_NPM_CURRENT! -> !CODY_NPM_LATEST!. Install now? [y/N] "
+        )
+        if /I "!CODY_UPDATE_ANSWER!"=="Y" (
+          echo %ESC%[94m[Codyx]%ESC%[0m Updating codyx-ai...
+          npm install -g codyx-ai@latest
+        )
+      ) else (
+        echo %ESC%[94m[Codyx]%ESC%[0m Up to date ^(!CODY_NPM_CURRENT!^).
+      )
+    )
+  )
 )
 
 if not "%*"=="" (

@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── npm fast-path ──────────────────────────────────────────────────────
+# If Node.js 18+ is already present, install the pre-built binary from npm
+# and skip the full source-build path.  Set CODY_FORCE_SOURCE=1 to bypass.
+if [ "${CODY_FORCE_SOURCE:-0}" != "1" ] && command -v node >/dev/null 2>&1; then
+  _node_major=$(node --version 2>/dev/null | tr -d 'v' | cut -d. -f1)
+  if [ "${_node_major:-0}" -ge 18 ]; then
+    _npm_pkg="${CODY_NPM_PACKAGE:-codyx-ai}"
+    _npm_tag="${CODY_NPM_TAG:-latest}"
+    _npm_spec="$_npm_pkg@$_npm_tag"
+    echo -e "\033[0;36m>>\033[0m Node.js $_node_major found — installing $_npm_spec via npm (fast path)..."
+    if npm install -g "$_npm_spec" 2>&1; then
+      if command -v codyx >/dev/null 2>&1; then
+        _ver=$(codyx --version 2>/dev/null || true)
+        echo -e "\033[0;32m[ok]\033[0m codyx ${_ver} installed via npm."
+        echo -e "\033[0;32m[ok]\033[0m Update: npm update -g $_npm_pkg"
+        echo -e "\033[0;32m[ok]\033[0m Uninstall: npm uninstall -g $_npm_pkg"
+        exit 0
+      fi
+    fi
+    echo -e "\033[1;33m[warn]\033[0m npm fast-path failed. Falling through to source build..."
+  fi
+fi
+
 # ── Config ─────────────────────────────────────────────────────────────
 REPO_URL="https://github.com/mufasa1611/cody-orchestra.git"
 BRANCH="${CODY_BRANCH:-main}"
