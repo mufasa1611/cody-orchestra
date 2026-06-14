@@ -13,17 +13,14 @@ type TestRequestInit = Omit<DispatchRequestInit, "headers"> & {
 }
 
 function request(path: string, init?: TestRequestInit) {
-  return worker.dispatchFetch(
-    `https://install.test${path}`,
-    {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        "CF-Connecting-IP": crypto.randomUUID(),
-        ...init?.headers,
-      },
+  return worker.dispatchFetch(`https://install.test${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "CF-Connecting-IP": crypto.randomUUID(),
+      ...init?.headers,
     },
-  )
+  })
 }
 
 function admin(path: string, init?: TestRequestInit) {
@@ -267,5 +264,125 @@ describe("installer verification service", () => {
     )
     expect(responses.filter((response) => response.status === 200)).toHaveLength(10)
     expect(responses.filter((response) => response.status === 429)).toHaveLength(1)
+  })
+
+  test("admin creates remote uninstall command for a verified installation", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, {
+      method: "POST",
+    })
+    expect(uninstall.status).toBe(201)
+    const body = (await uninstall.json()) as { command_id: string }
+    expect(body.command_id).toBeDefined()
+    expect(typeof body.command_id).toBe("string")
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const command = await db
+      .prepare("SELECT id, type, status FROM remote_command WHERE id = ?")
+      .bind(body.command_id)
+      .first()
+    expect(command).not.toBeNull()
+    expect((command as any).type).toBe("uninstall")
+    expect((command as any).status).toBe("pending")
+  })
+
+  test("client polls and finds pending remote command", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+
+    const poll = await request(
+      `/v1/commands?install_id=${created.body.install_id}&receipt=${encodeURIComponent(receipt)}`,
+    )
+    expect(poll.status).toBe(200)
+    const body = (await poll.json()) as { commands: Array<{ id: string; type: string }> }
+    expect(body.commands).toHaveLength(1)
+    expect(body.commands[0].type).toBe("uninstall")
+  })
+
+  test("client acknowledges and completes remote command", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    const { command_id } = (await uninstall.json()) as { command_id: string }
+
+    const ack = await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+    expect(ack.status).toBe(200)
+    expect((await ack.json()) as { status: string }).toMatchObject({ status: "acknowledged" })
+
+    const complete = await request("/v1/complete", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+    expect(complete.status).toBe(200)
+    expect((await complete.json()) as { status: string }).toMatchObject({ status: "completed" })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const command = await db
+      .prepare("SELECT status, acknowledged_at, completed_at FROM remote_command WHERE id = ?")
+      .bind(command_id)
+      .first()
+    expect((command as any).status).toBe("completed")
+    expect((command as any).acknowledged_at).not.toBeNull()
+    expect((command as any).completed_at).not.toBeNull()
+  })
+
+  test("no pending commands after acknowledge and complete cycle", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    const { command_id } = (await uninstall.json()) as { command_id: string }
+
+    await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+    await request("/v1/complete", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+
+    const poll = await request(
+      `/v1/commands?install_id=${created.body.install_id}&receipt=${encodeURIComponent(receipt)}`,
+    )
+    const body = (await poll.json()) as { commands: Array<unknown> }
+    expect(body.commands).toHaveLength(0)
+  })
+
+  test("unauthenticated requests for remote commands are rejected", async () => {
+    const installId = crypto.randomUUID()
+    const receipt = "invalid.receipt.token"
+    const commandId = crypto.randomUUID()
+
+    const list = await request(`/v1/commands?install_id=${installId}&receipt=${receipt}`)
+    expect(list.status).toBe(401)
+
+    const ack = await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({ install_id: installId, receipt, command_id: commandId }),
+    })
+    expect(ack.status).toBe(401)
+
+    const complete = await request("/v1/complete", {
+      method: "POST",
+      body: JSON.stringify({ install_id: installId, receipt, command_id: commandId }),
+    })
+    expect(complete.status).toBe(401)
+
+    const unauthenticated = await request(`/v1/admin/installations/${installId}/uninstall`, { method: "POST" })
+    expect(unauthenticated.status).toBe(401)
   })
 })

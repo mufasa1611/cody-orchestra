@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
-import { sendAdminRegistrationNotification, sendVerificationEmail } from "./email"
+import { sendAdminRegistrationNotification, sendAdminUninstallNotification, sendVerificationEmail } from "./email"
 import {
   CODE_TTL_MS,
   MAX_ATTEMPTS,
@@ -17,7 +17,12 @@ import { privacyPage } from "./privacy"
 import type { Bindings, ChallengeRow } from "./types"
 
 const app = new Hono<{ Bindings: Bindings }>()
-const emailSchema = z.string().trim().email().max(254).transform((value) => value.toLowerCase())
+const emailSchema = z
+  .string()
+  .trim()
+  .email()
+  .max(254)
+  .transform((value) => value.toLowerCase())
 const challengeSchema = z.object({
   install_id: z.string().uuid(),
   display_name: z.string().trim().min(2).max(100),
@@ -31,6 +36,11 @@ const receiptSchema = z.object({
   receipt: z.string().min(1).max(2048),
   installer_version: z.string().trim().min(1).max(64).optional(),
   platform: z.literal("windows").optional(),
+})
+const commandActionSchema = z.object({
+  install_id: z.string().uuid(),
+  receipt: z.string().min(1).max(2048),
+  command_id: z.string().uuid(),
 })
 
 class ApiError extends Error {
@@ -83,8 +93,7 @@ async function applyIpRateLimit(env: Bindings, request: Request) {
   )
     .bind(crypto.randomUUID(), hash, now, hash, now - 60_000)
     .run()
-  if (result.meta.changes === 0)
-    throw new ApiError(429, "rate_limited", "Too many requests. Try again shortly.", 60)
+  if (result.meta.changes === 0) throw new ApiError(429, "rate_limited", "Too many requests. Try again shortly.", 60)
 }
 
 async function emailHash(env: Bindings, email: string) {
@@ -108,10 +117,7 @@ async function reserveEmailSend(db: D1Database, hash: string, now: number) {
   return id
 }
 
-async function deliverCode(
-  env: Bindings,
-  input: { email: string; displayName: string; code: string },
-) {
+async function deliverCode(env: Bindings, input: { email: string; displayName: string; code: string }) {
   if (env.INSTALLER_ENVIRONMENT === "test" && env.INSTALLER_TEST_CODE) return
   const value = secrets(env)
   await sendVerificationEmail({
@@ -149,6 +155,31 @@ function notifyAdmin(
   })
 }
 
+async function notifyAdminUninstallComplete(env: Bindings, installId: string, commandId: string) {
+  const adminEmail = env.INSTALLER_ADMIN_EMAIL
+  if (!adminEmail) return
+  const db = env.InstallerVerificationDatabase
+  const registration = await db
+    .prepare("SELECT email, display_name FROM registration WHERE install_id = ?")
+    .bind(installId)
+    .first<{ email: string; display_name: string }>()
+  if (!registration) return
+  const value = secrets(env)
+  return sendAdminUninstallNotification({
+    apiBase: env.INSTALLER_MAILGUN_API_BASE,
+    domain: env.INSTALLER_MAILGUN_DOMAIN,
+    sendingKey: value.mailgunSendingKey,
+    sender: env.INSTALLER_SENDER,
+    adminEmail,
+    userEmail: registration.email,
+    displayName: registration.display_name,
+    installId,
+    commandId,
+  }).catch(() => {
+    console.warn(JSON.stringify({ status: 502, error: "uninstall_admin_notification_failed" }))
+  })
+}
+
 async function challenge(db: D1Database, id: string) {
   const row = await db.prepare("SELECT * FROM challenge WHERE id = ?").bind(id).first<ChallengeRow>()
   if (!row) throw new ApiError(404, "challenge_not_found", "Verification request was not found.")
@@ -163,11 +194,16 @@ async function requireAdmin(env: Bindings, request: Request) {
     throw new ApiError(401, "unauthorized", "A valid administrator token is required.")
 }
 
+async function verifyReceiptPayload(env: Bindings, installId: string, receipt: string) {
+  const payload = await verifyReceipt(secrets(env).receipt, receipt)
+  if (!payload || payload.install_id !== installId || payload.expires_at <= Date.now())
+    throw new ApiError(401, "invalid_receipt", "Receipt is invalid or expired.")
+  return payload
+}
+
 function csvCell(value: unknown) {
   const serialized =
-    typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-      ? String(value)
-      : ""
+    typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : ""
   return `"${serialized.replaceAll('"', '""')}"`
 }
 
@@ -176,9 +212,7 @@ app.use("*", async (context, next) => {
   await next()
 })
 
-app.get("/health", (context) =>
-  context.json({ healthy: true, environment: context.env.INSTALLER_ENVIRONMENT }),
-)
+app.get("/health", (context) => context.json({ healthy: true, environment: context.env.INSTALLER_ENVIRONMENT }))
 
 app.get("/privacy", (context) =>
   context.html(privacyPage(context.env.INSTALLER_PRIVACY_EMAIL), 200, {
@@ -253,15 +287,8 @@ app.post("/v1/challenges/:id/resend", async (context) => {
   const sendEventId = await reserveEmailSend(db, row.email_hash, now)
   const code = context.env.INSTALLER_TEST_CODE ?? generateCode()
   await db
-    .prepare(
-      "UPDATE challenge SET code_hash = ?, attempts = 0, last_sent_at = ?, expires_at = ? WHERE id = ?",
-    )
-    .bind(
-      await keyedHash(secrets(context.env).otp, `${row.id}:${code}`),
-      now,
-      now + CODE_TTL_MS,
-      row.id,
-    )
+    .prepare("UPDATE challenge SET code_hash = ?, attempts = 0, last_sent_at = ?, expires_at = ? WHERE id = ?")
+    .bind(await keyedHash(secrets(context.env).otp, `${row.id}:${code}`), now, now + CODE_TTL_MS, row.id)
     .run()
   try {
     await deliverCode(context.env, {
@@ -272,13 +299,9 @@ app.post("/v1/challenges/:id/resend", async (context) => {
   } catch {
     await db.batch([
       db
-        .prepare(
-          "UPDATE challenge SET code_hash = ?, attempts = ?, last_sent_at = ?, expires_at = ? WHERE id = ?",
-        )
+        .prepare("UPDATE challenge SET code_hash = ?, attempts = ?, last_sent_at = ?, expires_at = ? WHERE id = ?")
         .bind(row.code_hash, row.attempts, row.last_sent_at, row.expires_at, row.id),
-      db
-        .prepare("DELETE FROM send_event WHERE id = ?")
-        .bind(sendEventId),
+      db.prepare("DELETE FROM send_event WHERE id = ?").bind(sendEventId),
     ])
     throw new ApiError(502, "email_delivery_failed", "The verification email could not be sent.")
   }
@@ -400,8 +423,7 @@ app.post("/v1/receipts/validate", async (context) => {
 app.get("/v1/admin/installations", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   const format = context.req.query("format") ?? "json"
-  if (format !== "json" && format !== "csv")
-    throw new ApiError(400, "invalid_format", "Format must be json or csv.")
+  if (format !== "json" && format !== "csv") throw new ApiError(400, "invalid_format", "Format must be json or csv.")
   const result = await context.env.InstallerVerificationDatabase.prepare(
     `SELECT install_id, display_name, email, email_verified_at, installer_version, platform,
       created_at, updated_at, retain_until
@@ -421,9 +443,7 @@ app.get("/v1/admin/installations", async (context) => {
   ]
   const csv = [
     columns.join(","),
-    ...result.results.map((row) =>
-      columns.map((column) => csvCell(row[column])).join(","),
-    ),
+    ...result.results.map((row) => columns.map((column) => csvCell(row[column])).join(",")),
   ].join("\n")
   return context.body(csv, 200, {
     "Content-Type": "text/csv; charset=utf-8",
@@ -453,6 +473,89 @@ app.delete("/v1/admin/installations/:installID", async (context) => {
     db.prepare("DELETE FROM challenge WHERE install_id = ?").bind(installId),
   ])
   return context.body(null, 204)
+})
+
+app.post("/v1/admin/installations/:installID/uninstall", async (context) => {
+  await requireAdmin(context.env, context.req.raw)
+  const db = context.env.InstallerVerificationDatabase
+  const installId = parse(z.string().uuid(), context.req.param("installID"))
+  const now = Date.now()
+  const registration = await db
+    .prepare("SELECT install_id FROM registration WHERE install_id = ?")
+    .bind(installId)
+    .first()
+  if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
+  const commandId = crypto.randomUUID()
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO remote_command (id, install_id, type, status, created_at, retain_until)
+         VALUES (?, ?, 'uninstall', 'pending', ?, ?)`,
+      )
+      .bind(commandId, installId, now, now + 30 * 24 * 60 * 60 * 1000),
+    ...(
+      await db
+        .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
+        .bind(installId)
+        .all<{ id: string; expires_at: number }>()
+    ).results.map((receipt) =>
+      db
+        .prepare(
+          "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
+        )
+        .bind(receipt.id, installId, now, receipt.expires_at),
+    ),
+    db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
+  ])
+  return context.json({ command_id: commandId }, 201)
+})
+
+app.get("/v1/commands", async (context) => {
+  const installId = context.req.query("install_id")
+  const receipt = context.req.query("receipt")
+  const input = parse(commandActionSchema.omit({ command_id: true }), { install_id: installId, receipt })
+  const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
+  const db = context.env.InstallerVerificationDatabase
+  const now = Date.now()
+  const rows = await db
+    .prepare(
+      `SELECT id, type, created_at
+       FROM remote_command
+       WHERE install_id = ? AND status = 'pending' AND retain_until > ?
+       ORDER BY created_at ASC`,
+    )
+    .bind(payload.install_id, now)
+    .all<{ id: string; type: string; created_at: number }>()
+  return context.json({ commands: rows.results })
+})
+
+app.post("/v1/acknowledge", async (context) => {
+  const input = parse(commandActionSchema, await jsonBody(context.req.raw))
+  const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
+  const db = context.env.InstallerVerificationDatabase
+  const now = Date.now()
+  await db
+    .prepare(
+      "UPDATE remote_command SET status = 'acknowledged', acknowledged_at = ? WHERE id = ? AND install_id = ? AND status = 'pending'",
+    )
+    .bind(now, input.command_id, payload.install_id)
+    .run()
+  return context.json({ status: "acknowledged" })
+})
+
+app.post("/v1/complete", async (context) => {
+  const input = parse(commandActionSchema, await jsonBody(context.req.raw))
+  const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
+  const db = context.env.InstallerVerificationDatabase
+  const now = Date.now()
+  await db
+    .prepare(
+      "UPDATE remote_command SET status = 'completed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
+    )
+    .bind(now, now + 2 * 60 * 1000, input.command_id, payload.install_id)
+    .run()
+  context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
+  return context.json({ status: "completed" })
 })
 
 app.post("/internal/cleanup", async (context) => {

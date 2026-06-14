@@ -92,7 +92,7 @@ export const UninstallCommand = {
   },
 }
 
-async function collectRemovalTargets(args: UninstallArgs, method: Installation.Method): Promise<RemovalTargets> {
+export async function collectRemovalTargets(args: UninstallArgs, method: Installation.Method): Promise<RemovalTargets> {
   const directories: RemovalTargets["directories"] = [
     { path: Global.Path.data, label: "Data", keep: args.keepData },
     { path: Global.Path.cache, label: "Cache", keep: false },
@@ -120,7 +120,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
   prompts.log.message(`${prefix}The following will be removed:`)
 
   for (const dir of targets.directories) {
-    const exists = await fs.access(dir.path).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(dir.path)
+      .then(() => true)
+      .catch(() => false)
     if (!exists) continue
 
     const size = await getDirectorySize(dir.path)
@@ -164,7 +167,7 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
   }
 }
 
-async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
+export async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
   const spinner = prompts.spinner()
   const errors: string[] = []
   const removed: string[] = []
@@ -174,7 +177,10 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
       continue
     }
-    const exists = await fs.access(dir.path).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(dir.path)
+      .then(() => true)
+      .catch(() => false)
     if (!exists) continue
 
     spinner.start(`Removing ${dir.label}...`)
@@ -307,9 +313,7 @@ async function generateRemovalLog(log: { removed: string[]; errors: string[] }) 
     `## Removed`,
     ...log.removed.map((r) => `  - ${r}`),
     ``,
-    log.errors.length > 0
-      ? `## Errors\n${log.errors.map((e) => `  - ${e}`).join("\n")}`
-      : "## Errors\n  (none)",
+    log.errors.length > 0 ? `## Errors\n${log.errors.map((e) => `  - ${e}`).join("\n")}` : "## Errors\n  (none)",
   ]
   await fs.writeFile(logPath, lines.join("\n"), "utf-8").catch(() => {})
   prompts.log.info(`Removal log: ${logPath}`)
@@ -334,18 +338,31 @@ async function askRemoveOptionalDeps() {
   if (removeCloudflared) {
     prompts.log.step("To remove cloudflared:")
     prompts.log.step("  winget uninstall Cloudflare.cloudflared")
-    prompts.log.step("  Or manual: https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/")
+    prompts.log.step(
+      "  Or manual: https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/",
+    )
   }
 }
 
 async function findStartMenuShortcut(): Promise<string | null> {
   if (os.platform() !== "win32") return null
   const paths = [
-    path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs", "codyx", "Uninstall codyx.lnk"),
+    path.join(
+      process.env.APPDATA || "",
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "codyx",
+      "Uninstall codyx.lnk",
+    ),
     path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs", "codyx"),
   ]
   for (const p of paths) {
-    const exists = await fs.access(p).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(p)
+      .then(() => true)
+      .catch(() => false)
     if (exists) return p
   }
   return null
@@ -360,19 +377,15 @@ async function findGlobalShims(): Promise<string[]> {
           path.join(process.env.APPDATA || "", "npm", "codyx.ps1"),
         ]
       : [
-          ...(process.env.CODY_GLOBAL_BIN_DIR
-            ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")]
-            : []),
+          ...(process.env.CODY_GLOBAL_BIN_DIR ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")] : []),
           path.join(os.homedir(), ".local", "bin", "codyx"),
-          path.join(
-            process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
-            "codyx",
-            "bin",
-            "codyx",
-          ),
+          path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "codyx", "bin", "codyx"),
         ]
   for (const c of candidates) {
-    const exists = await fs.access(c).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(c)
+      .then(() => true)
+      .catch(() => false)
     if (exists) shims.push(c)
   }
   return shims
@@ -383,7 +396,10 @@ async function findEnvProxy(): Promise<string | null> {
     const root = process.env.CODY_INSTALL_ROOT || ""
     if (!root) return null
     const envProxy = path.join(root, ".env.proxy")
-    const exists = await fs.access(envProxy).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(envProxy)
+      .then(() => true)
+      .catch(() => false)
     return exists ? envProxy : null
   } catch {
     return null
@@ -417,7 +433,10 @@ async function getShellConfigFile(): Promise<string | null> {
   const candidates = configFiles[shell] || configFiles.bash
 
   for (const file of candidates) {
-    const exists = await fs.access(file).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(file)
+      .then(() => true)
+      .catch(() => false)
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
@@ -468,8 +487,7 @@ async function cleanShellConfig(file: string) {
     }
 
     if (
-      (trimmed.startsWith("export PATH=") &&
-        (trimmed.includes(".cody/bin") || trimmed.includes("/codyx/bin"))) ||
+      (trimmed.startsWith("export PATH=") && (trimmed.includes(".cody/bin") || trimmed.includes("/codyx/bin"))) ||
       (trimmed.startsWith("fish_add_path") && trimmed.includes("codyx/bin"))
     ) {
       continue
