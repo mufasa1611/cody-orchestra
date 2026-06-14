@@ -53,7 +53,7 @@ Assert-Contains "script/install.ps1" 'git fetch origin \$Branch --unshallow --qu
 Assert-Contains "script/install-npm.ps1" 'https://nodejs\.org/dist/index\.json' "Npm bootstrap discovers the current Node LTS release"
 Assert-Contains "script/install-npm.ps1" 'SHASUMS256\.txt' "Npm bootstrap verifies the Node archive checksum"
 Assert-Contains "script/install-npm.ps1" 'Programs\\codyx-node' "Npm bootstrap installs Node without administrator rights"
-Assert-Contains "script/install-npm.ps1" '\$Script:NpmCommand install --global "codyx-ai@\$Version" --no-audit --no-fund' "Npm bootstrap installs the requested codyx-ai version"
+Assert-Contains "script/install-npm.ps1" '\$Script:NpmCommand install --global "codyx-ai@\$Version" --no-audit --no-fund --force' "Npm bootstrap installs the requested codyx-ai version"
 Assert-Contains "script/install-npm.ps1" 'Loading installer email verification[\s\S]*Installing codyx-ai@' "Npm bootstrap verifies email before installing codyx"
 Assert-NotContains "script/install-npm.ps1" 'git clone|bun install' "Npm bootstrap does not clone or build the source repository"
 Assert-NotContains "script/install-npm.ps1" '[^\x00-\x7F]' "Npm bootstrap is ASCII-safe for Windows PowerShell"

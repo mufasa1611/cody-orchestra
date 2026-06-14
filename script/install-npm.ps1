@@ -180,7 +180,7 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 Invoke-WithRetry {
-  & $Script:NpmCommand install --global "codyx-ai@$Version" --no-audit --no-fund
+  & $Script:NpmCommand install --global "codyx-ai@$Version" --no-audit --no-fund --force
   if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
 } "codyx npm installation"
 
@@ -221,6 +221,6 @@ Write-Host "  =======================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Version: $installedVersion"
 Write-Host "  Command: codyx"
-Write-Host "  Update:  npm install -g codyx-ai@latest"
+Write-Host "  Update:  npm install -g codyx-ai@latest --force"
 Write-Host ""
 Write-Host "Open a new terminal if codyx is not immediately available."

@@ -296,7 +296,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
               upgradeResult = yield* upgradeCurl(target)
               break
             case "npm":
-              upgradeResult = yield* run(["npm", "install", "-g", `codyx-ai@${target}`])
+              upgradeResult = yield* run(["npm", "install", "-g", "--force", `codyx-ai@${target}`])
               break
             case "pnpm":
               upgradeResult = yield* run(["pnpm", "install", "-g", `codyx-ai@${target}`])
