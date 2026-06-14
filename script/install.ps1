@@ -53,7 +53,8 @@ $IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "co
 $CreatedRepo = $false
 
 if ($IsStandalone) {
-  $npmInstallerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/install-npm.ps1"
+  $npmInstallerRef = if ($Branch -eq "main") { "25334282c686d23b94d7fc8c0a0068e2509509ae" } else { $Branch }
+  $npmInstallerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$npmInstallerRef/script/install-npm.ps1"
   try {
     $npmInstaller = Invoke-RestMethod -Uri $npmInstallerUrl -TimeoutSec 30
     & ([scriptblock]::Create($npmInstaller)) -Yes:$Yes -Branch $Branch -Verbose:$Verbose
