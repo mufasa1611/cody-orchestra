@@ -1,4 +1,4 @@
-export interface Bindings {
+﻿export interface Bindings {
   InstallerVerificationDatabase: D1Database
   INSTALLER_RECEIPT_SECRET: string
   INSTALLER_OTP_PEPPER: string
@@ -34,4 +34,15 @@ export interface ReceiptPayload {
   receipt_id: string
   issued_at: number
   expires_at: number
+}
+
+export interface RemoteCommandRow {
+  id: string
+  install_id: string
+  type: string
+  status: string
+  created_at: number
+  acknowledged_at: number | null
+  completed_at: number | null
+  retain_until: number
 }
