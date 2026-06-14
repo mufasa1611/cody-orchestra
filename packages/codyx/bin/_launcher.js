@@ -9,6 +9,10 @@ const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"]
 function run(target) {
   const child = childProcess.spawn(target, process.argv.slice(2), {
     stdio: "inherit",
+    env: {
+      ...process.env,
+      CODY_INSTALL_METHOD: process.env.CODY_INSTALL_METHOD || "npm",
+    },
   })
 
   child.on("error", (error) => {
@@ -62,14 +66,18 @@ module.exports = function (name) {
         }
       }
       const parent = path.dirname(current)
-      if (parent === current) return
+      if (parent === current) return null
       current = parent
     }
   }
 
   const resolved = envPath || (fs.existsSync(cached) ? cached : findBinary(scriptDir))
   if (!resolved) {
-    console.error(`It seems that your package manager failed to install the right version of the ${name} CLI for your platform. You can try manually installing ` + names.map((n) => `\"${n}\"`).join(" or ") + " package")
+    console.error(
+      `It seems that your package manager failed to install the right version of the ${name} CLI for your platform. You can try manually installing ` +
+        names.map((n) => `"${n}"`).join(" or ") +
+        " package",
+    )
     process.exit(1)
   }
   run(resolved)
