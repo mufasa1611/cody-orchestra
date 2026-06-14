@@ -50,8 +50,10 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   // CLI/TUI bypass — allow all requests from the local CLI identified by the x-cody-directory header.
   if (c.req.header("x-cody-cli-local")) return next()
 
-  // Public auth endpoints — no auth required
-  if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register")) return next()
+  // Public auth endpoints — the web client needs status before it has a token.
+  if (c.req.method === "GET" && c.req.path === "/api/auth/status") return next()
+  if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register"))
+    return next()
 
   const accountAuthRequired = (() => {
     try {
@@ -61,7 +63,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   })()
 
-  // Skip auth only when neither legacy server auth nor WebUI account auth is configured.     
+  // Skip auth only when neither legacy server auth nor WebUI account auth is configured.
   const password = Flag.CODY_SERVER_PASSWORD
   const jwtSecret = Flag.CODY_JWT_SECRET
   if (!password && !jwtSecret && !accountAuthRequired) {
@@ -72,7 +74,7 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   // Public UI assets
   if (isPublicUIPath(c.req.method, c.req.path)) return next()
   if (c.req.method === "POST" && c.req.path === "/global/git-check") return next()
-  if (isPtyConnectPath(c.req.path) && c.req.query(PTY_CONNECT_TICKET_QUERY)) return next()    
+  if (isPtyConnectPath(c.req.path) && c.req.query(PTY_CONNECT_TICKET_QUERY)) return next()
 
   // Check for JWT Bearer token as alternative to Basic Auth
   const authHeader = c.req.header("Authorization")
@@ -109,7 +111,7 @@ export function LoggerMiddleware(backendAttributes: ServerBackend.Attributes): M
     const attributes = {
       method: c.req.method,
       path: c.req.path,
-      // If this logger grows full-URL fields, redact auth_token and ticket query params.     
+      // If this logger grows full-URL fields, redact auth_token and ticket query params.
       ...backendAttributes,
     }
     log.info("request", attributes)
