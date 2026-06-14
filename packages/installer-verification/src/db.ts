@@ -1,4 +1,4 @@
-import type { Bindings } from "./types"
+﻿import type { Bindings } from "./types"
 
 const schema = `
 CREATE TABLE IF NOT EXISTS challenge (
@@ -60,6 +60,19 @@ CREATE TABLE IF NOT EXISTS send_event (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS send_event_email_created_idx ON send_event (email_hash, created_at);
+CREATE TABLE IF NOT EXISTS remote_command (
+  id TEXT PRIMARY KEY,
+  install_id TEXT NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('uninstall')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','acknowledged','completed','failed')),
+  created_at INTEGER NOT NULL,
+  acknowledged_at INTEGER,
+  completed_at INTEGER,
+  retain_until INTEGER NOT NULL,
+  FOREIGN KEY (install_id) REFERENCES registration (install_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS remote_command_install_status_idx ON remote_command (install_id, status);
+CREATE INDEX IF NOT EXISTS remote_command_retain_until_idx ON remote_command (retain_until);
 `
 
 export async function ensureSchema(db: D1Database) {
@@ -78,17 +91,14 @@ export async function cleanup(db: D1Database, now = Date.now()) {
   const verifiedChallengeCutoff = now - 24 * 60 * 60 * 1000
   const sendCutoff = now - 2 * 60 * 60 * 1000
   return db.batch([
-    db
-      .prepare("DELETE FROM challenge WHERE verified_at IS NULL AND created_at < ?")
-      .bind(unverifiedChallengeCutoff),
-    db
-      .prepare("DELETE FROM challenge WHERE verified_at IS NOT NULL AND verified_at < ?")
-      .bind(verifiedChallengeCutoff),
+    db.prepare("DELETE FROM challenge WHERE verified_at IS NULL AND created_at < ?").bind(unverifiedChallengeCutoff),
+    db.prepare("DELETE FROM challenge WHERE verified_at IS NOT NULL AND verified_at < ?").bind(verifiedChallengeCutoff),
     db.prepare("DELETE FROM send_event WHERE created_at < ?").bind(sendCutoff),
     db.prepare("DELETE FROM receipt WHERE expires_at < ?").bind(now),
     db.prepare("DELETE FROM registration WHERE retain_until < ?").bind(now),
     db.prepare("DELETE FROM revocation WHERE retain_until < ?").bind(now),
     db.prepare("DELETE FROM request_event WHERE created_at < ?").bind(sendCutoff),
+    db.prepare("DELETE FROM remote_command WHERE retain_until < ?").bind(now),
   ])
 }
 

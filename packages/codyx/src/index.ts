@@ -29,6 +29,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
+import { checkRemoteCommands } from "./installation/command"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
@@ -89,7 +90,7 @@ if (rawArgs.includes("--print-banner-only")) {
 }
 
 // Remove meta-flags that are not yargs options
-const args = rawArgs.filter(a => a !== "--no-banner" && a !== "--print-banner-only")
+const args = rawArgs.filter((a) => a !== "--no-banner" && a !== "--print-banner-only")
 
 function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -101,7 +102,11 @@ function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): 
 }
 
 // Auto-update at startup (skip for help/version/upgrade subcommands)
-if (process.env.CODY_PRO !== "0" && !rawArgs.some(a => ["--help", "-h", "--version", "-v"].includes(a)) && rawArgs[0] !== "upgrade") {
+if (
+  process.env.CODY_PRO !== "0" &&
+  !rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) &&
+  rawArgs[0] !== "upgrade"
+) {
   tryAutoUpdateAsync().catch(() => {})
 }
 async function tryAutoUpdateAsync() {
@@ -115,7 +120,7 @@ async function tryAutoUpdateAsync() {
   await execAsync("git pull --ff-only", { cwd: repoRoot, timeout: 30000 })
   try {
     const changed = await execAsync("git diff HEAD@{1} --name-only", { cwd: repoRoot, timeout: 5000 })
-    if (changed.split("\n").some(f => /^(package\.json|bun\.lock)$/.test(f.trim()))) {
+    if (changed.split("\n").some((f) => /^(package\.json|bun\.lock)$/.test(f.trim()))) {
       await execAsync("bun install", { cwd: repoRoot, timeout: 120000 })
     }
   } catch {
@@ -258,7 +263,11 @@ const cli = yargs(args)
   })
   .strict()
 
-if (!rawArgs.some(a => ["--help", "-h", "--version", "-v"].includes(a)) && !rawArgs.includes("--no-banner")) {
+if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v", "uninstall"].includes(a)) && rawArgs[0] !== "upgrade") {
+  checkRemoteCommands().catch(() => {})
+}
+
+if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) && !rawArgs.includes("--no-banner")) {
   process.stderr.write(UI.logo() + EOL + EOL)
 }
 
@@ -319,7 +328,3 @@ try {
   // Explicitly exit to avoid any hanging subprocesses.
   process.exit()
 }
-
-
-
-
