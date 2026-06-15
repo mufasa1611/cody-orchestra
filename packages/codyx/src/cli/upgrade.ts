@@ -51,7 +51,7 @@ async function codyProUpgrade() {
 export function gitUpgrade() {
   try {
     if (process.env.CODY_INSTALL_METHOD === "npm") {
-      execSync("npm install -g codyx-ai@latest --no-audit --no-fund", {
+      execSync("npm install -g codyx-ai@latest --no-audit --no-fund --force", {
         encoding: "utf8",
         timeout: 120000,
       })
