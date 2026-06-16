@@ -78,6 +78,52 @@ function Write-Section($Number, $Label) {
   Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
 }
 
+function Ensure-UserMemo {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath
+  )
+
+  $memoPath = Join-Path $RootPath "memo.md"
+  $existing = if (Test-Path -LiteralPath $memoPath) {
+    [System.IO.File]::ReadAllText($memoPath, [System.Text.Encoding]::UTF8)
+  } else {
+    ""
+  }
+
+  if ($existing.Contains("Preferred name:")) {
+    Write-Ok "Preferred name already saved in memo.md."
+    return
+  }
+
+  Write-Step "Saving your preferred name to memo.md..."
+  while ($true) {
+    $value = (Read-Host "What should codyx call you?").Trim()
+    if ($value.Length -lt 1) {
+      Write-Warn "Enter a name."
+      continue
+    }
+    if ($value.Length -gt 100) {
+      Write-Warn "Keep it under 100 characters."
+      continue
+    }
+    $content = if ([string]::IsNullOrWhiteSpace($existing)) {
+@"
+# Private Workspace Memo
+*Note: This file is Gitignored and contains private machine-specific info.*
+
+## User
+- Preferred name: $value
+"@
+    } else {
+      ($existing.TrimEnd() + "`r`n`r`n## User`r`n- Preferred name: $value`r`n")
+    }
+    [System.IO.File]::WriteAllText($memoPath, $content, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "Saved preferred name to $memoPath"
+    return
+  }
+}
+
 function Write-VerboseMsg($Message) {
   if ($Verbose) { Write-Host "  [verbose] $Message" -ForegroundColor DarkGray }
 }
@@ -482,6 +528,7 @@ if (-not $NoScan) {
 $generatedDir = Join-Path $Root ".cody\generated"
 $null = New-Item -ItemType Directory -Force -Path $generatedDir
 & (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
+Ensure-UserMemo -RootPath $Root
 
 # Phase 7: Global command
 
