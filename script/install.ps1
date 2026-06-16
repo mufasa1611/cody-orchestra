@@ -519,6 +519,20 @@ $shortcut.WorkingDirectory = $Root
 $shortcut.Save()
 Write-Ok "Uninstall shortcut created."
 
+$markerPath = Join-Path $Root ".codyx-install-marker"
+if (Test-Path -LiteralPath $markerPath) {
+  try {
+    $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+    if (-not $marker.shortcuts) { $marker | Add-Member -NotePropertyName shortcuts -NotePropertyValue @() }
+    if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
+    if ($marker.shortcuts -notcontains $shortcutPath) { $marker.shortcuts += $shortcutPath }
+    if ($marker.installed -notcontains $shortcutPath) { $marker.installed += $shortcutPath }
+    $marker | ConvertTo-Json -Compress | Set-Content -LiteralPath $markerPath -Encoding UTF8
+  } catch {
+    Write-Warn "Could not update install marker with uninstall shortcut."
+  }
+}
+
 # Done
 
 Write-Host ""

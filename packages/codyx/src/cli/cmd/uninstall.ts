@@ -6,6 +6,7 @@ import { Global } from "@cody/core/global"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { spawn } from "child_process"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
 
@@ -20,9 +21,19 @@ interface RemovalTargets {
   directories: Array<{ path: string; label: string; keep: boolean }>
   shellConfig: string | null
   binary: string | null
-  startMenu: string | null
+  startMenu: string[]
   globalShims: string[]
   envProxy: string | null
+  installRoot: string | null
+  installMarker: string | null
+}
+
+interface InstallMarker {
+  root?: string
+  installed?: string[]
+  pathAdds?: string[]
+  shortcuts?: string[]
+  shims?: string[]
 }
 
 export const UninstallCommand = {
@@ -102,17 +113,27 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
 
   const shellConfig = method === "curl" ? await getShellConfigFile() : null
   const binary = method === "curl" ? process.execPath : null
+  const marker = await readInstallMarker()
 
-  // Find Start Menu shortcut
-  const startMenu = await findStartMenuShortcut()
+  // Find Start Menu shortcuts
+  const startMenu = await findStartMenuShortcut(marker)
 
   // Find global command shims
-  const globalShims = await findGlobalShims()
+  const globalShims = await findGlobalShims(marker)
 
   // Find .env.proxy
-  const envProxy = await findEnvProxy()
+  const envProxy = await findEnvProxy(marker)
 
-  return { directories, shellConfig, binary, startMenu, globalShims, envProxy }
+  return {
+    directories,
+    shellConfig,
+    binary,
+    startMenu,
+    globalShims,
+    envProxy,
+    installRoot: marker?.root ?? process.env.CODY_INSTALL_ROOT ?? null,
+    installMarker: marker?.root ? path.join(marker.root, ".codyx-install-marker") : null,
+  }
 }
 
 async function showRemovalSummary(targets: RemovalTargets, method: Installation.Method, dryRun: boolean) {
@@ -133,8 +154,8 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
     prompts.log.info(`  ${mark} ${dir.label}: ${shortenPath(dir.path)} ${UI.Style.TEXT_DIM}(${sizeStr})${status}`)
   }
 
-  if (targets.startMenu) {
-    prompts.log.info(`  ✓ Start Menu: ${shortenPath(targets.startMenu)}`)
+  for (const startMenu of targets.startMenu) {
+    prompts.log.info(`  ✓ Start Menu: ${shortenPath(startMenu)}`)
   }
 
   for (const shim of targets.globalShims) {
@@ -143,6 +164,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (targets.envProxy) {
     prompts.log.info(`  ✓ .env.proxy: ${shortenPath(targets.envProxy)}`)
+  }
+
+  if (targets.installRoot) {
+    prompts.log.info(`  ✓ Install root: ${shortenPath(targets.installRoot)}`)
   }
 
   if (targets.binary) {
@@ -195,16 +220,35 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   }
 
   // Remove Start Menu shortcut
-  if (targets.startMenu) {
-    spinner.start("Removing Start Menu shortcuts...")
-    const parent = path.dirname(targets.startMenu)
-    const err = await fs.rm(parent, { recursive: true, force: true }).catch((e) => e)
+  for (const startMenu of targets.startMenu) {
+    spinner.start(`Removing Start Menu shortcuts: ${path.basename(startMenu)}...`)
+    const err = await fs.rm(startMenu, { recursive: true, force: true }).catch((e) => e)
     if (err) {
       spinner.stop("Failed to remove Start Menu shortcuts", 1)
       errors.push(`Start Menu: ${err.message}`)
     } else {
-      removed.push(parent)
+      removed.push(startMenu)
       spinner.stop("Removed Start Menu shortcuts")
+    }
+  }
+
+  const startMenuDirs = new Set(
+    targets.startMenu
+      .map((entry) => path.dirname(entry))
+      .filter((entry) => entry && entry !== "." && entry !== path.sep),
+  )
+  for (const dir of startMenuDirs) {
+    const remaining = await fs.readdir(dir).catch(() => null)
+    if (remaining && remaining.length === 0) {
+      spinner.start(`Removing Start Menu folder: ${path.basename(dir)}...`)
+      const err = await fs.rm(dir, { recursive: true, force: true }).catch((e) => e)
+      if (err) {
+        spinner.stop("Failed to remove Start Menu folder", 1)
+        errors.push(`Start Menu folder ${dir}: ${err.message}`)
+      } else {
+        removed.push(dir)
+        spinner.stop("Removed Start Menu folder")
+      }
     }
   }
 
@@ -231,6 +275,24 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     } else {
       removed.push(targets.envProxy)
       spinner.stop("Removed .env.proxy")
+    }
+  }
+
+  if (targets.installMarker) {
+    const exists = await fs
+      .access(targets.installMarker)
+      .then(() => true)
+      .catch(() => false)
+    if (exists) {
+      spinner.start("Removing install marker...")
+      const err = await fs.rm(targets.installMarker, { force: true }).catch((e) => e)
+      if (err) {
+        spinner.stop("Failed to remove install marker", 1)
+        errors.push(`Install marker: ${err.message}`)
+      } else {
+        removed.push(targets.installMarker)
+        spinner.stop("Removed install marker")
+      }
     }
   }
 
@@ -284,6 +346,25 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     const binDir = path.dirname(targets.binary)
     if (binDir.includes(".cody")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
+    }
+  }
+
+  if (targets.installRoot) {
+    const exists = await fs
+      .access(targets.installRoot)
+      .then(() => true)
+      .catch(() => false)
+    if (exists) {
+      const root = targets.installRoot
+      spinner.start("Scheduling install root removal...")
+      const err = await scheduleInstallRootRemoval(root).catch((e) => e)
+      if (err) {
+        spinner.stop("Failed to schedule install root removal", 1)
+        errors.push(`Install root: ${err.message}`)
+      } else {
+        removed.push(`scheduled root removal: ${root}`)
+        spinner.stop("Scheduled install root removal")
+      }
     }
   }
 
@@ -344,56 +425,78 @@ async function askRemoveOptionalDeps() {
   }
 }
 
-async function findStartMenuShortcut(): Promise<string | null> {
-  if (os.platform() !== "win32") return null
-  const paths = [
-    path.join(
-      process.env.APPDATA || "",
-      "Microsoft",
-      "Windows",
-      "Start Menu",
-      "Programs",
-      "codyx",
-      "Uninstall codyx.lnk",
-    ),
-    path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs", "codyx"),
-  ]
-  for (const p of paths) {
+async function readInstallMarker(): Promise<InstallMarker | null> {
+  const root = process.env.CODY_INSTALL_ROOT || ""
+  if (!root) return null
+  const markerPath = path.join(root, ".codyx-install-marker")
+  const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
+  if (!content) return null
+  try {
+    return JSON.parse(content) as InstallMarker
+  } catch {
+    return null
+  }
+}
+
+async function findStartMenuShortcut(marker: InstallMarker | null): Promise<string[]> {
+  const entries = new Set<string>()
+  const addIfExists = async (p: string) => {
     const exists = await fs
       .access(p)
       .then(() => true)
       .catch(() => false)
-    if (exists) return p
+    if (exists) entries.add(p)
   }
-  return null
+
+  if (os.platform() !== "win32") return []
+
+  for (const item of marker?.shortcuts ?? []) {
+    await addIfExists(item)
+  }
+
+  const legacyDir = path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs", "codyx")
+  const legacyUninstall = path.join(legacyDir, "Uninstall codyx.lnk")
+  await addIfExists(legacyUninstall)
+  if (entries.size === 0) {
+    await addIfExists(legacyDir)
+  }
+
+  return Array.from(entries)
 }
 
-async function findGlobalShims(): Promise<string[]> {
-  const shims: string[] = []
+async function findGlobalShims(marker: InstallMarker | null): Promise<string[]> {
+  const shims = new Set<string>()
   const candidates =
     os.platform() === "win32"
       ? [
           path.join(process.env.APPDATA || "", "npm", "codyx.cmd"),
           path.join(process.env.APPDATA || "", "npm", "codyx.ps1"),
+          path.join(process.env.APPDATA || "", "npm", "cody.cmd"),
+          path.join(process.env.APPDATA || "", "npm", "cody.ps1"),
         ]
       : [
           ...(process.env.CODY_GLOBAL_BIN_DIR ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")] : []),
           path.join(os.homedir(), ".local", "bin", "codyx"),
           path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "codyx", "bin", "codyx"),
         ]
+
+  for (const item of marker?.shims ?? []) {
+    candidates.push(item)
+  }
+
   for (const c of candidates) {
     const exists = await fs
       .access(c)
       .then(() => true)
       .catch(() => false)
-    if (exists) shims.push(c)
+    if (exists) shims.add(c)
   }
-  return shims
+  return Array.from(shims)
 }
 
-async function findEnvProxy(): Promise<string | null> {
+async function findEnvProxy(marker: InstallMarker | null): Promise<string | null> {
   try {
-    const root = process.env.CODY_INSTALL_ROOT || ""
+    const root = marker?.root || process.env.CODY_INSTALL_ROOT || ""
     if (!root) return null
     const envProxy = path.join(root, ".env.proxy")
     const exists = await fs
@@ -404,6 +507,30 @@ async function findEnvProxy(): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+async function scheduleInstallRootRemoval(root: string) {
+  if (os.platform() === "win32") {
+    const script = [
+      `Start-Sleep -Seconds 2`,
+      `if (Test-Path -LiteralPath '${root.replace(/'/g, "''")}') {`,
+      `  Remove-Item -LiteralPath '${root.replace(/'/g, "''")}' -Recurse -Force -ErrorAction SilentlyContinue`,
+      `}`,
+    ].join("; ")
+    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    child.unref()
+    return
+  }
+
+  const child = spawn("sh", ["-c", `sleep 2; rm -rf '${root.replace(/'/g, `'\\''`)}'`], {
+    detached: true,
+    stdio: "ignore",
+  })
+  child.unref()
 }
 
 async function getShellConfigFile(): Promise<string | null> {
