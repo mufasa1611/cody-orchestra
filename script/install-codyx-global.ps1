@@ -67,36 +67,44 @@ $marker = @{
   shims      = @()
 }
 
-# 1. codyx.cmd shim
-Write-Section 1 "Batch shim"
-
-$cmdShim = "$npmDir\codyx.cmd"
-$cmdContent = @"
+function Write-BatchShim($Name) {
+  $shimPath = Join-Path $npmDir "$Name.cmd"
+  $content = @"
 @echo off
 setlocal
 set "CODY_INSTALL_ROOT=$Root"
 call "$repoLauncher" %*
 exit /b %errorlevel%
 "@
-[System.IO.File]::WriteAllText($cmdShim, $cmdContent, [System.Text.UTF8Encoding]::new($false))
-Write-Ok "Created shim: $cmdShim"
-$marker.shims += $cmdShim
-$marker.installed += $cmdShim
+  [System.IO.File]::WriteAllText($shimPath, $content, [System.Text.UTF8Encoding]::new($false))
+  Write-Ok "Created shim: $shimPath"
+  $marker.shims += $shimPath
+  $marker.installed += $shimPath
+}
 
-# 2. codyx.ps1 shim
-Write-Section 2 "PowerShell shim"
-
-$psShim = "$npmDir\codyx.ps1"
-$psContent = @"
+function Write-PowerShellShim($Name) {
+  $shimPath = Join-Path $npmDir "$Name.ps1"
+  $content = @"
 #!/usr/bin/env pwsh
 `$env:CODY_INSTALL_ROOT = "$Root"
 & "$repoLauncher" @args
 exit `$LASTEXITCODE
 "@
-[System.IO.File]::WriteAllText($psShim, $psContent, [System.Text.UTF8Encoding]::new($false))
-Write-Ok "Created shim: $psShim"
-$marker.shims += $psShim
-$marker.installed += $psShim
+  [System.IO.File]::WriteAllText($shimPath, $content, [System.Text.UTF8Encoding]::new($false))
+  Write-Ok "Created shim: $shimPath"
+  $marker.shims += $shimPath
+  $marker.installed += $shimPath
+}
+
+# 1. Batch shims
+Write-Section 1 "Batch shims"
+Write-BatchShim "codyx"
+Write-BatchShim "cody"
+
+# 2. PowerShell shims
+Write-Section 2 "PowerShell shims"
+Write-PowerShellShim "codyx"
+Write-PowerShellShim "cody"
 
 # 3. User PATH
 Write-Section 3 "User PATH"

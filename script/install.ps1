@@ -199,6 +199,60 @@ function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
   }
 }
 
+function Sync-InstallCheckout($TargetBranch) {
+  Write-VerboseMsg "Fetching origin/$TargetBranch..."
+  & git fetch origin $TargetBranch --quiet
+  if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+
+  $currentBranch = (& git branch --show-current 2>$null).Trim()
+  if (-not $currentBranch) {
+    Write-Step "Reattaching checkout to branch $TargetBranch..."
+    & git switch -C $TargetBranch --track origin/$TargetBranch
+    if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
+  } elseif ($currentBranch -ne $TargetBranch) {
+    Write-Step "Switching to branch $TargetBranch..."
+    & git switch $TargetBranch
+    if ($LASTEXITCODE -ne 0) {
+      & git switch -C $TargetBranch --track origin/$TargetBranch
+      if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
+    }
+  }
+
+  $counts = (& git rev-list --left-right --count HEAD...origin/$TargetBranch 2>$null).Trim()
+  $ahead = 0
+  $behind = 0
+  if ($counts) {
+    $parts = $counts -split "\s+"
+    if ($parts.Length -ge 2) {
+      [void][int]::TryParse($parts[0], [ref]$ahead)
+      [void][int]::TryParse($parts[1], [ref]$behind)
+    }
+  }
+
+  $trackedChanges = @(& git status --porcelain --untracked-files=no 2>$null | Where-Object { $_ -and $_.Trim() })
+  $needsRepair = $ahead -gt 0 -or $trackedChanges.Count -gt 0
+
+  if ($needsRepair) {
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupBranch = "installer-backup-$timestamp"
+    $patchPath = Join-Path $env:TEMP "codyx-install-backup-$timestamp.patch"
+    Write-Warn "Existing install checkout has local tracked changes or divergent commits."
+    Write-Warn "Creating backup branch $backupBranch and patch $patchPath before repair."
+    & git branch $backupBranch | Out-Null
+    if ($trackedChanges.Count -gt 0) {
+      & git diff --binary > $patchPath
+    }
+  }
+
+  if ($behind -gt 0 -or $needsRepair) {
+    Write-Step "Syncing install checkout to origin/$TargetBranch..."
+    & git reset --hard origin/$TargetBranch
+    if ($LASTEXITCODE -ne 0) { throw "git reset failed" }
+  } else {
+    Write-Ok "Repository already up to date."
+  }
+}
+
 # Banner
 
 Write-Host ""
@@ -318,21 +372,9 @@ if ($IsStandalone) {
   # Update if .git exists
   if (Test-Path (Join-Path $Root ".git")) {
     Push-Location $Root
-    $currentBranch = git branch --show-current 2>$null
-    if ($currentBranch -and $currentBranch -ne $Branch) {
-      Write-Step "Switching to branch $Branch..."
-      Invoke-WithRetry {
-        & git fetch origin $Branch --quiet
-        if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-        & git switch $Branch
-        if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
-      } "git fetch/switch"
-    }
-    Write-VerboseMsg "Pulling latest changes..."
     Invoke-WithRetry {
-      & git pull --ff-only
-      if ($LASTEXITCODE -ne 0) { throw "git pull failed" }
-    } "git pull"
+      Sync-InstallCheckout $Branch
+    } "git sync"
     Pop-Location
     Write-Ok "Repository up to date."
   }
