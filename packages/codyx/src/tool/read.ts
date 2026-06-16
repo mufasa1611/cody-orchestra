@@ -11,6 +11,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { Instruction } from "../session/instruction"
 import { isPdfAttachment, sniffAttachmentMime } from "@/util/media"
+import mammoth from "mammoth"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -237,6 +238,45 @@ export const ReadTool = Tool.define(
               url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
             },
           ],
+        }
+      }
+
+      const docxExt = path.extname(filepath).toLowerCase()
+      if (docxExt === ".docx") {
+        const bytes = yield* fs.readFile(filepath)
+        const result = yield* Effect.promise(async () => {
+          try {
+            return await mammoth.extractRawText({ buffer: Buffer.from(bytes) })
+          } catch (e) {
+            throw new Error(`Could not read Word document: ${(e as Error).message}`)
+          }
+        })
+
+        const allLines = result.value.split("\n")
+        const start = (params.offset || 1) - 1
+        const limit = params.limit ?? DEFAULT_READ_LIMIT
+        const sliced = allLines.slice(start, start + limit)
+        const more = start + sliced.length < allLines.length
+        const last = (params.offset || 1) + sliced.length - 1
+
+        let output = [`<path>${filepath}</path>`, `<type>file</type>`, "<content>\n"].join("\n")
+        output += sliced.map((line, i) => `${i + (params.offset || 1)}: ${line}`).join("\n")
+
+        if (more) {
+          output += `\n\n(Showing lines ${params.offset || 1}-${last} of ${allLines.length}. Use offset=${last + 1} to continue.)`
+        } else {
+          output += `\n\n(End of file - total ${allLines.length} lines)`
+        }
+        output += "\n</content>"
+
+        return {
+          title,
+          output,
+          metadata: {
+            preview: sliced.slice(0, 20).join("\n"),
+            truncated: more,
+            loaded: loaded.map((item) => item.filepath),
+          },
         }
       }
 
