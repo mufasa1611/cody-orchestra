@@ -37,7 +37,7 @@ CODY_PORT="${CODY_PORT:-4096}"
 CODY_HOST="${CODY_HOST:-0.0.0.0}"
 PROXY_PORT="${PROXY_PORT:-9999}"
 CLOUDFLARED_HOSTNAME="${CODY_TUNNEL_HOSTNAME:-}"
-codyproXY_URL="${codyproXY_URL:-}"
+CODY_PROXY_URL="${CODY_PROXY_URL:-}"
 IS_SERVER=0
 IS_CONTAINER=0
 PKG_MGR=""
@@ -507,11 +507,11 @@ setup_proxy_stack() {
   ok "Proxy setup complete."
 }
 
-if [ "$NO_PROXY" != "1" ] && [ "$IS_SERVER" = "1" ] && [ -z "$codyproXY_URL" ]; then
+if [ "$NO_PROXY" != "1" ] && [ "$IS_SERVER" = "1" ] && [ -z "$CODY_PROXY_URL" ]; then
   step "Setting up proxy..."
   setup_proxy_stack
-elif [ -n "$codyproXY_URL" ]; then
-  ok "Using external proxy: $codyproXY_URL"
+elif [ -n "$CODY_PROXY_URL" ]; then
+  ok "Using external proxy: $CODY_PROXY_URL"
 fi
 
 # ── Phase 6: Proxy env file ────────────────────────────────────────────
@@ -519,18 +519,18 @@ fi
 if [ "$NO_PROXY" != "1" ]; then
   if [ ! -f "$ROOT/.env.proxy" ]; then
     step "Creating .env.proxy..."
-    if [ -n "$codyproXY_URL" ]; then
+    if [ -n "$CODY_PROXY_URL" ]; then
       # External proxy URL — just use it directly, no local proxy installed
       cat > "$ROOT/.env.proxy" << PROXYEOF
 CODY_PROXY_ENABLED=1
-HTTPS_PROXY=$codyproXY_URL
-HTTP_PROXY=$codyproXY_URL
+HTTPS_PROXY=$CODY_PROXY_URL
+HTTP_PROXY=$CODY_PROXY_URL
 NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 PROXYEOF
     elif [ "$IS_SERVER" = "1" ] && ! is_root && [ -z "$CLOUDFLARED_HOSTNAME" ]; then
       # Rootless server (e.g. unprivileged LXC) without external proxy —
       # no local proxy was installed, warn and skip
-      warn "Not root — proxy stack not installed. Set codyproXY_URL or run as root."
+      warn "Not root — proxy stack not installed. Set CODY_PROXY_URL or run as root."
     elif [ "$IS_SERVER" = "1" ] && [ -n "$CLOUDFLARED_HOSTNAME" ]; then
       # Cloudflare tunnel — cloudflared listens on localhost, forwards
       # through Cloudflare Access to the remote hostname.

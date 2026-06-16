@@ -167,9 +167,9 @@ Profiles:
 Configuration:
 
 ```powershell
-$env:codyproXMOX_URL = "https://pve.local:8006"
-$env:codyproXMOX_TOKEN_ID = "user@pam!token"
-$env:codyproXMOX_TOKEN_SECRET = "secret"
+$env:CODY_PROXMOX_URL = "https://pve.local:8006"
+$env:CODY_PROXMOX_TOKEN_ID = "user@pam!token"
+$env:CODY_PROXMOX_TOKEN_SECRET = "secret"
 ```
 
 Smoke test:
@@ -211,5 +211,3 @@ codyx debug agent backup-operator --tool cody-backup-inventory --params '"{\"che
 ```
 
 The scanner does not follow symlinks and defaults to bounded recursion. Restore, delete, prune, rotate, or overwrite actions remain outside this tool.
-
-

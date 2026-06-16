@@ -41,27 +41,27 @@ codyx
 Most AI coding tools are either SaaS-locked (your code leaves your machine), CLI-only (no UI),
 or single-provider. codyx is different:
 
-|                      | codyx | GitHub Copilot CLI | Claude Code | Aider |
-|----------------------|-------|-------------------|-------------|-------|
-| **Local-first**      | ✅     | ❌ SaaS-dependent | ❌ API-only | ✅    |
-| **Terminal UI**      | ✅     | ❌                | ✅          | ❌    |
-| **Web UI**           | ✅     | ❌                | ❌          | ❌    |
-| **Multi-provider**   | ✅ 20+ | ❌ Copilot only   | ❌ Anthropic | ❌ OpenAI |
-| **Multi-user server**| ✅     | ❌                | ❌          | ❌    |
-| **Plugin system**    | ✅     | ❌                | ❌          | ❌    |
-| **Infra tools**      | ✅     | ❌                | ❌          | ❌    |
-| **Open source**      | ✅ MIT | ❌                | ❌          | ✅ Apache |
+|                       | codyx  | GitHub Copilot CLI | Claude Code  | Aider     |
+| --------------------- | ------ | ------------------ | ------------ | --------- |
+| **Local-first**       | ✅     | ❌ SaaS-dependent  | ❌ API-only  | ✅        |
+| **Terminal UI**       | ✅     | ❌                 | ✅           | ❌        |
+| **Web UI**            | ✅     | ❌                 | ❌           | ❌        |
+| **Multi-provider**    | ✅ 20+ | ❌ Copilot only    | ❌ Anthropic | ❌ OpenAI |
+| **Multi-user server** | ✅     | ❌                 | ❌           | ❌        |
+| **Plugin system**     | ✅     | ❌                 | ❌           | ❌        |
+| **Infra tools**       | ✅     | ❌                 | ❌           | ❌        |
+| **Open source**       | ✅ MIT | ❌                 | ❌           | ✅ Apache |
 
 ---
 
 ## Screenshots
 
-> *[Screenshots placeholder — TUI session view, web UI dashboard, CLI command output]*
-
+> _[Screenshots placeholder — TUI session view, web UI dashboard, CLI command output]_
 
 ## Features
 
 ### Three Interfaces, One Backend
+
 - **TUI** — Full-screen terminal UI with themes, keybindings, multi-session tabs, dialog
   system, and scrollback. Built with `@opentui/solid`.
 - **CLI** — 30+ subcommands for scripting, automation, and CI/CD pipelines. Parseable output,
@@ -70,6 +70,7 @@ or single-provider. codyx is different:
   management, user admin. Built with SolidJS + Vite.
 
 ### 20+ AI Providers
+
 OpenAI · Anthropic · Google Gemini · Google Vertex · AWS Bedrock · Azure OpenAI ·
 Groq · Mistral · Perplexity · Together AI · DeepInfra · xAI (Grok) · Cerebras ·
 Alibaba (Qwen) · GitHub Copilot · OpenRouter · GitLab Duo AI · Venice AI ·
@@ -78,26 +79,29 @@ Cloudflare AI Gateway · Ollama (local) · llama.cpp (local)
 Switch between providers per-session or per-command. No vendor lock-in.
 
 ### Agent System
+
 Pluggable agents with permission boundaries, custom tools, and skill definitions:
 
-| Agent | Purpose |
-|-------|---------|
-| `operator` | General-purpose coding and automation |
-| `infra-audit` | Read-only infrastructure inspection |
-| `windows-admin` | Windows system diagnostics |
-| `ssh-operator` | Remote host inspection over SSH |
-| `docker-operator` | Docker container and image inspection |
-| `systemd-operator` | Linux systemd service audit |
-| `proxmox-operator` | Proxmox VM/container inventory |
-| `backup-operator` | Backup file inventory and checksum |
-| `web-research` | Web search and source-backed research |
+| Agent              | Purpose                               |
+| ------------------ | ------------------------------------- |
+| `operator`         | General-purpose coding and automation |
+| `infra-audit`      | Read-only infrastructure inspection   |
+| `windows-admin`    | Windows system diagnostics            |
+| `ssh-operator`     | Remote host inspection over SSH       |
+| `docker-operator`  | Docker container and image inspection |
+| `systemd-operator` | Linux systemd service audit           |
+| `proxmox-operator` | Proxmox VM/container inventory        |
+| `backup-operator`  | Backup file inventory and checksum    |
+| `web-research`     | Web search and source-backed research |
 
 ### Multi-User Server
+
 Built-in authentication (JWT, OpenAuth), per-user sessions, role-based access, and
 rate limiting. Run `codyx serve` to start the headless API server — your team connects
 through the web UI or the CLI.
 
 ### Project & Session Management
+
 - Multi-workspace with VCS-aware context
 - Per-project configuration and state
 - Persistent sessions with undo, retry, compaction, and structured output
@@ -105,19 +109,21 @@ through the web UI or the CLI.
 - Export and import sessions between instances
 
 ### MCP / ACP Support
+
 Model Context Protocol and Agent Client Protocol for interoperable tool ecosystems.
 Connect MCP servers, expose local tools, and integrate with the broader AI tooling landscape.
 
 ### Plugin System
+
 Three extension surfaces:
+
 - **npm plugins** — Full plugins published to npm
-  - **Local tools** — .cody/{tool,tools}/*.{ts,js} scripts loaded as CLI tools
-  - **Local plugins** — .cody/{plugin,plugins}/*.{ts,js} for system extensions
-  - **Agent definitions** — .cody/{agent,agents}/**/*.md for custom agent configurations
-
-
+  - **Local tools** — .cody/{tool,tools}/\*.{ts,js} scripts loaded as CLI tools
+  - **Local plugins** — .cody/{plugin,plugins}/\*.{ts,js} for system extensions
+  - **Agent definitions** — .cody/{agent,agents}/\*_/_.md for custom agent configurations
 
 ### Private by Default
+
 - **Private project data** — Codyx does not collect your code, prompts, conversations, or project content. After email verification succeeds, the official Windows installer records the display name and verified email address you provide and sends an operational registration notice to the Codyx administrator. The notice never contains the verification code. The display name is not independently verified, the data is not used for marketing, and deletion can be requested at `privacy@kingkung.men`; see [the installer privacy notice](https://install.kingkung.men/privacy). Manual clones and repository downloads are not tracked by this installer service.
 - **No cloud dependency** — Works fully offline with local models (Ollama, llama.cpp)
 - **Local database** — All sessions, config, and state stored in local SQLite
@@ -127,28 +133,28 @@ Three extension surfaces:
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `codyx` | Launch the terminal UI |
-| `run` | Run a one-shot task from the command line |
-| `serve` | Start the headless HTTP API server (port 4097) |
-| `web` | Start the web UI server |
-| `session` | List, view, and manage sessions |
-| `providers` | Manage AI provider configurations |
-| `models` | List available models from all providers |
-| `agent` | Run a specific agent (`operator`, `infra-audit`, etc.) |
-| `mcp` | Manage MCP server connections |
-| `acp` | Manage ACP agent connections |
-| `plugin` | Install and manage plugins |
-| `github` | Manage GitHub PRs and issues from the CLI |
-| `pr` | Create and review pull requests |
-| `setup` | First-run setup wizard |
-| `doctor` | Diagnose installation and configuration issues |
-| `upgrade` | Update to the latest version |
-| `export` / `import` | Transfer sessions between instances |
-| `stats` | Show usage statistics |
-| `users` | Manage server users (multi-user mode) |
-| `debug` | Debug tools (LSP, ripgrep, snapshot, skills) |
+| Command             | Description                                            |
+| ------------------- | ------------------------------------------------------ |
+| `codyx`             | Launch the terminal UI                                 |
+| `run`               | Run a one-shot task from the command line              |
+| `serve`             | Start the headless HTTP API server (port 4097)         |
+| `web`               | Start the web UI server                                |
+| `session`           | List, view, and manage sessions                        |
+| `providers`         | Manage AI provider configurations                      |
+| `models`            | List available models from all providers               |
+| `agent`             | Run a specific agent (`operator`, `infra-audit`, etc.) |
+| `mcp`               | Manage MCP server connections                          |
+| `acp`               | Manage ACP agent connections                           |
+| `plugin`            | Install and manage plugins                             |
+| `github`            | Manage GitHub PRs and issues from the CLI              |
+| `pr`                | Create and review pull requests                        |
+| `setup`             | First-run setup wizard                                 |
+| `doctor`            | Diagnose installation and configuration issues         |
+| `upgrade`           | Update to the latest version                           |
+| `export` / `import` | Transfer sessions between instances                    |
+| `stats`             | Show usage statistics                                  |
+| `users`             | Manage server users (multi-user mode)                  |
+| `debug`             | Debug tools (LSP, ripgrep, snapshot, skills)           |
 
 ### Usage Examples
 
@@ -168,7 +174,6 @@ codyx models
 ```
 
 ---
-
 
 ## Architecture
 
@@ -222,31 +227,31 @@ flowchart TB
     AGT --> INFRA & VCS & SEARCH
 ```
 
-| Layer | Technology |
-|-------|-----------|
-| Runtime | Bun (primary) / Node.js 22+ |
-| Language | TypeScript (strict, ESM) |
-| TUI | `@opentui/solid` (SolidJS-based terminal UI) |
-| Web UI | SolidJS + Vite |
-| HTTP API | Hono with OpenAPI spec generation |
-| Database | SQLite via Drizzle ORM (19 migration versions) |
-| State Management | Effect v4 (composable, typed workflows) |
-| Protocols | ACP, MCP, JSON-RPC, WebSocket |
-| Search | tree-sitter, fuzzysort |
+| Layer            | Technology                                     |
+| ---------------- | ---------------------------------------------- |
+| Runtime          | Bun (primary) / Node.js 22+                    |
+| Language         | TypeScript (strict, ESM)                       |
+| TUI              | `@opentui/solid` (SolidJS-based terminal UI)   |
+| Web UI           | SolidJS + Vite                                 |
+| HTTP API         | Hono with OpenAPI spec generation              |
+| Database         | SQLite via Drizzle ORM (19 migration versions) |
+| State Management | Effect v4 (composable, typed workflows)        |
+| Protocols        | ACP, MCP, JSON-RPC, WebSocket                  |
+| Search           | tree-sitter, fuzzysort                         |
 
 ---
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `CODY_REFRESH_MODELS` | Set to `1` to force local model re-discovery |
-| `CODY_SKIP_MODEL_DISCOVERY` | Set to `1` to skip model discovery on startup |
-| `CODY_X=0` | Disable codyx branding, fall back to upstream styling |
-| `XDG_DATA_HOME` | Override data directory (default: `~/.local/share/codyx`) |
-| `codyproXMOX_URL` | Proxmox API endpoint for infra inspection |
-| `codyproXMOX_TOKEN_ID` | Proxmox API token ID |
-| `codyproXMOX_TOKEN_SECRET` | Proxmox API token secret |
+| Variable                    | Description                                               |
+| --------------------------- | --------------------------------------------------------- |
+| `CODY_REFRESH_MODELS`       | Set to `1` to force local model re-discovery              |
+| `CODY_SKIP_MODEL_DISCOVERY` | Set to `1` to skip model discovery on startup             |
+| `CODY_X=0`                  | Disable codyx branding, fall back to upstream styling     |
+| `XDG_DATA_HOME`             | Override data directory (default: `~/.local/share/codyx`) |
+| `CODY_PROXMOX_URL`          | Proxmox API endpoint for infra inspection                 |
+| `CODY_PROXMOX_TOKEN_ID`     | Proxmox API token ID                                      |
+| `CODY_PROXMOX_TOKEN_SECRET` | Proxmox API token secret                                  |
 
 ---
 
@@ -267,18 +272,18 @@ flowchart TB
 
 codyx is the core of a broader ecosystem:
 
-| Package | Description |
-|---------|-------------|
-| `packages/codyx` | Main CLI, TUI, and server |
-| `packages/app` | Web UI (SolidJS) |
-| `packages/desktop` | Electron desktop wrapper |
-| `packages/web` | Standalone web package |
-| `packages/slack` | Slack bot integration |
-| `packages/core` | Shared core library (`@cody/core`) |
-| `packages/plugin` | Plugin system (`@cody/plugin`) |
-| `packages/sdk` | JavaScript SDK (`@cody/sdk`) |
-| `packages/enterprise` | Enterprise features |
-| `sdks/vscode` | VS Code extension SDK |
+| Package               | Description                        |
+| --------------------- | ---------------------------------- |
+| `packages/codyx`      | Main CLI, TUI, and server          |
+| `packages/app`        | Web UI (SolidJS)                   |
+| `packages/desktop`    | Electron desktop wrapper           |
+| `packages/web`        | Standalone web package             |
+| `packages/slack`      | Slack bot integration              |
+| `packages/core`       | Shared core library (`@cody/core`) |
+| `packages/plugin`     | Plugin system (`@cody/plugin`)     |
+| `packages/sdk`        | JavaScript SDK (`@cody/sdk`)       |
+| `packages/enterprise` | Enterprise features                |
+| `sdks/vscode`         | VS Code extension SDK              |
 
 ---
 
@@ -315,11 +320,13 @@ Use `codyx setup` for an interactive wizard or edit the file directly.
 ## Installation Options
 
 ### Docker
+
 ```bash
 docker run -p 4097:4097 ghcr.io/mufasa1611/cody-orchestra:latest
 ```
 
 ### From Source
+
 ```bash
 git clone https://github.com/mufasa1611/cody-orchestra.git
 cd cody-orchestra
@@ -328,6 +335,7 @@ bun run dev
 ```
 
 ### Global npm Shim
+
 ```bash
 npm install -g codyx-ai
 codyx
@@ -413,4 +421,4 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 ## License
 
 MIT © 2026 Mufasa (M. Farid)
-Uses the upstream [cody](https://github.com/mufasa1611/codypro) project as base (also MIT).
+cody-orchestra is maintained at https://github.com/mufasa1611/cody-orchestra.

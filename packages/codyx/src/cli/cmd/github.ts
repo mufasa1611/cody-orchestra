@@ -398,8 +398,6 @@ jobs:
     if: |
       contains(github.event.comment.body, ' /codyx') ||
       startsWith(github.event.comment.body, '/codyx') ||
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
       contains(github.event.comment.body, ' /cody') ||
       startsWith(github.event.comment.body, '/cody')
     runs-on: ubuntu-latest
@@ -800,7 +798,7 @@ export const GithubRunCommand = effectCmd({
         }
 
         const reviewContext = getReviewCommentContext()
-        const mentions = (process.env["MENTIONS"] || "/codyx,/cody,/oc")
+        const mentions = (process.env["MENTIONS"] || "/codyx,/cody")
           .split(",")
           .map((m) => m.trim().toLowerCase())
           .filter(Boolean)

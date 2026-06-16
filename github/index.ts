@@ -244,7 +244,7 @@ function createcody() {
 function assertPayloadKeyword() {
   const payload = useContext().payload as IssueCommentEvent | PullRequestReviewCommentEvent
   const body = payload.comment.body.trim()
-  if (!body.match(/(?:^|\s)(?:\/codyx|\/cody|\/oc)(?=$|\s)/)) {
+  if (!body.match(/(?:^|\s)(?:\/codyx|\/cody)(?=$|\s)/)) {
     throw new Error("Comments must mention `/codyx`")
   }
 }
@@ -422,13 +422,13 @@ async function getUserPrompt() {
 
   let prompt = (() => {
     const body = payload.comment.body.trim()
-    if (body === "/codyx" || body === "/cody" || body === "/oc") {
+    if (body === "/codyx" || body === "/cody") {
       if (reviewContext) {
         return `Review this code change and suggest improvements for the commented lines:\n\nFile: ${reviewContext.file}\nLines: ${reviewContext.line}\n\n${reviewContext.diffHunk}`
       }
       return "Summarize this thread"
     }
-    if (body.includes("/codyx") || body.includes("/cody") || body.includes("/oc")) {
+    if (body.includes("/codyx") || body.includes("/cody")) {
       if (reviewContext) {
         return `${body}\n\nContext: You are reviewing a comment on file "${reviewContext.file}" at line ${reviewContext.line}.\n\nDiff context:\n${reviewContext.diffHunk}`
       }

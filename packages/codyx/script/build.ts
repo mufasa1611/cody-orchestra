@@ -51,6 +51,7 @@ const migrations = await Promise.all(
 console.log(`Loaded ${migrations.length} migrations`)
 
 const singleFlag = process.argv.includes("--single")
+const allFlag = process.argv.includes("--all")
 const baselineFlag = process.argv.includes("--baseline")
 const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
@@ -146,26 +147,24 @@ const allTargets: {
   },
 ]
 
-const targets = singleFlag
-  ? allTargets.filter((item) => {
-      if (item.os !== process.platform || item.arch !== process.arch) {
-        return false
-      }
+const filterForCurrentPlatform = (item: (typeof allTargets)[number]) => {
+  if (item.os !== process.platform || item.arch !== process.arch) {
+    return false
+  }
+  // Skip baseline unless explicitly requested
+  if (item.avx2 === false) {
+    return baselineFlag
+  }
+  // Skip abi-specific builds unless explicitly requested
+  if (item.abi !== undefined) {
+    return false
+  }
+  return true
+}
 
-      // When building for the current platform, prefer a single native binary by default.
-      // Baseline binaries require additional Bun artifacts and can be flaky to download.
-      if (item.avx2 === false) {
-        return baselineFlag
-      }
-
-      // also skip abi-specific builds for the same reason
-      if (item.abi !== undefined) {
-        return false
-      }
-
-      return true
-    })
-  : allTargets
+const targets = allFlag
+  ? allTargets // --all: build every platform (CI/release)
+  : allTargets.filter(filterForCurrentPlatform) // default: current OS/arch only
 
 await $`rm -rf dist`
 

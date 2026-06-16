@@ -134,6 +134,7 @@ function Save-VerificationReceipt($InstallId, $Receipt, $ExpiresAt) {
     install_id = $InstallId
     receipt = $Receipt
     expires_at = $ExpiresAt
+    server_url = $ServiceUrl
   } | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding UTF8
   Move-Item -LiteralPath $temporary -Destination $ReceiptPath -Force
 }
