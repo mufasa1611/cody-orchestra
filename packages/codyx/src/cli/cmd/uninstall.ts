@@ -111,6 +111,15 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
     { path: Global.Path.state, label: "State", keep: false },
   ]
 
+  const localAppData = process.env.LOCALAPPDATA
+  if (localAppData) {
+    directories.push({
+      path: path.join(localAppData, "codyx-installer"),
+      label: "Installer Verification",
+      keep: false,
+    })
+  }
+
   const shellConfig = method === "curl" ? await getShellConfigFile() : null
   const binary = method === "curl" ? process.execPath : null
   const marker = await readInstallMarker()

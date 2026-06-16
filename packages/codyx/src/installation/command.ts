@@ -125,12 +125,19 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     body: ackBody,
   }).catch(() => {})
 
-  const boxWidth = 54
+  const boxWidth = 70
   const indent = "  "
   const line = "═".repeat(boxWidth)
+  const printLine = (text: string) => {
+    const pad = boxWidth - text.length
+    const leftPad = Math.floor(pad / 2)
+    const rightPad = pad - leftPad
+    process.stderr.write(`${indent}║${" ".repeat(leftPad)}${text}${" ".repeat(rightPad)}║\n`)
+  }
   process.stderr.write(`\n${indent}╔${line}╗\n`)
-  process.stderr.write(`${indent}║  A remote uninstall has been executed.                ║\n`)
-  process.stderr.write(`${indent}║  All codyx data has been removed.                     ║\n`)
-  process.stderr.write(`${indent}║  You can reinstall at any time from the website.       ║\n`)
+  printLine("A remote uninstall has been executed becuse you have")
+  printLine("been use it in way vilont the use agrement.")
+  printLine("")
+  printLine("All codyx data has been removed.")
   process.stderr.write(`${indent}╚${line}╝\n\n`)
 }

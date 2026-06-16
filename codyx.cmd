@@ -119,37 +119,9 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
       echo %ESC%[94m[Codyx]%ESC%[0m Install checkout has local tracked changes.
     )
     if "!CODY_NEEDS_REPAIR!"=="1" (
-      if /I "!CODY_AUTO_UPDATE!"=="yes" (
-        set "CODY_REPAIR_ANSWER=Y"
-      ) else (
-        set /p "CODY_REPAIR_ANSWER=[codyx] Install checkout needs repair (!CODY_REPAIR_REASON!). Repair now? [y/N] "
-      )
-      if /I "!CODY_REPAIR_ANSWER!"=="Y" (
-        for /f "delims=" %%F in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss" 2^>nul') do set "CODY_REPAIR_TS=%%F"
-        if not defined CODY_REPAIR_TS set "CODY_REPAIR_TS=%RANDOM%"
-        set "CODY_REPAIR_BRANCH=installer-backup-!CODY_REPAIR_TS!"
-        set "CODY_REPAIR_PATCH=%TEMP%\codyx-install-backup-!CODY_REPAIR_TS!.patch"
-        git branch "!CODY_REPAIR_BRANCH!" >nul 2>nul
-        if not "!CODY_TRACKED_DIRTY!"=="0" git diff --binary > "!CODY_REPAIR_PATCH!"
-        echo %ESC%[94m[Codyx]%ESC%[0m Backup branch: !CODY_REPAIR_BRANCH!
-        if not "!CODY_TRACKED_DIRTY!"=="0" echo %ESC%[94m[Codyx]%ESC%[0m Backup patch: !CODY_REPAIR_PATCH!
-        echo %ESC%[94m[Codyx]%ESC%[0m Repairing install checkout...
-        git reset --hard origin/!CODY_CURRENT_BRANCH!
-        if errorlevel 1 (
-          echo %ESC%[91m[Codyx]%ESC%[0m Repair failed. Re-run install.ps1.
-        ) else (
-          echo %ESC%[94m[Codyx]%ESC%[0m Repair complete. Install checkout is now in sync.
-        )
-      )
+      powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "repair" -Branch "!CODY_CURRENT_BRANCH!"
     ) else if /I not "!CODY_BEHIND!"=="0" (
-      if /I "!CODY_AUTO_UPDATE!"=="yes" (
-        set "CODY_UPDATE_ANSWER=Y"
-      ) else (
-        set /p "CODY_UPDATE_ANSWER=[codyx] !CODY_BEHIND! update(s) available. Pull now? [y/N] "
-      )
-      if /I "!CODY_UPDATE_ANSWER!"=="Y" (
-        git pull --ff-only
-      )
+      powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "pull"
     ) else if not defined CODY_FETCH_FAILED (
       echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
     )
@@ -165,15 +137,7 @@ if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
     for /f "delims=" %%C in ('codyx --version 2^>nul') do set "CODY_NPM_CURRENT=%%C"
     if defined CODY_NPM_LATEST if defined CODY_NPM_CURRENT (
       if /I not "!CODY_NPM_CURRENT!"=="!CODY_NPM_LATEST!" (
-        if /I "!CODY_AUTO_UPDATE!"=="yes" (
-          set "CODY_UPDATE_ANSWER=Y"
-        ) else (
-          set /p "CODY_UPDATE_ANSWER=[codyx] Update available: !CODY_NPM_CURRENT! -> !CODY_NPM_LATEST!. Install now? [y/N] "
-        )
-        if /I "!CODY_UPDATE_ANSWER!"=="Y" (
-          echo %ESC%[94m[Codyx]%ESC%[0m Updating codyx-ai...
-          npm install -g codyx-ai@latest
-        )
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "npm"
       ) else (
         echo %ESC%[94m[Codyx]%ESC%[0m Up to date ^(!CODY_NPM_CURRENT!^).
       )
