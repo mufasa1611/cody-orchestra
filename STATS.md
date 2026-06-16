@@ -1,5 +1,7 @@
 # Download Stats
 
+> Note: these are historical upstream `cody` download metrics. They do not represent `codyx` or `cody-orchestra` release/download activity.
+
 | Date       | GitHub Downloads     | npm Downloads        | Total                 |
 | ---------- | -------------------- | -------------------- | --------------------- |
 | 2025-06-29 | 18,789 (+0)          | 39,420 (+0)          | 58,209 (+0)           |
