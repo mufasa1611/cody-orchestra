@@ -479,6 +479,9 @@ async function findGlobalShims(marker: InstallMarker | null): Promise<string[]> 
           path.join(process.env.APPDATA || "", "npm", "cody.ps1"),
           path.join(process.env.APPDATA || "", "npm", "codyx"),
           path.join(process.env.APPDATA || "", "npm", "cody"),
+          path.join(process.env.APPDATA || "", "npm", "cody-x.cmd"),
+          path.join(process.env.APPDATA || "", "npm", "cody-x.ps1"),
+          path.join(process.env.APPDATA || "", "npm", "cody-x"),
         ]
       : [
           ...(process.env.CODY_GLOBAL_BIN_DIR ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")] : []),
