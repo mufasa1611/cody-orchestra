@@ -399,6 +399,18 @@ Invoke-WithRetry {
 } "bun install"
 Write-Progress -Activity $activity -Completed
 
+if (Test-Path (Join-Path $Root ".git")) {
+  Push-Location $Root
+  & git diff --quiet -- bun.lock
+  if ($LASTEXITCODE -ne 0) {
+    & git restore --source=HEAD --worktree --staged -- bun.lock
+    if ($LASTEXITCODE -eq 0) {
+      Write-Ok "Restored tracked bun.lock after dependency install."
+    }
+  }
+  Pop-Location
+}
+
 Write-Ok "Dependencies installed."
 
 # Phase 4: Web UI
