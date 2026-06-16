@@ -473,6 +473,8 @@ async function findGlobalShims(marker: InstallMarker | null): Promise<string[]> 
           path.join(process.env.APPDATA || "", "npm", "codyx.ps1"),
           path.join(process.env.APPDATA || "", "npm", "cody.cmd"),
           path.join(process.env.APPDATA || "", "npm", "cody.ps1"),
+          path.join(process.env.APPDATA || "", "npm", "codyx"),
+          path.join(process.env.APPDATA || "", "npm", "cody"),
         ]
       : [
           ...(process.env.CODY_GLOBAL_BIN_DIR ? [path.join(process.env.CODY_GLOBAL_BIN_DIR, "codyx")] : []),
@@ -510,14 +512,17 @@ async function findEnvProxy(marker: InstallMarker | null): Promise<string | null
 }
 
 async function scheduleInstallRootRemoval(root: string) {
+  const removalCwd = path.dirname(root)
   if (os.platform() === "win32") {
     const script = [
-      `Start-Sleep -Seconds 2`,
-      `if (Test-Path -LiteralPath '${root.replace(/'/g, "''")}') {`,
-      `  Remove-Item -LiteralPath '${root.replace(/'/g, "''")}' -Recurse -Force -ErrorAction SilentlyContinue`,
+      `$target = '${root.replace(/'/g, "''")}'`,
+      `for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $target); $i++) {`,
+      `  Start-Sleep -Milliseconds 500`,
+      `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
       `}`,
     ].join("; ")
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      cwd: removalCwd,
       detached: true,
       stdio: "ignore",
       windowsHide: true,
@@ -526,7 +531,8 @@ async function scheduleInstallRootRemoval(root: string) {
     return
   }
 
-  const child = spawn("sh", ["-c", `sleep 2; rm -rf '${root.replace(/'/g, `'\\''`)}'`], {
+  const child = spawn("sh", ["-c", `for i in $(seq 1 20); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`], {
+    cwd: removalCwd,
     detached: true,
     stdio: "ignore",
   })
