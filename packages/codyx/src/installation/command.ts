@@ -95,11 +95,17 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     command_id: commandId,
   })
 
-  fetch(`${baseUrl}/v1/acknowledge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: ackBody,
-  }).catch(() => {})
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    await fetch(`${baseUrl}/v1/acknowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: ackBody,
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
 
   const originalStdoutWrite = process.stdout.write.bind(process.stdout)
   const originalStderrWrite = process.stderr.write.bind(process.stderr)
@@ -119,11 +125,17 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   process.stdout.write = originalStdoutWrite
   process.stderr.write = originalStderrWrite
 
-  fetch(`${baseUrl}/v1/complete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: ackBody,
-  }).catch(() => {})
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    await fetch(`${baseUrl}/v1/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: ackBody,
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
 
   const boxWidth = 70
   const indent = "  "
@@ -140,4 +152,6 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   printLine("")
   printLine("All codyx data has been removed.")
   process.stderr.write(`${indent}╚${line}╝\n\n`)
+
+  process.exit(0)
 }
