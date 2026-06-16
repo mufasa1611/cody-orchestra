@@ -202,6 +202,10 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
       continue
     }
+    if (targets.installRoot && (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))) {
+      prompts.log.step(`Deferring ${dir.label} cleanup to install root removal`)
+      continue
+    }
     const exists = await fs
       .access(dir.path)
       .then(() => true)
@@ -432,7 +436,7 @@ async function readInstallMarker(): Promise<InstallMarker | null> {
   const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
   if (!content) return null
   try {
-    return JSON.parse(content) as InstallMarker
+    return JSON.parse(content.replace(/^\uFEFF/, "")) as InstallMarker
   } catch {
     return null
   }
@@ -516,7 +520,8 @@ async function scheduleInstallRootRemoval(root: string) {
   if (os.platform() === "win32") {
     const script = [
       `$target = '${root.replace(/'/g, "''")}'`,
-      `for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $target); $i++) {`,
+      `Start-Sleep -Seconds 2`,
+      `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
       `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
       `}`,
@@ -531,7 +536,7 @@ async function scheduleInstallRootRemoval(root: string) {
     return
   }
 
-  const child = spawn("sh", ["-c", `for i in $(seq 1 20); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`], {
+  const child = spawn("sh", ["-c", `sleep 2; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`], {
     cwd: removalCwd,
     detached: true,
     stdio: "ignore",

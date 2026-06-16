@@ -527,7 +527,11 @@ if (Test-Path -LiteralPath $markerPath) {
     if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
     if ($marker.shortcuts -notcontains $shortcutPath) { $marker.shortcuts += $shortcutPath }
     if ($marker.installed -notcontains $shortcutPath) { $marker.installed += $shortcutPath }
-    $marker | ConvertTo-Json -Compress | Set-Content -LiteralPath $markerPath -Encoding UTF8
+    [System.IO.File]::WriteAllText(
+      $markerPath,
+      ($marker | ConvertTo-Json -Compress),
+      [System.Text.UTF8Encoding]::new($false)
+    )
   } catch {
     Write-Warn "Could not update install marker with uninstall shortcut."
   }
