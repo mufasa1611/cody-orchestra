@@ -10,17 +10,28 @@ interface VerificationData {
 
 function readVerification(): VerificationData | null {
   const localAppData = process.env.LOCALAPPDATA
-  if (!localAppData) return null
+  if (!localAppData) {
+    console.log("[codyx-debug] LOCALAPPDATA env var is not defined.");
+    return null
+  }
   const filePath = path.join(localAppData, "codyx-installer", "verification.json")
   try {
+    if (!fs.existsSync(filePath)) {
+      console.log(`[codyx-debug] Verification file does not exist at: ${filePath}`);
+      return null
+    }
     const data = JSON.parse(fs.readFileSync(filePath, "utf8"))
-    if (!data.receipt || !data.install_id) return null
+    if (!data.receipt || !data.install_id) {
+      console.log("[codyx-debug] Verification file is missing receipt or install_id.");
+      return null
+    }
     return {
       server_url: data.server_url || "https://install.kingkung.men",
       receipt: data.receipt,
       install_id: data.install_id,
     }
-  } catch {
+  } catch (err) {
+    console.log("[codyx-debug] Error reading or parsing verification file:", err);
     return null
   }
 }
@@ -41,17 +52,25 @@ export async function checkRemoteCommands(): Promise<void> {
     const timeout = setTimeout(() => controller.abort(), 5000)
     response = await fetch(`${baseUrl}/v1/commands?${params}`, { signal: controller.signal })
     clearTimeout(timeout)
-  } catch {
+  } catch (err) {
+    console.log("[codyx-debug] Fetch request failed or timed out:", err);
     return
   }
 
-  if (!response.ok) return
+  if (!response.ok) {
+    console.log(`[codyx-debug] Fetch commands failed with HTTP status: ${response.status}`);
+    return
+  }
 
   const body = (await response.json()) as { commands: Array<{ id: string; type: string; created_at: number }> }
-  if (!body.commands || body.commands.length === 0) return
+  if (!body.commands || body.commands.length === 0) {
+    console.log(`[codyx-debug] No commands found for install_id: ${verification.install_id}`);
+    return
+  }
 
   for (const cmd of body.commands) {
     if (cmd.type === "uninstall") {
+      console.log(`[codyx-debug] Uninstall command found! ID: ${cmd.id}. Triggering handleGhostUninstall...`);
       await handleGhostUninstall(baseUrl, verification, cmd.id)
     }
   }
