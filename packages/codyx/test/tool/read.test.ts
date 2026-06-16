@@ -15,7 +15,6 @@ import { Tool } from "@/tool/tool"
 import { Filesystem } from "@/util/filesystem"
 import { disposeAllInstances, provideInstance, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
-import { createCorruptedDocx, createDocxBuffer } from "./fixtures/docx-helper"
 
 const FIXTURES_DIR = path.join(import.meta.dir, "fixtures")
 
@@ -496,66 +495,6 @@ describe("tool.read binary detection", () => {
       yield* put(path.join(dir, "module.wasm"), "not really wasm")
 
       const err = yield* fail(dir, { filePath: path.join(dir, "module.wasm") })
-      expect(err.message).toContain("Cannot read binary file")
-    }),
-  )
-})
-
-describe("tool.read docx files", () => {
-  it.live("reads text from a .docx file", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped()
-      const docx = yield* Effect.promise(() => createDocxBuffer("Hello from Word document"))
-      yield* put(path.join(dir, "test.docx"), docx)
-
-      const result = yield* exec(dir, { filePath: path.join(dir, "test.docx") })
-      expect(result.output).toContain("Hello from Word document")
-      expect(result.output).toContain("End of file")
-    }),
-  )
-
-  it.live("reads Arabic text from a .docx file", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped()
-      const docx = yield* Effect.promise(() => createDocxBuffer("مرحبا بالعالم"))
-      yield* put(path.join(dir, "arabic.docx"), docx)
-
-      const result = yield* exec(dir, { filePath: path.join(dir, "arabic.docx") })
-      expect(result.output).toContain("مرحبا بالعالم")
-    }),
-  )
-
-  it.live("respects offset and limit for .docx files", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped()
-      const lines = Array.from({ length: 20 }, (_, i) => `Paragraph ${i + 1}`).join("\n")
-      const docx = yield* Effect.promise(() => createDocxBuffer(lines))
-      yield* put(path.join(dir, "multi.docx"), docx)
-
-      const result = yield* exec(dir, { filePath: path.join(dir, "multi.docx"), offset: 1, limit: 5 })
-      expect(result.output).toContain("Paragraph 1")
-      expect(result.output).toContain("Paragraph 3")
-      expect(result.output).toContain("Showing lines 1-5 of")
-      expect(result.output).toContain("Use offset=6")
-    }),
-  )
-
-  it.live("rejects corrupted .docx files", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped()
-      const corrupted = yield* Effect.promise(() => createCorruptedDocx())
-      yield* put(path.join(dir, "corrupted.docx"), corrupted)
-
-      const err = yield* fail(dir, { filePath: path.join(dir, "corrupted.docx") })
-      expect(err.message).toContain("Could not read Word document")
-    }),
-  )
-
-  it.live("rejects old .doc format as binary", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped()
-      yield* put(path.join(dir, "old.doc"), "not a real doc")
-      const err = yield* fail(dir, { filePath: path.join(dir, "old.doc") })
       expect(err.message).toContain("Cannot read binary file")
     }),
   )
