@@ -527,7 +527,7 @@ async function findEnvProxy(marker: InstallMarker | null): Promise<string | null
   }
 }
 
-async function scheduleInstallRootRemoval(root: string) {
+export async function scheduleInstallRootRemoval(root: string) {
   const removalCwd = path.dirname(root)
   if (os.platform() === "win32") {
     const script = [
