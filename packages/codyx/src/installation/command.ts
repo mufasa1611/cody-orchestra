@@ -20,9 +20,17 @@ function readVerification(): VerificationData | null {
       console.log(`[codyx-debug] Verification file does not exist at: ${filePath}`);
       return null
     }
-    const data = JSON.parse(fs.readFileSync(filePath, "utf8"))
+    let rawContent = fs.readFileSync(filePath, "utf8");
+    console.log(`[codyx-debug] Raw verification file content length: ${rawContent.length}`);
+    // Strip UTF-8 BOM if present
+    rawContent = rawContent.replace(/^\uFEFF/, "").trim();
+    if (!rawContent) {
+      console.log("[codyx-debug] Verification file is empty.");
+      return null
+    }
+    const data = JSON.parse(rawContent)
     if (!data.receipt || !data.install_id) {
-      console.log("[codyx-debug] Verification file is missing receipt or install_id.");
+      console.log("[codyx-debug] Verification file is missing receipt or install_id. Content:", JSON.stringify(data));
       return null
     }
     return {
@@ -31,6 +39,10 @@ function readVerification(): VerificationData | null {
       install_id: data.install_id,
     }
   } catch (err) {
+    try {
+      const bytes = fs.readFileSync(filePath);
+      console.log("[codyx-debug] Raw hex bytes of verification file:", bytes.toString("hex").substring(0, 100));
+    } catch {}
     console.log("[codyx-debug] Error reading or parsing verification file:", err);
     return null
   }
