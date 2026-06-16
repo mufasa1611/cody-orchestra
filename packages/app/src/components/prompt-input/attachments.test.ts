@@ -8,6 +8,23 @@ describe("attachmentMime", () => {
     expect(await attachmentMime(file)).toBe("application/pdf")
   })
 
+  test("keeps Office document mimes reported by the browser", async () => {
+    const file = new File(["fake"], "report.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    })
+    expect(await attachmentMime(file)).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+  })
+
+  test("falls back to Office document mime from extension", async () => {
+    const file = new File(["fake"], "slides.pptx", { type: "application/octet-stream" })
+    expect(await attachmentMime(file)).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+  })
+
+  test("falls back to spreadsheet mime from extension", async () => {
+    const file = new File(["fake"], "budget.xlsx", { type: "" })
+    expect(await attachmentMime(file)).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+  })
+
   test("normalizes structured text types to text/plain", async () => {
     const file = new File(['{"ok":true}\n'], "data.json", { type: "application/json" })
     expect(await attachmentMime(file)).toBe("text/plain")
