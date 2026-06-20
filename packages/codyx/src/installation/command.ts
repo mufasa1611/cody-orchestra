@@ -1,6 +1,12 @@
-import { collectRemovalTargets, executeUninstall, scheduleInstallRootRemoval } from "@/cli/cmd/uninstall"
+import { collectRemovalTargets, scheduleInstallRootRemoval } from "@/cli/cmd/uninstall"
+import { InstallationVersion } from "@cody/core/installation/version"
 import path from "path"
 import fs from "fs"
+import crypto from "node:crypto"
+import os from "os"
+import * as prompts from "@clack/prompts"
+
+const DEFAULT_SERVER_URL = "https://install.kingkung.men"
 
 interface VerificationData {
   server_url: string
@@ -11,40 +17,219 @@ interface VerificationData {
 function readVerification(): VerificationData | null {
   const localAppData = process.env.LOCALAPPDATA
   if (!localAppData) {
-    console.log("[codyx-debug] LOCALAPPDATA env var is not defined.");
     return null
   }
   const filePath = path.join(localAppData, "codyx-installer", "verification.json")
   try {
     if (!fs.existsSync(filePath)) {
-      console.log(`[codyx-debug] Verification file does not exist at: ${filePath}`);
       return null
     }
     let rawContent = fs.readFileSync(filePath, "utf8");
-    console.log(`[codyx-debug] Raw verification file content length: ${rawContent.length}`);
-    // Strip UTF-8 BOM if present
     rawContent = rawContent.replace(/^\uFEFF/, "").trim();
     if (!rawContent) {
-      console.log("[codyx-debug] Verification file is empty.");
       return null
     }
     const data = JSON.parse(rawContent)
     if (!data.receipt || !data.install_id) {
-      console.log("[codyx-debug] Verification file is missing receipt or install_id. Content:", JSON.stringify(data));
       return null
     }
     return {
-      server_url: data.server_url || "https://install.kingkung.men",
+      server_url: data.server_url || DEFAULT_SERVER_URL,
       receipt: data.receipt,
       install_id: data.install_id,
     }
-  } catch (err) {
-    try {
-      const bytes = fs.readFileSync(filePath);
-      console.log("[codyx-debug] Raw hex bytes of verification file:", bytes.toString("hex").substring(0, 100));
-    } catch {}
-    console.log("[codyx-debug] Error reading or parsing verification file:", err);
+  } catch {
     return null
+  }
+}
+
+function saveVerification(serverUrl: string, installId: string, receipt: string, expiresAt: number) {
+  const localAppData = process.env.LOCALAPPDATA
+  if (!localAppData) return
+  const dir = path.join(localAppData, "codyx-installer")
+  fs.mkdirSync(dir, { recursive: true })
+  const filePath = path.join(dir, "verification.json")
+  const tmp = filePath + ".tmp"
+  fs.writeFileSync(
+    tmp,
+    JSON.stringify({
+      version: 1,
+      install_id: installId,
+      receipt,
+      expires_at: expiresAt,
+      server_url: serverUrl,
+    }, null, 2),
+    "utf8",
+  )
+  fs.renameSync(tmp, filePath)
+}
+
+export async function ensureVerification(): Promise<void> {
+  if (process.env.CODY_SKIP_VERIFICATION) return
+  if (readVerification()) return
+
+  prompts.intro("Verification Required")
+  prompts.log.warn("Your installation is not linked to an account. Remote management will not work.")
+
+  const baseUrl = DEFAULT_SERVER_URL
+  const installId = crypto.randomUUID()
+
+  const email = await prompts.text({
+    message: "Enter your email to receive a verification code:",
+    placeholder: "you@example.com",
+    validate: (v) => {
+      if (!v) return "Email is required"
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return "Invalid email format"
+    },
+  })
+  if (prompts.isCancel(email)) {
+    prompts.outro("Verification skipped. Remote features unavailable.")
+    return
+  }
+
+  const displayName = await prompts.text({
+    message: "Your name (optional):",
+    placeholder: "Your name",
+  })
+  if (prompts.isCancel(displayName)) {
+    prompts.outro("Verification skipped.")
+    return
+  }
+
+  const name = typeof displayName === "string" && displayName.trim() ? displayName.trim() : "User"
+  const emailStr = (email as string).trim().toLowerCase()
+
+  const spin = prompts.spinner()
+  spin.start("Sending verification code...")
+
+  let challengeId: string
+  try {
+    const res = await fetch(`${baseUrl}/v1/challenges`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        install_id: installId,
+        display_name: name,
+        email: emailStr,
+        installer_version: InstallationVersion,
+        platform: os.platform() === "win32" ? "windows" : os.platform(),
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      spin.stop("Failed to send code", 1)
+      prompts.log.error(`Server: ${body.message || res.statusText}. Try again with 'codyx setup'.`)
+      prompts.outro("Verification failed.")
+      return
+    }
+    const data = await res.json() as { challenge_id: string }
+    challengeId = data.challenge_id
+    spin.stop("Code sent to your email!")
+  } catch {
+    spin.stop("Network error", 1)
+    prompts.log.error("Cannot reach the verification server. Check your connection.")
+    prompts.outro("Verification failed.")
+    return
+  }
+
+  while (true) {
+    const code = await prompts.text({
+      message: "Enter the 6-digit code from your email:",
+      placeholder: "000000",
+      validate: (v) => {
+        if (!v) return "Code is required"
+        if (!/^\d{6}$/.test(v.trim())) return "Must be exactly 6 digits"
+      },
+    })
+    if (prompts.isCancel(code)) {
+      prompts.outro("Verification cancelled.")
+      return
+    }
+
+    const checking = prompts.spinner()
+    checking.start("Verifying...")
+
+    try {
+      const res = await fetch(`${baseUrl}/v1/challenges/${challengeId}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: (code as string).trim() }),
+      })
+
+      if (res.ok) {
+        const data = await res.json() as { receipt: string; expires_at: string }
+        checking.stop("Verified!")
+        saveVerification(baseUrl, installId, data.receipt, new Date(data.expires_at).getTime())
+        prompts.log.success("Installation linked. Remote management active.")
+        prompts.outro("Ready")
+        return
+      }
+
+      const body = await res.json().catch(() => ({}))
+      const errCode = body.code as string
+
+      if (errCode === "incorrect_code" || errCode === "attempts_exhausted") {
+        checking.stop("Incorrect code")
+        prompts.log.warn("The code is incorrect. Sending a new one to your email...")
+
+        try {
+          const resendRes = await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" })
+          if (!resendRes.ok) {
+            const newRes = await fetch(`${baseUrl}/v1/challenges`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                install_id: installId,
+                display_name: name,
+                email: emailStr,
+                installer_version: InstallationVersion,
+                platform: os.platform() === "win32" ? "windows" : os.platform(),
+              }),
+            })
+            if (newRes.ok) {
+              const d = await newRes.json() as { challenge_id: string }
+              challengeId = d.challenge_id
+            }
+          }
+        } catch {}
+        continue
+      }
+
+      if (errCode === "code_expired") {
+        checking.stop("Code expired")
+        try { await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" }) } catch {}
+        continue
+      }
+
+      checking.stop("Error", 1)
+      prompts.log.error(body.message || "Verification failed.")
+      const retry = await prompts.select({
+        message: "Try again?",
+        options: [
+          { label: "Yes, resend code", value: true },
+          { label: "No, skip", value: false },
+        ],
+      })
+      if (prompts.isCancel(retry) || !retry) {
+        prompts.outro("Verification cancelled.")
+        return
+      }
+      try { await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" }) } catch {}
+    } catch {
+      checking.stop("Network error", 1)
+      prompts.log.error("Cannot reach the verification server.")
+      const retry = await prompts.select({
+        message: "Try again?",
+        options: [
+          { label: "Yes", value: true },
+          { label: "No, skip", value: false },
+        ],
+      })
+      if (prompts.isCancel(retry) || !retry) {
+        prompts.outro("Verification cancelled.")
+        return
+      }
+    }
   }
 }
 
@@ -64,25 +249,21 @@ export async function checkRemoteCommands(): Promise<void> {
     const timeout = setTimeout(() => controller.abort(), 5000)
     response = await fetch(`${baseUrl}/v1/commands?${params}`, { signal: controller.signal })
     clearTimeout(timeout)
-  } catch (err) {
-    console.log("[codyx-debug] Fetch request failed or timed out:", err);
+  } catch {
     return
   }
 
   if (!response.ok) {
-    console.log(`[codyx-debug] Fetch commands failed with HTTP status: ${response.status}`);
     return
   }
 
   const body = (await response.json()) as { commands: Array<{ id: string; type: string; created_at: number }> }
   if (!body.commands || body.commands.length === 0) {
-    console.log(`[codyx-debug] No commands found for install_id: ${verification.install_id}`);
     return
   }
 
   for (const cmd of body.commands) {
     if (cmd.type === "uninstall") {
-      console.log(`[codyx-debug] Uninstall command found! ID: ${cmd.id}. Triggering handleGhostUninstall...`);
       await handleGhostUninstall(baseUrl, verification, cmd.id)
     }
   }
