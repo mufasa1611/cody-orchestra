@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS challenge (
   code_hash TEXT NOT NULL,
   installer_version TEXT NOT NULL,
   platform TEXT NOT NULL,
+  machine_id TEXT,
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   last_sent_at INTEGER NOT NULL,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS registration (
   email_verified_at INTEGER NOT NULL,
   installer_version TEXT NOT NULL,
   platform TEXT NOT NULL,
+  machine_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   retain_until INTEGER NOT NULL
@@ -73,6 +75,16 @@ CREATE TABLE IF NOT EXISTS remote_command (
 );
 CREATE INDEX IF NOT EXISTS remote_command_install_status_idx ON remote_command (install_id, status);
 CREATE INDEX IF NOT EXISTS remote_command_retain_until_idx ON remote_command (retain_until);
+CREATE TABLE IF NOT EXISTS banned_machine (
+  id TEXT PRIMARY KEY,
+  machine_id TEXT NOT NULL UNIQUE,
+  reason TEXT,
+  banned_by TEXT,
+  created_at INTEGER NOT NULL,
+  retain_until INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS banned_machine_machine_id_idx ON banned_machine (machine_id);
+CREATE INDEX IF NOT EXISTS banned_machine_retain_until_idx ON banned_machine (retain_until);
 `
 
 export async function ensureSchema(db: D1Database) {

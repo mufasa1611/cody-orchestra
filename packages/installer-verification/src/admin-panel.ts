@@ -26,9 +26,12 @@ header span{color:#8b949e;font-size:14px}
 .toolbar .stats strong{color:#e6edf3}
 .btn-logout{padding:6px 14px;background:transparent;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;cursor:pointer}
 .btn-logout:hover{background:#21262d}
-.btn-uninstall{padding:6px 14px;background:#da3633;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
-.btn-uninstall:hover{background:#f85149}
-.btn-uninstall:disabled{opacity:.5;cursor:not-allowed}
+.btn-uninstall{padding:6px 14px;background:#1f6feb;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn-uninstall:hover{background:#388bfd}
+.btn-uninstall:disabled,.btn-uninstall.disabled{opacity:.5;cursor:not-allowed;background:#1f6feb}
+.badge.pending{background:#d2992222;color:#d29922;border:1px solid #d2992244}
+.badge.acknowledged{background:#1f6feb22;color:#58a6ff;border:1px solid #1f6feb44}
+.badge.completed{background:#23863622;color:#3fb950;border:1px solid #23863644}
 table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
 th{text-align:left;padding:10px 12px;font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;background:#0d1117;border-bottom:1px solid #30363d}
 td{padding:10px 12px;font-size:13px;border-bottom:1px solid #21262d;vertical-align:middle}
@@ -56,6 +59,15 @@ tr:hover td{background:#1c2128}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #8b949e;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{text-align:center;padding:40px;color:#8b949e}
+.row-banned td{background:#da363322}
+.row-active td{background:#23863612}
+.btn-ban{padding:6px 8px;background:#da3633;border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn-ban:hover{background:#f85149}
+.btn-ban:disabled{background:#484f58;opacity:.6;cursor:not-allowed}
+.btn-unban{padding:6px 8px;background:#238636;border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn-unban:hover{background:#2ea043}
+.badge.banned{background:#da363322;color:#f85149;border:1px solid #da363344}
+.badge.active{background:#23863622;color:#3fb950;border:1px solid #23863644}
 </style>
 </head>
 <body>
@@ -88,14 +100,17 @@ tr:hover td{background:#1c2128}
 <th>Display Name</th>
 <th>Email</th>
 <th>Install ID</th>
+<th>Machine ID</th>
 <th>Platform</th>
 <th>Version</th>
 <th>Verified</th>
+<th>Status</th>
+<th>Banned</th>
 <th></th>
 </tr>
 </thead>
 <tbody id="table-body">
-<tr><td colspan="7" class="empty"><span class="spinner"></span> Loading...</td></tr>
+<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>
 </tbody>
 </table>
 </div>
@@ -208,13 +223,46 @@ function badge(platform) {
   return '<span class="badge ' + (platform || "windows") + '">' + (platform || "windows") + "</span>"
 }
 
+function statusBadge(status) {
+  if (!status) return '<span class="badge" style="color:#8b949e">&mdash;</span>'
+  if (status === "pending") return '<span class="badge pending">Pending</span>'
+  if (status === "acknowledged") return '<span class="badge acknowledged">Processing</span>'
+  if (status === "completed") return '<span class="badge completed">Done</span>'
+  return '<span class="badge">' + esc(status) + "</span>"
+}
+
+async function banInstall(id) {
+  const res = await apiFetch("/v1/admin/installations/" + id + "/ban", { method: "POST" })
+  if (res && res.ok) {
+    const data = await res.json()
+    let msg = "Installation banned"
+    if (data.uninstall_triggered) msg += " + uninstall triggered"
+    if (!data.banned) msg += " (no machine ID - cannot block re-registration)"
+    showToast(msg, "success")
+    loadDashboard()
+  } else {
+    const err = await res.json().catch(() => ({}))
+    showToast(err.message || "Failed to ban installation", "error")
+  }
+}
+
+async function unbanInstall(id) {
+  const res = await apiFetch("/v1/admin/installations/" + id + "/unban", { method: "POST" })
+  if (res && res.ok) {
+    showToast("Unbanned " + id, "success")
+    loadDashboard()
+  } else {
+    showToast("Failed to unban installation", "error")
+  }
+}
+
 async function loadDashboard() {
   const token = getToken()
   if (!token) { showLogin(); return }
 
   document.getElementById("login").style.display = "none"
   document.getElementById("dashboard").style.display = "block"
-  document.getElementById("table-body").innerHTML = '<tr><td colspan="7" class="empty"><span class="spinner"></span> Loading...</td></tr>'
+  document.getElementById("table-body").innerHTML = '<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>'
 
   const res = await apiFetch("/v1/admin/installations")
   if (!res) return
@@ -225,22 +273,48 @@ async function loadDashboard() {
   document.getElementById("dash-env").textContent = document.getElementById("env-label").textContent || "production"
 
   if (installations.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No registrations found.</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No registrations found.</td></tr>'
     return
   }
 
-  tbody.innerHTML = installations.map((r) =>
-    "<tr>" +
+  tbody.innerHTML = installations.map((r) => {
+    const disabled = r.command_status === "acknowledged" || r.command_status === "completed"
+    const btnLabel = r.command_status === "completed" ? "Uninstalled" : "Uninstall"
+    let rowClass = ""
+    if (r.is_banned) rowClass = " class=\\"row-banned\\""
+    else rowClass = " class=\\"row-active\\""
+    let midCell
+    if (r.machine_id) {
+      midCell = "<td><span class=\\"mono\\">" + esc(r.machine_id).slice(0, 8) + "&hellip;</span>" +
+        "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.machine_id) + "')\\">copy</button></td>"
+    } else {
+      midCell = '<td style="color:#8b949e">&mdash;</td>'
+    }
+    let banCell
+    if (r.is_banned) banCell = "<td><span class=\\"badge banned\\">Banned</span></td>"
+    else banCell = "<td><span class=\\"badge active\\">Active</span></td>"
+    let banBtn = ""
+    if (r.is_banned) {
+      banBtn = " <button class=\\"btn-unban\\" onclick=\\"unbanInstall('" + esc(r.install_id) + "')\\">Unban</button>"
+    } else if (r.machine_id) {
+      banBtn = " <button class=\\"btn-ban\\" onclick=\\"banInstall('" + esc(r.install_id) + "')\\">Ban</button>"
+    } else {
+      banBtn = " <button class=\\"btn-ban\\" disabled title=\\"No machine ID on record\\">Ban</button>"
+    }
+    return "<tr" + rowClass + ">" +
       "<td><strong>" + esc(r.display_name) + "</strong></td>" +
       "<td>" + esc(r.email) + "</td>" +
-      "<td><span class=\"mono\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
-        '<button class="copy" onclick="copyId(\\'' + esc(r.install_id) + '\\')">copy</button></td>' +
+      "<td><span class=\\"mono\\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
+        "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
+      midCell +
       "<td>" + badge(r.platform) + "</td>" +
-      "<td class=\"mono\">" + esc(r.installer_version) + "</td>" +
+      "<td class=\\"mono\\">" + esc(r.installer_version) + "</td>" +
       "<td>" + fmtDate(r.email_verified_at) + "</td>" +
-      '<td><button class="btn-uninstall" onclick="confirmUninstall(\\'' + esc(r.install_id) + "\\',\\'" + esc(r.display_name) + "\\')\">Uninstall</button></td>" +
+      "<td>" + statusBadge(r.command_status) + "</td>" +
+      banCell +
+      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + "</td>" +
     "</tr>"
-  ).join("")
+  }).join("")
 }
 
 function esc(s) {

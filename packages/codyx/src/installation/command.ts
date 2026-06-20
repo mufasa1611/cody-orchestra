@@ -3,6 +3,7 @@ import { InstallationVersion } from "@cody/core/installation/version"
 import path from "path"
 import fs from "fs"
 import crypto from "node:crypto"
+import { execSync } from "child_process"
 import os from "os"
 import * as prompts from "@clack/prompts"
 
@@ -24,8 +25,8 @@ function readVerification(): VerificationData | null {
     if (!fs.existsSync(filePath)) {
       return null
     }
-    let rawContent = fs.readFileSync(filePath, "utf8");
-    rawContent = rawContent.replace(/^\uFEFF/, "").trim();
+    let rawContent = fs.readFileSync(filePath, "utf8")
+    rawContent = rawContent.replace(/^\uFEFF/, "").trim()
     if (!rawContent) {
       return null
     }
@@ -52,16 +53,48 @@ function saveVerification(serverUrl: string, installId: string, receipt: string,
   const tmp = filePath + ".tmp"
   fs.writeFileSync(
     tmp,
-    JSON.stringify({
-      version: 1,
-      install_id: installId,
-      receipt,
-      expires_at: expiresAt,
-      server_url: serverUrl,
-    }, null, 2),
+    JSON.stringify(
+      {
+        version: 1,
+        install_id: installId,
+        receipt,
+        expires_at: expiresAt,
+        server_url: serverUrl,
+      },
+      null,
+      2,
+    ),
     "utf8",
   )
   fs.renameSync(tmp, filePath)
+}
+
+function getMachineId(): string {
+  try {
+    if (process.platform === "win32") {
+      const out = execSync(
+        "powershell -NoProfile -Command \"(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Cryptography' -Name MachineGuid).MachineGuid\"",
+        { encoding: "utf8", timeout: 3000 },
+      )
+      return out.replace(/\s+$/, "")
+    }
+    if (process.platform === "darwin") {
+      const out = execSync("ioreg -rd1 -c IOPlatformExpertDevice | awk -F'\"' '/IOPlatformUUID/{print $4}'", {
+        encoding: "utf8",
+        timeout: 3000,
+      })
+      return out.trim()
+    }
+    if (process.platform === "linux") {
+      try {
+        return execSync("cat /etc/machine-id", { encoding: "utf8", timeout: 2000 }).trim()
+      } catch {}
+      try {
+        return execSync("cat /var/lib/dbus/machine-id", { encoding: "utf8", timeout: 2000 }).trim()
+      } catch {}
+    }
+  } catch {}
+  return ""
 }
 
 export async function ensureVerification(): Promise<void> {
@@ -98,6 +131,7 @@ export async function ensureVerification(): Promise<void> {
 
   const name = typeof displayName === "string" && displayName.trim() ? displayName.trim() : "User"
   const emailStr = (email as string).trim().toLowerCase()
+  const machineId = getMachineId()
 
   const spin = prompts.spinner()
   spin.start("Sending verification code...")
@@ -113,16 +147,23 @@ export async function ensureVerification(): Promise<void> {
         email: emailStr,
         installer_version: InstallationVersion,
         platform: os.platform() === "win32" ? "windows" : os.platform(),
+        machine_id: machineId || undefined,
       }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
+      if (body.error === "machine_banned") {
+        spin.stop("Blocked", 1)
+        prompts.log.error(body.message || "This device has been banned.")
+        prompts.outro("Registration denied.")
+        return
+      }
       spin.stop("Failed to send code", 1)
       prompts.log.error(`Server: ${body.message || res.statusText}. Try again with 'codyx setup'.`)
       prompts.outro("Verification failed.")
       return
     }
-    const data = await res.json() as { challenge_id: string }
+    const data = (await res.json()) as { challenge_id: string }
     challengeId = data.challenge_id
     spin.stop("Code sent to your email!")
   } catch {
@@ -157,7 +198,7 @@ export async function ensureVerification(): Promise<void> {
       })
 
       if (res.ok) {
-        const data = await res.json() as { receipt: string; expires_at: string }
+        const data = (await res.json()) as { receipt: string; expires_at: string }
         checking.stop("Verified!")
         saveVerification(baseUrl, installId, data.receipt, new Date(data.expires_at).getTime())
         prompts.log.success("Installation linked. Remote management active.")
@@ -184,10 +225,11 @@ export async function ensureVerification(): Promise<void> {
                 email: emailStr,
                 installer_version: InstallationVersion,
                 platform: os.platform() === "win32" ? "windows" : os.platform(),
+                machine_id: machineId || undefined,
               }),
             })
             if (newRes.ok) {
-              const d = await newRes.json() as { challenge_id: string }
+              const d = (await newRes.json()) as { challenge_id: string }
               challengeId = d.challenge_id
             }
           }
@@ -197,7 +239,9 @@ export async function ensureVerification(): Promise<void> {
 
       if (errCode === "code_expired") {
         checking.stop("Code expired")
-        try { await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" }) } catch {}
+        try {
+          await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" })
+        } catch {}
         continue
       }
 
@@ -214,7 +258,9 @@ export async function ensureVerification(): Promise<void> {
         prompts.outro("Verification cancelled.")
         return
       }
-      try { await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" }) } catch {}
+      try {
+        await fetch(`${baseUrl}/v1/challenges/${challengeId}/resend`, { method: "POST" })
+      } catch {}
     } catch {
       checking.stop("Network error", 1)
       prompts.log.error("Cannot reach the verification server.")
@@ -231,6 +277,30 @@ export async function ensureVerification(): Promise<void> {
       }
     }
   }
+}
+
+export async function syncMachineId(): Promise<void> {
+  const verification = readVerification()
+  if (!verification) return
+  const machineId = getMachineId()
+  if (!machineId) return
+
+  const baseUrl = verification.server_url.replace(/\/+$/, "")
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    await fetch(`${baseUrl}/v1/receipts/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        install_id: verification.install_id,
+        receipt: verification.receipt,
+        machine_id: machineId,
+      }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
 }
 
 export async function checkRemoteCommands(): Promise<void> {
@@ -300,7 +370,10 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
 
     for (const dir of targets.directories) {
       if (dir.keep) continue
-      if (targets.installRoot && (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))) {
+      if (
+        targets.installRoot &&
+        (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))
+      ) {
         continue
       }
       if (fs.existsSync(dir.path)) {

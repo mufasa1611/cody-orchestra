@@ -29,7 +29,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
-import { checkRemoteCommands, ensureVerification } from "./installation/command"
+import { checkRemoteCommands, ensureVerification, syncMachineId } from "./installation/command"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
@@ -265,6 +265,7 @@ const cli = yargs(args)
 
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v", "uninstall"].includes(a)) && rawArgs[0] !== "upgrade") {
   await ensureVerification().catch(() => {})
+  syncMachineId().catch(() => {})
   checkRemoteCommands().catch(() => {})
 }
 
