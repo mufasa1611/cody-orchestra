@@ -26,6 +26,7 @@ interface RemovalTargets {
   envProxy: string | null
   installRoot: string | null
   installMarker: string | null
+  trackedFiles: string[]
 }
 
 interface InstallMarker {
@@ -133,6 +134,25 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
   // Find .env.proxy
   const envProxy = await findEnvProxy(marker)
 
+  // Collect individually tracked files from install marker (catch-all)
+  const alreadyTargeted = new Set<string>()
+  for (const d of directories) alreadyTargeted.add(path.resolve(d.path))
+  for (const s of startMenu) alreadyTargeted.add(path.resolve(s))
+  for (const s of globalShims) alreadyTargeted.add(path.resolve(s))
+  if (envProxy) alreadyTargeted.add(path.resolve(envProxy))
+  const markerPath = marker?.root ? path.join(marker.root, ".codyx-install-marker") : null
+  if (markerPath) alreadyTargeted.add(path.resolve(markerPath))
+  if (marker?.root) alreadyTargeted.add(path.resolve(marker.root))
+
+  const trackedFiles: string[] = []
+  for (const f of marker?.installed ?? []) {
+    if (!f) continue
+    const resolved = path.resolve(f)
+    if (alreadyTargeted.has(resolved)) continue
+    const exists = await fs.access(f).then(() => true).catch(() => false)
+    if (exists) trackedFiles.push(f)
+  }
+
   return {
     directories,
     shellConfig,
@@ -141,7 +161,8 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
     globalShims,
     envProxy,
     installRoot: marker?.root ?? process.env.CODY_INSTALL_ROOT ?? null,
-    installMarker: marker?.root ? path.join(marker.root, ".codyx-install-marker") : null,
+    installMarker: markerPath,
+    trackedFiles,
   }
 }
 
@@ -181,6 +202,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (targets.binary) {
     prompts.log.info(`  ✓ Binary: ${shortenPath(targets.binary)}`)
+  }
+
+  for (const f of targets.trackedFiles) {
+    prompts.log.info(`  ✓ Tracked: ${shortenPath(f)}`)
   }
 
   if (targets.shellConfig) {
@@ -291,6 +316,22 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     }
   }
 
+  // Remove individually tracked files from install marker (catch-all)
+  for (const file of targets.trackedFiles) {
+    if (!file || file.trim() === "") continue
+    const exists = await fs.access(file).then(() => true).catch(() => false)
+    if (!exists) continue
+    spinner.start(`Removing tracked: ${path.basename(file)}...`)
+    const err = await fs.rm(file, { recursive: true, force: true }).catch((e) => e)
+    if (err) {
+      spinner.stop(`Failed to remove ${path.basename(file)}`, 1)
+      errors.push(`Tracked ${file}: ${err.message}`)
+    } else {
+      removed.push(file)
+      spinner.stop(`Removed ${path.basename(file)}`)
+    }
+  }
+
   if (targets.installMarker) {
     const exists = await fs
       .access(targets.installMarker)
@@ -369,6 +410,12 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
       .catch(() => false)
     if (exists) {
       const root = targets.installRoot
+      // Release CWD lock on install root so the child process can delete it
+      const cwd = process.cwd()
+      if (cwd.startsWith(root)) {
+        process.chdir(os.tmpdir())
+        prompts.log.step("Changed working directory to temp to release folder lock")
+      }
       spinner.start("Scheduling install root removal...")
       const err = await scheduleInstallRootRemoval(root).catch((e) => e)
       if (err) {
@@ -528,18 +575,18 @@ async function findEnvProxy(marker: InstallMarker | null): Promise<string | null
 }
 
 export async function scheduleInstallRootRemoval(root: string) {
-  const removalCwd = path.dirname(root)
   if (os.platform() === "win32") {
+    const safeDir = os.tmpdir().replace(/'/g, "''")
+    const target = root.replace(/'/g, "''")
     const script = [
-      `$target = '${root.replace(/'/g, "''")}'`,
+      `Set-Location -LiteralPath '${safeDir}'`,
       `Start-Sleep -Seconds 2`,
-      `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
+      `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath '${target}'); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
-      `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
+      `  try { Remove-Item -LiteralPath '${target}' -Recurse -Force -ErrorAction Stop } catch {}`,
       `}`,
     ].join("; ")
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      cwd: removalCwd,
       detached: true,
       stdio: "ignore",
       windowsHide: true,
@@ -548,8 +595,9 @@ export async function scheduleInstallRootRemoval(root: string) {
     return
   }
 
-  const child = spawn("sh", ["-c", `sleep 2; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`], {
-    cwd: removalCwd,
+  const safeDir = os.tmpdir().replace(/'/g, `'\\''`)
+  const target = root.replace(/'/g, `'\\''`)
+  const child = spawn("sh", ["-c", `cd '${safeDir}'; sleep 2; for i in $(seq 1 120); do [ ! -e '${target}' ] && exit 0; sleep 0.5; rm -rf '${target}'; done`], {
     detached: true,
     stdio: "ignore",
   })

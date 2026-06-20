@@ -546,6 +546,35 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
+# Track files created before the marker existed
+$markerPath = Join-Path $Root ".codyx-install-marker"
+$memoPath = Join-Path $Root "memo.md"
+$envProxyPath = Join-Path $Root ".env.proxy"
+$verificationDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
+$verificationFile = Join-Path $verificationDir "verification.json"
+if (Test-Path -LiteralPath $markerPath) {
+  try {
+    $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+    if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
+    function addTracked($p) {
+      if ($marker.installed -notcontains $p) { $marker.installed += $p }
+    }
+    if (Test-Path -LiteralPath $memoPath) { addTracked $memoPath }
+    if (Test-Path -LiteralPath $envProxyPath) { addTracked $envProxyPath }
+    if (Test-Path -LiteralPath $verificationDir) { addTracked $verificationDir }
+    if (Test-Path -LiteralPath $verificationFile) { addTracked $verificationFile }
+    addTracked $markerPath
+    [System.IO.File]::WriteAllText(
+      $markerPath,
+      ($marker | ConvertTo-Json -Compress),
+      [System.Text.UTF8Encoding]::new($false)
+    )
+    Write-Ok "Updated install marker with all created files."
+  } catch {
+    Write-Warn "Could not update install marker with pre-existing files."
+  }
+}
+
 # Phase 8: Health check
 
 Write-Section 8 "Health check"
@@ -590,7 +619,7 @@ if (Test-Path -LiteralPath $markerPath) {
     if (-not $marker.shortcuts) { $marker | Add-Member -NotePropertyName shortcuts -NotePropertyValue @() }
     if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
     if ($marker.shortcuts -notcontains $shortcutPath) { $marker.shortcuts += $shortcutPath }
-    if ($marker.installed -notcontains $shortcutPath) { $marker.installed += $shortcutPath }
+    $addTracked = { param($p) if ($marker.installed -notcontains $p) { $marker.installed += $p } }; & $addTracked $shortcutPath
     [System.IO.File]::WriteAllText(
       $markerPath,
       ($marker | ConvertTo-Json -Compress),

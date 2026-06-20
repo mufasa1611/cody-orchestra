@@ -67,6 +67,12 @@ $marker = @{
   shims      = @()
 }
 
+function Add-Tracked($Path) {
+  if ($marker.installed -notcontains $Path) {
+    $marker.installed += $Path
+  }
+}
+
 function Write-BatchShim($Name) {
   $shimPath = Join-Path $npmDir "$Name.cmd"
   $content = @"
@@ -79,7 +85,7 @@ exit /b %errorlevel%
   [System.IO.File]::WriteAllText($shimPath, $content, [System.Text.UTF8Encoding]::new($false))
   Write-Ok "Created shim: $shimPath"
   $marker.shims += $shimPath
-  $marker.installed += $shimPath
+  Add-Tracked $shimPath
 }
 
 function Write-PowerShellShim($Name) {
@@ -93,7 +99,7 @@ exit `$LASTEXITCODE
   [System.IO.File]::WriteAllText($shimPath, $content, [System.Text.UTF8Encoding]::new($false))
   Write-Ok "Created shim: $shimPath"
   $marker.shims += $shimPath
-  $marker.installed += $shimPath
+  Add-Tracked $shimPath
 }
 
 # 1. Batch shims
@@ -148,7 +154,7 @@ $launchShortcut.WorkingDirectory = $Root
 $launchShortcut.Save()
 Write-Ok "Created shortcut: codyx.lnk"
 $marker.shortcuts += "$startMenuDir\codyx.lnk"
-$marker.installed += "$startMenuDir\codyx.lnk"
+Add-Tracked "$startMenuDir\codyx.lnk"
 
 $webShortcut = $shell.CreateShortcut("$startMenuDir\codyx Web.lnk")
 $webShortcut.TargetPath = "cmd.exe"
@@ -158,10 +164,13 @@ $webShortcut.WorkingDirectory = $Root
 $webShortcut.Save()
 Write-Ok "Created shortcut: codyx Web.lnk"
 $marker.shortcuts += "$startMenuDir\codyx Web.lnk"
-$marker.installed += "$startMenuDir\codyx Web.lnk"
+Add-Tracked "$startMenuDir\codyx Web.lnk"
 
 # 5. Install marker
 Write-Section 5 "Install marker"
+
+Add-Tracked $markerPath
+Add-Tracked $startMenuDir
 
 $markerJson = $marker | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText($markerPath, $markerJson, [System.Text.UTF8Encoding]::new($false))

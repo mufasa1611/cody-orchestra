@@ -1,6 +1,6 @@
 import type { TuiPlugin, TuiPluginApi } from "@cody/plugin/tui"
 import type { InternalTuiPlugin } from "../../plugin/internal"
-import { createMemo, Show } from "solid-js"
+import { createMemo, createSignal, Show, onCleanup } from "solid-js"
 import { Global } from "@cody/core/global"
 import { RGBA } from "@opentui/core"
 import { Link } from "@tui/ui/link"
@@ -50,6 +50,23 @@ function View(props: { api: TuiPluginApi }) {
     return "https://install.kingkung.men/feedback"
   })
 
+  const pulseColors = [
+    RGBA.fromHex("#6e7681"),
+    RGBA.fromHex("#8b949e"),
+    RGBA.fromHex("#adbac7"),
+    RGBA.fromHex("#d0d7de"),
+    RGBA.fromHex("#f0f6fc"),
+    RGBA.fromHex("#ffffff"),
+    RGBA.fromHex("#f0f6fc"),
+    RGBA.fromHex("#d0d7de"),
+    RGBA.fromHex("#adbac7"),
+    RGBA.fromHex("#8b949e"),
+  ]
+  const [pulse, setPulse] = createSignal(0)
+  const pulseTimer = setInterval(() => setPulse((p) => (p + 1) % pulseColors.length), 500)
+  onCleanup(() => clearInterval(pulseTimer))
+  const pulseColor = createMemo(() => pulseColors[pulse()])
+
   return (
     <box gap={1}>
       <Show when={show()}>
@@ -97,7 +114,7 @@ function View(props: { api: TuiPluginApi }) {
         <span>{props.api.app.version}</span>
       </text>
       <text fg={theme().textMuted}>multi Agent build by <span style={{ fg: RGBA.fromHex("#ff8c00") }}><b>M.Farid</b></span> <span style={{ fg: RGBA.fromHex("#90ee90") }}><b>(Mufasa)</b></span></text>
-      <Link href={feedbackUrl()} fg={RGBA.fromHex("#58a6ff")}>Send your feedback — click here</Link>
+      <Link href={feedbackUrl()} fg={pulseColor()}>Send your feedback — click here</Link>
     </box>
   )
 }

@@ -368,6 +368,14 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
       "curl",
     )
 
+    for (const file of targets.trackedFiles) {
+      if (fs.existsSync(file)) {
+        printProgress(`Removing tracked: ${path.basename(file)}...`)
+        await fs.promises.rm(file, { recursive: true, force: true }).catch(() => {})
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+
     for (const dir of targets.directories) {
       if (dir.keep) continue
       if (
