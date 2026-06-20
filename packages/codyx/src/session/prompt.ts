@@ -1377,32 +1377,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
         yield* revert.cleanup(session)
 
-        if (!initializing) {
-          const ctx = yield* InstanceState.context
-          if (!ctx.project.time.initialized) {
-            initializing = true
-            yield* Effect.fn("SessionPrompt.prompt.init")(function* () {
-              const initAgent = input.agent ?? (yield* agents.defaultAgent())
-              const initModel = input.model
-                ? `${input.model.providerID}/${input.model.modelID}`
-                : undefined
-              yield* command({
-                sessionID: input.sessionID,
-                command: Command.Default.INIT,
-                arguments: "",
-                agent: initAgent,
-                model: initModel,
-              })
-            })().pipe(
-              Effect.ensuring(
-                Effect.sync(() => {
-                  initializing = false
-                }),
-              ),
-            )
-          }
-        }
-
         const message = yield* createUserMessage(input)
         yield* sessions.touch(input.sessionID)
 
@@ -1416,9 +1390,58 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }
 
         if (input.noReply === true) return message
-        return yield* loop({ sessionID: input.sessionID })
+        const result = yield* loop({ sessionID: input.sessionID })
+
+        if (!initializing) {
+          const ctx = yield* InstanceState.context
+          if (!ctx.project.time.initialized) {
+            initializing = true
+            const initAgent = input.agent ?? (yield* agents.defaultAgent())
+            const ag = yield* agents.get(initAgent)
+            const sessionInfo = yield* sessions.get(session.id)
+            const inputModel = input.model ? { id: input.model.modelID, providerID: input.model.providerID } : undefined
+            const agentModel = ag?.model ? { id: ag.model.modelID, providerID: ag.model.providerID } : undefined
+            const sessionModel = sessionInfo.model ? { id: sessionInfo.model.id, providerID: sessionInfo.model.providerID } : undefined
+            const useModel = inputModel ?? agentModel ?? sessionModel
+            if (useModel) {
+              const announcement: MessageV2.Assistant = {
+                id: MessageID.ascending(),
+                sessionID: input.sessionID,
+                parentID: message.info.id,
+                role: "assistant",
+                mode: initAgent,
+                agent: initAgent,
+                path: { cwd: ctx.directory, root: ctx.worktree },
+                cost: 0,
+                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                modelID: useModel.id,
+                providerID: useModel.providerID,
+                time: { created: Date.now() },
+              }
+              yield* sessions.updateMessage(announcement)
+              const announcementPart: MessageV2.TextPart = {
+                id: PartID.ascending(),
+                sessionID: input.sessionID,
+                messageID: announcement.id,
+                type: "text",
+                text: "⚙ Codyx is collecting system info to set up this repo. This takes ~2 minutes.",
+              }
+              yield* sessions.updatePart(announcementPart)
+            }
+            yield* command({
+              sessionID: input.sessionID,
+              command: Command.Default.INIT,
+              arguments: "",
+              agent: initAgent,
+              model: useModel ? `${useModel.providerID}/${useModel.id}` : undefined,
+            })
+            initializing = false
+          }
+        }
+
+        return result
       },
-    )
+    ) as (input: PromptInput) => Effect.Effect<MessageV2.WithParts>
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
       const match = yield* sessions.findMessage(sessionID, (m) => m.info.role !== "user")
