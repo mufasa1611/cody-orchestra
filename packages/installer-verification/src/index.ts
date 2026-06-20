@@ -2,7 +2,12 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
-import { sendAdminRegistrationNotification, sendAdminUninstallNotification, sendVerificationEmail } from "./email"
+import {
+  sendAdminRegistrationNotification,
+  sendAdminUninstallNotification,
+  sendAdminFeedbackNotification,
+  sendVerificationEmail,
+} from "./email"
 import {
   CODE_TTL_MS,
   MAX_ATTEMPTS,
@@ -15,6 +20,7 @@ import {
 } from "./policy"
 import { privacyPage } from "./privacy"
 import { adminPanel } from "./admin-panel"
+import { feedbackPage } from "./feedback"
 import type { Bindings, ChallengeRow } from "./types"
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -230,6 +236,28 @@ app.get("/privacy", (context) =>
   }),
 )
 
+app.get("/feedback", async (context) => {
+  const installId = context.req.query("install_id")
+  const sent = context.req.query("sent") === "1"
+  let name = context.req.query("name") || undefined
+  let email = context.req.query("email") || undefined
+  if (installId && (!name || !email)) {
+    const row = await context.env.InstallerVerificationDatabase.prepare(
+      "SELECT display_name, email FROM registration WHERE install_id = ?",
+    )
+      .bind(installId)
+      .first<{ display_name: string; email: string }>()
+    if (row) {
+      if (!name) name = row.display_name
+      if (!email) email = row.email
+    }
+  }
+  return context.html(feedbackPage(name, email, sent), 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "X-Robots-Tag": "noindex",
+  })
+})
+
 app.post("/v1/challenges", async (context) => {
   await applyIpRateLimit(context.env, context.req.raw)
   const input = parse(challengeSchema, await jsonBody(context.req.raw))
@@ -415,6 +443,49 @@ app.post("/v1/challenges/:id/verify", async (context) => {
     }),
     expires_at: new Date(expiresAt).toISOString(),
   })
+})
+
+app.post("/v1/feedback", async (context) => {
+  const input = parse(
+    z.object({
+      name: z.string().max(100).optional(),
+      email: z.string().max(254).optional(),
+      message: z.string().trim().min(1).max(5000),
+    }),
+    await jsonBody(context.req.raw),
+  )
+  const now = Date.now()
+  await context.env.InstallerVerificationDatabase.prepare(
+    "INSERT INTO feedback (id, display_name, email, message, created_at, retain_until) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      input.name ?? null,
+      input.email ?? null,
+      input.message,
+      now,
+      now + 365 * 24 * 60 * 60 * 1000,
+    )
+    .run()
+  const adminEmail = context.env.INSTALLER_ADMIN_EMAIL
+  if (adminEmail) {
+    const value = secrets(context.env)
+    context.executionCtx.waitUntil(
+      sendAdminFeedbackNotification({
+        apiBase: context.env.INSTALLER_MAILGUN_API_BASE,
+        domain: context.env.INSTALLER_MAILGUN_DOMAIN,
+        sendingKey: value.mailgunSendingKey,
+        sender: "Codyx Feedback <installer@verification.kingkung.men>",
+        adminEmail,
+        name: input.name ?? null,
+        email: input.email ?? null,
+        message: input.message,
+      }).catch(() => {
+        console.warn(JSON.stringify({ status: 502, error: "feedback_notification_failed" }))
+      }),
+    )
+  }
+  return context.json({ status: "ok" }, 201)
 })
 
 app.post("/v1/receipts/validate", async (context) => {

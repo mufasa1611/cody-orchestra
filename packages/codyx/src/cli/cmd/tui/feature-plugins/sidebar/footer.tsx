@@ -3,6 +3,10 @@ import type { InternalTuiPlugin } from "../../plugin/internal"
 import { createMemo, Show } from "solid-js"
 import { Global } from "@cody/core/global"
 import { RGBA } from "@opentui/core"
+import { Link } from "@tui/ui/link"
+import path from "path"
+import os from "os"
+import fs from "fs"
 
 const id = "internal:sidebar-footer"
 
@@ -15,7 +19,7 @@ function View(props: { api: TuiPluginApi }) {
   )
   const done = createMemo(() => props.api.kv.get("dismissed_getting_started", false))
   const show = createMemo(() => !has() && !done())
-  const path = createMemo(() => {
+  const cwdPath = createMemo(() => {
     const dir = props.api.state.path.directory || process.cwd()
     const out = dir.replace(Global.Path.home, "~")
     const text = props.api.state.vcs?.branch ? out + ":" + props.api.state.vcs.branch : out
@@ -24,6 +28,26 @@ function View(props: { api: TuiPluginApi }) {
       parent: list.slice(0, -1).join("/"),
       name: list.at(-1) ?? "",
     }
+  })
+
+  const feedbackUrl = createMemo(() => {
+    const candidates = [
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "codyx-installer", "verification.json") : "",
+      path.join(os.homedir(), "Library", "Application Support", "codyx-installer", "verification.json"),
+      path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "codyx-installer", "verification.json"),
+    ]
+    for (const filePath of candidates) {
+      if (!filePath) continue
+      try {
+        const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim()
+        if (!raw) continue
+        const data = JSON.parse(raw)
+        if (data.install_id) return `https://install.kingkung.men/feedback?install_id=${encodeURIComponent(data.install_id)}`
+      } catch {
+        continue
+      }
+    }
+    return "https://install.kingkung.men/feedback"
   })
 
   return (
@@ -62,8 +86,8 @@ function View(props: { api: TuiPluginApi }) {
         </box>
       </Show>
       <text>
-        <span style={{ fg: theme().textMuted }}>{path().parent}/</span>
-        <span style={{ fg: theme().text }}>{path().name}</span>
+        <span style={{ fg: theme().textMuted }}>{cwdPath().parent}/</span>
+        <span style={{ fg: theme().text }}>{cwdPath().name}</span>
       </text>
       <text fg={theme().textMuted}>
         <span style={{ fg: theme().success }}>•</span> <b>Cody</b>
@@ -73,6 +97,7 @@ function View(props: { api: TuiPluginApi }) {
         <span>{props.api.app.version}</span>
       </text>
       <text fg={theme().textMuted}>multi Agent build by <span style={{ fg: RGBA.fromHex("#ff8c00") }}><b>M.Farid</b></span> <span style={{ fg: RGBA.fromHex("#90ee90") }}><b>(Mufasa)</b></span></text>
+      <Link href={feedbackUrl()} fg={RGBA.fromHex("#58a6ff")}>Send your feedback — click here</Link>
     </box>
   )
 }

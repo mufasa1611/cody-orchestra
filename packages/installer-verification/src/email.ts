@@ -82,6 +82,39 @@ export async function sendAdminRegistrationNotification(input: {
   if (!response.ok) throw new Error(`Mailgun rejected the admin notification with status ${response.status}`)
 }
 
+export async function sendAdminFeedbackNotification(input: {
+  apiBase: string
+  domain: string
+  sendingKey: string
+  sender: string
+  adminEmail: string
+  name: string | null
+  email: string | null
+  message: string
+}) {
+  const form = new FormData()
+  form.set("from", input.sender)
+  form.set("to", input.adminEmail)
+  form.set("subject", `[feedback] ${input.name ?? "Anonymous"} — feedback received`)
+  form.set("o:tracking", "no")
+  form.set("o:tracking-clicks", "no")
+  form.set("o:tracking-opens", "no")
+  form.set(
+    "text",
+    [`Name: ${input.name ?? "(not provided)"}`, `Email: ${input.email ?? "(not provided)"}`, `---`, input.message].join(
+      "\n",
+    ),
+  )
+  const response = await fetch(`${input.apiBase.replace(/\/$/, "")}/v3/${encodeURIComponent(input.domain)}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`api:${input.sendingKey}`)}`,
+    },
+    body: form,
+  })
+  if (!response.ok) throw new Error(`Mailgun rejected the feedback notification with status ${response.status}`)
+}
+
 export async function sendAdminUninstallNotification(input: {
   apiBase: string
   domain: string
