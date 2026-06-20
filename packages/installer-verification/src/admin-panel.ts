@@ -282,7 +282,7 @@ async function loadDashboard() {
     const btnLabel = r.command_status === "completed" ? "Uninstalled" : "Uninstall"
     let rowClass = ""
     if (r.is_banned) rowClass = " class=\\"row-banned\\""
-    else rowClass = " class=\\"row-active\\""
+    else if (r.machine_id) rowClass = " class=\\"row-active\\""
     let midCell
     if (r.machine_id) {
       midCell = "<td><span class=\\"mono\\">" + esc(r.machine_id).slice(0, 8) + "&hellip;</span>" +
@@ -292,7 +292,8 @@ async function loadDashboard() {
     }
     let banCell
     if (r.is_banned) banCell = "<td><span class=\\"badge banned\\">Banned</span></td>"
-    else banCell = "<td><span class=\\"badge active\\">Active</span></td>"
+    else if (r.machine_id) banCell = "<td><span class=\\"badge active\\">Active</span></td>"
+    else banCell = '<td style="color:#8b949e">&mdash;</td>'
     let banBtn = ""
     if (r.is_banned) {
       banBtn = " <button class=\\"btn-unban\\" onclick=\\"unbanInstall('" + esc(r.install_id) + "')\\">Unban</button>"
