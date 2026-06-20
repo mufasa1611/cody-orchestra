@@ -14,14 +14,14 @@ function Invoke-WithSparklingProgress {
     )
     $job = Start-Job -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList
     $colors = @(196, 202, 208, 214, 220, 226, 190, 154, 118, 82, 46, 51, 21, 57, 93, 129, 165, 201)
-    $chars = @("█", "▓", "▒", "░")
+    $chars = @("#", "@", "%", ".")
     $tick = 0
     while ($job.State -eq "Running") {
         $bar = ""
         for ($i = 0; $i -lt 25; $i++) {
             $color = $colors[($tick + $i) % $colors.Count]
             if ((Get-Random -Minimum 0 -Maximum 10) -eq 0) {
-                $bar += "$([char]27)[38;5;231m✦"
+                $bar += "$([char]27)[38;5;231m*"
             } else {
                 $charIndex = [math]::Floor(($tick + $i) / 2) % $chars.Count
                 $char = $chars[$charIndex]
