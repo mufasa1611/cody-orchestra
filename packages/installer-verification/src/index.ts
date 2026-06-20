@@ -14,6 +14,7 @@ import {
   canResend,
 } from "./policy"
 import { privacyPage } from "./privacy"
+import { adminPanel } from "./admin-panel"
 import type { Bindings, ChallengeRow } from "./types"
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -211,6 +212,13 @@ app.use("*", async (context, next) => {
   await ensureSchema(context.env.InstallerVerificationDatabase)
   await next()
 })
+
+app.get("/admin", (context) =>
+  context.html(adminPanel(), 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "X-Robots-Tag": "noindex",
+  }),
+)
 
 app.get("/health", (context) => context.json({ healthy: true, environment: context.env.INSTALLER_ENVIRONMENT }))
 
