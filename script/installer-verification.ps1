@@ -4,6 +4,7 @@ param(
   [string]$ServiceUrl = "https://install.kingkung.men",
   [string]$ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json"),
   [switch]$NonInteractive,
+  [string]$DisplayName = "",
   [scriptblock]$RequestAction,
   [scriptblock]$ReadAction = { param($Prompt) Read-Host $Prompt },
   [scriptblock]$SleepAction = { param($Seconds) Start-Sleep -Seconds $Seconds }
@@ -195,9 +196,8 @@ if ($NonInteractive) {
 
 Write-Host ""
 Write-Host "Installer email verification" -ForegroundColor Cyan
-Write-Host "Codyx collects your display name and email address to verify email ownership and send"
-Write-Host "essential installer, service, or security notices. Your display name is not independently"
-Write-Host "verified. This information is not used for marketing."
+Write-Host "Codyx collects your email address to verify email ownership and send"
+Write-Host "essential installer, service, or security notices."
 Write-Host "No source code, prompts, project content, or model conversations are collected by this step."
 Write-Host "Verified registration data is retained for up to 24 months."
 Write-Host "Privacy: https://install.kingkung.men/privacy"
@@ -205,23 +205,13 @@ Write-Host "Deletion requests: privacy@kingkung.men"
 Write-Host "wish you smooth installation (Mufasa)"
 Write-Host ""
 
-$displayName = $null
 $email = $null
 
-while ($true) {
-  while (-not $displayName) {
-    $value = (Read-InstallerValue "Display name (or 'cancel')").Trim()
-    if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
-      Write-VerificationWarn "Installation cancelled before registration."
-      return New-VerificationResult $false "cancelled"
-    }
-    if ($value.Length -lt 2 -or $value.Length -gt 100) {
-      Write-VerificationWarn "Enter a display name between 2 and 100 characters."
-      continue
-    }
-    $displayName = $value
-  }
+if (-not $DisplayName) {
+  Write-VerificationWarn "No display name provided. Verification will proceed without a name."
+}
 
+while ($true) {
   while (-not $email) {
     $value = (Read-InstallerValue "Email address (or 'cancel')").Trim()
     if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -238,7 +228,7 @@ while ($true) {
   Write-VerificationStep "Sending a verification code to $email..."
   $challenge = Invoke-VerificationApi "POST" "/v1/challenges" @{
     install_id = $installId
-    display_name = $displayName
+    display_name = $DisplayName
     email = $email
     installer_version = $InstallerVersion
     platform = "windows"

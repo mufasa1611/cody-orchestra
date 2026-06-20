@@ -1,4 +1,4 @@
-import type { Argv } from "yargs"
+﻿import type { Argv } from "yargs"
 import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { Installation } from "../../installation"
@@ -206,10 +206,10 @@ async function generateDefaultConfig(): Promise<boolean> {
 async function ensureUserMemo() {
   const memoPath = path.join(process.cwd(), "memo.md")
   const existing = await fs.readFile(memoPath, "utf8").catch(() => "")
-  if (existing.includes("Preferred name:")) return
+  if (existing.includes("username:")) return
 
   const name = await prompts.text({
-    message: "What should codyx call you?",
+    message: "What would you like codyx to call you?",
     placeholder: "Your name",
     validate: (value) => {
       if (!value) return "Name is required"
@@ -227,15 +227,15 @@ async function ensureUserMemo() {
   const trimmed = name.trim()
   const base = existing.trim()
   const content = base
-    ? `${base}\n\n## User\n- Preferred name: ${trimmed}\n`
+    ? `${base}\n\n## User\n- username: ${trimmed}\n`
     : `# Private Workspace Memo
 *Note: This file is Gitignored and contains private machine-specific info.*
 
 ## User
-- Preferred name: ${trimmed}
+- username: ${trimmed}
 `
   await fs.writeFile(memoPath, content, "utf8")
-  prompts.log.info(`Saved your preferred name in ${memoPath}`)
+  prompts.log.info(`Saved your username in ${memoPath}`)
 }
 
 export const SetupCommand = {
@@ -453,3 +453,4 @@ export const SetupCommand = {
     prompts.outro("Happy coding with codyx!")
   },
 }
+

@@ -1,4 +1,4 @@
-- To regenerate the JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
+﻿- To regenerate the JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
 - ALWAYS USE PARALLEL TOOLS WHEN APPLICABLE.
 - The default branch in this repo is `dev`.
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
@@ -102,4 +102,4 @@ const table = sqliteTable("session", {
 
 - Always run `bun typecheck` from package directories (e.g., `packages/codyx`), never `tsc` directly.
 - Private machine-specific data is stored in the gitignored \`memo.md\` file at the root. Use the \`/stash\` command to update it with local paths and credentials.
-- The user's preferred name should be stored under `## User` in `memo.md`; reuse it from there instead of asking again once it has been saved.
+- The user's username should be stored under `## User` in `memo.md`; Reuse it from the username key instead of asking again once it has been saved.

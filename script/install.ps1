@@ -78,6 +78,8 @@ function Write-Section($Number, $Label) {
   Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
 }
 
+$Script:CodyxUserName = ""
+
 function Ensure-UserMemo {
   param(
     [Parameter(Mandatory = $true)]
@@ -91,14 +93,15 @@ function Ensure-UserMemo {
     ""
   }
 
-  if ($existing.Contains("Preferred name:")) {
-    Write-Ok "Preferred name already saved in memo.md."
+  if ($existing.Contains("- username:")) {
+    Write-Ok "Username already saved in memo.md."
+    $Script:CodyxUserName = ($existing -split "`n" | Where-Object { $_ -match "- username:" } | ForEach-Object { $_ -replace ".*- username: " } | Select-Object -First 1).Trim()
     return
   }
 
-  Write-Step "Saving your preferred name to memo.md..."
+  Write-Step "Saving your username to memo.md..."
   while ($true) {
-    $value = (Read-Host "What should codyx call you?").Trim()
+    $value = (Read-Host "What would you like codyx to call you?").Trim()
     if ($value.Length -lt 1) {
       Write-Warn "Enter a name."
       continue
@@ -107,19 +110,20 @@ function Ensure-UserMemo {
       Write-Warn "Keep it under 100 characters."
       continue
     }
+    $Script:CodyxUserName = $value
     $content = if ([string]::IsNullOrWhiteSpace($existing)) {
 @"
 # Private Workspace Memo
 *Note: This file is Gitignored and contains private machine-specific info.*
 
 ## User
-- Preferred name: $value
+- username: $value
 "@
     } else {
-      ($existing.TrimEnd() + "`r`n`r`n## User`r`n- Preferred name: $value`r`n")
+      ($existing.TrimEnd() + "`r`n`r`n## User`r`n- username: $value`r`n")
     }
     [System.IO.File]::WriteAllText($memoPath, $content, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "Saved preferred name to $memoPath"
+    Write-Ok "Saved username to $memoPath"
     return
   }
 }
@@ -171,8 +175,6 @@ function Add-UserPathEntry($entry) {
   }
   if (-not $inCurrent) { $env:PATH = "$full;$env:PATH" }
 }
-
-# Installation helpers
 
 function Install-WithWinget($Id, $Label) {
   if (-not (Test-Command winget)) {
@@ -341,6 +343,9 @@ if (-not (Test-BunVersion)) {
   Write-Ok "Bun 1.3.13+ found."
 }
 
+# Collect username before email verification (used in verification email and memo.md)
+Ensure-UserMemo -RootPath $Root
+
 # Email verification intentionally runs after Git/Bun and before any remaining
 # installation work. The -Yes switch never bypasses this gate.
 Write-Step "Loading installer email verification..."
@@ -354,6 +359,7 @@ $verificationParameters = @{
   ServiceUrl = $Script:VERIFICATION_URL
   ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json")
   NonInteractive = -not (Test-InteractiveHost)
+  DisplayName = $Script:CodyxUserName
 }
 
 if ($verificationPath -and (Test-Path -LiteralPath $verificationPath)) {
@@ -528,7 +534,6 @@ if (-not $NoScan) {
 $generatedDir = Join-Path $Root ".cody\generated"
 $null = New-Item -ItemType Directory -Force -Path $generatedDir
 & (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
-Ensure-UserMemo -RootPath $Root
 
 # Phase 7: Global command
 

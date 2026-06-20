@@ -1370,10 +1370,33 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return { info, parts }
     }, Effect.scoped)
 
+    let initializing = false
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.prompt")(
       function* (input: PromptInput) {
         const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
         yield* revert.cleanup(session)
+
+        if (!initializing) {
+          const ctx = yield* InstanceState.context
+          if (!ctx.project.time.initialized) {
+            initializing = true
+            yield* Effect.fn("SessionPrompt.prompt.init")(function* () {
+              const initAgent = input.agent ?? (yield* agents.defaultAgent())
+              const initModel = input.model
+                ? `${input.model.providerID}/${input.model.modelID}`
+                : undefined
+              yield* command({
+                sessionID: input.sessionID,
+                command: Command.Default.INIT,
+                arguments: "",
+                agent: initAgent,
+                model: initModel,
+              })
+            }).pipe(Effect.ensuring(Effect.sync(() => { initializing = false })))
+          }
+        }
+
         const message = yield* createUserMessage(input)
         yield* sessions.touch(input.sessionID)
 
