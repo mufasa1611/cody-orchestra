@@ -28,14 +28,14 @@ const challengeSchema = z.object({
   display_name: z.string().trim().min(2).max(100),
   email: emailSchema,
   installer_version: z.string().trim().min(1).max(64),
-  platform: z.literal("windows"),
+  platform: z.enum(["windows", "macos", "linux"]),
 })
 const verifySchema = z.object({ code: z.string().regex(/^\d{6}$/) })
 const receiptSchema = z.object({
   install_id: z.string().uuid(),
   receipt: z.string().min(1).max(2048),
   installer_version: z.string().trim().min(1).max(64).optional(),
-  platform: z.literal("windows").optional(),
+  platform: z.enum(["windows", "macos", "linux"]).optional(),
 })
 const commandActionSchema = z.object({
   install_id: z.string().uuid(),
