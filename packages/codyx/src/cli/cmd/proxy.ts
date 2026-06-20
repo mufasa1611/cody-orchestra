@@ -3,9 +3,6 @@ import { effectCmd } from "../effect-cmd"
 import { UI } from "../ui"
 import * as net from "net"
 import * as http from "http"
-import * as fs from "fs"
-import * as path from "path"
-import { Global } from "@cody/core/global"
 
 const PORTS = [
   { type: "direct", port: 0, ctrl: 0 },
@@ -86,40 +83,61 @@ function markFailure(index: number, error: unknown) {
   health.lastError = error instanceof Error ? error.message : String(error)
 }
 
-function nextHealthyState() {
+function probeFailed(ip: string) {
+  const value = ip.trim().toLowerCase()
+  return !value || value === "timeout" || value === "unknown" || value.startsWith("error ") || value.includes(" failed")
+}
+
+function nextHealthyState(from = currentState) {
   const now = Date.now()
   for (let offset = 1; offset <= PORTS.length; offset++) {
-    const index = (currentState + offset) % PORTS.length
+    const index = (from + offset) % PORTS.length
     if (routeHealth[index].cooldownUntil <= now) return index
   }
-  return (currentState + 1) % PORTS.length
+  return (from + 1) % PORTS.length
 }
 
 async function rotate(reason = "manual") {
   const seq = ++transitionSeq
-  const index = nextHealthyState()
-  currentState = index
-  lastRotationReason = reason
-  const state = PORTS[index]
-  const stateStr = state.type === 'direct' ? 'Direct' : 'Tor on port ' + state.port;
-  UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Rotated to State ${index}: ${stateStr} (${reason})`);
-  
-  const ip = await getCurrentIP(state);
-  if (seq !== transitionSeq || currentState !== index) return
-  markSuccess(index, ip)
-  UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (${state.type.toUpperCase()})`);
-  
-  if (state.type === "tor") {
-    // Signal NEWNYM to get a new IP
-    const client = net.connect({ port: state.ctrl, host: "127.0.0.1" }, () => {
-      client.write('AUTHENTICATE ""\r\n')
-      client.write('SIGNAL NEWNYM\r\n')
-      client.write('QUIT\r\n')
-    })
-    client.on("error", (e) => {
-      UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Failed to send NEWNYM to ${state.ctrl}: ${e.message}`)
-    })
+  let from = currentState
+
+  for (let attempt = 0; attempt < PORTS.length; attempt++) {
+    const index = nextHealthyState(from)
+    from = index
+    const state = PORTS[index]
+    const stateStr = state.type === "direct" ? "Direct" : "Tor on port " + state.port
+    UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Checking State ${index}: ${stateStr} (${reason})`)
+
+    const ip = await getCurrentIP(state)
+    if (seq !== transitionSeq) return
+
+    if (probeFailed(ip)) {
+      markFailure(index, new Error(ip))
+      UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] State ${index} failed IP check: ${ip}`)
+      continue
+    }
+
+    currentState = index
+    lastRotationReason = reason
+    markSuccess(index, ip)
+    UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (${state.type.toUpperCase()})`)
+
+    if (state.type === "tor") {
+      const client = net.connect({ port: state.ctrl, host: "127.0.0.1" }, () => {
+        client.write('AUTHENTICATE ""\r\n')
+        client.write("SIGNAL NEWNYM\r\n")
+        client.write("QUIT\r\n")
+      })
+      client.on("error", (e) => {
+        UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Failed to send NEWNYM to ${state.ctrl}: ${e.message}`)
+      })
+    }
+    return
   }
+
+  currentState = 0
+  lastRotationReason = `${reason}-fallback-direct`
+  UI.println(UI.Style.TEXT_DANGER_BOLD + "[Proxy] All routes failed IP checks; falling back to Direct")
 }
 
 async function direct(reason = "manual-direct") {
@@ -128,7 +146,11 @@ async function direct(reason = "manual-direct") {
   lastRotationReason = reason
   const ip = await getCurrentIP(PORTS[0])
   if (seq !== transitionSeq || currentState !== 0) return
-  markSuccess(0, ip)
+  if (probeFailed(ip)) {
+    markFailure(0, new Error(ip))
+  } else {
+    markSuccess(0, ip)
+  }
   UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Switched to Direct (${reason})`)
   UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (DIRECT)`)
 }
@@ -137,6 +159,7 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
   const parts = req.url!.split(':')
   const hostname = parts[0]
   const port = parts[1] || "443"
+  const operationIndex = currentState
   UI.println(UI.Style.TEXT_NORMAL + `[Proxy] TOR [${proxyPort}] -> ${hostname}:${port}`)
   
   const socksSocket = net.connect(proxyPort, "127.0.0.1", () => {
@@ -145,11 +168,17 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
   })
 
   let step = 0
+  socksSocket.setTimeout(10_000, () => {
+    markFailure(operationIndex, new Error("SOCKS timeout"))
+    void rotate("socks-timeout")
+    if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+    socksSocket.destroy()
+  })
 
   socksSocket.on("data", (data) => {
     if (step === 0) {
       if (data[0] !== 0x05 || data[1] !== 0x00) {
-        markFailure(currentState, new Error("SOCKS greeting failed"))
+        markFailure(operationIndex, new Error("SOCKS greeting failed"))
         void rotate("socks-greeting-failed")
         clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
         socksSocket.destroy()
@@ -181,7 +210,7 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
       step = 1
     } else if (step === 1) {
       if (data[0] !== 0x05 || data[1] !== 0x00) {
-        markFailure(currentState, new Error("SOCKS connect failed"))
+        markFailure(operationIndex, new Error("SOCKS connect failed"))
         void rotate("socks-connect-failed")
         clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
         socksSocket.destroy()
@@ -189,7 +218,8 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
       }
       
       // Connection established
-      markSuccess(currentState)
+      socksSocket.setTimeout(0)
+      markSuccess(operationIndex)
       clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
       if (head && head.length > 0) socksSocket.write(head)
       
@@ -202,7 +232,7 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
 
   socksSocket.on("error", (e) => {
     UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] SOCKS Socket Error: ${e.message}`)
-    markFailure(currentState, e)
+    markFailure(operationIndex, e)
     void rotate("socks-socket-error")
     if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
   })
@@ -218,11 +248,16 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
 async function getCurrentIP(state: typeof PORTS[0]): Promise<string> {
   return new Promise((resolve) => {
     if (state.type === "direct") {
-      http.get("http://api.ipify.org", (res) => {
+      const req = http.get("http://api.ipify.org", { timeout: 10_000 }, (res) => {
         let data = "";
         res.on("data", (chunk) => { data += chunk; });
         res.on("end", () => resolve(data.trim()));
-      }).on("error", () => resolve("Error fetching IP"));
+      })
+      req.on("error", () => resolve("Error fetching IP"));
+      req.on("timeout", () => {
+        req.destroy()
+        resolve("Timeout")
+      })
       return;
     }
 
@@ -292,8 +327,7 @@ export const ProxyCommand = effectCmd({
           writeJson(res, 403, { error: "Forbidden" })
           return
         }
-        rotate("legacy-control")
-        writeJson(res, 200, publicState())
+        void rotate("legacy-control").then(() => writeJson(res, 200, publicState()))
         return
       }
 
@@ -311,8 +345,7 @@ export const ProxyCommand = effectCmd({
           writeJson(res, 403, { error: "Forbidden" })
           return
         }
-        direct("control-direct")
-        writeJson(res, 200, publicState())
+        void direct("control-direct").then(() => writeJson(res, 200, publicState()))
         return
       }
 
@@ -321,8 +354,7 @@ export const ProxyCommand = effectCmd({
           writeJson(res, 403, { error: "Forbidden" })
           return
         }
-        rotate("control-rotate")
-        writeJson(res, 200, publicState())
+        void rotate("control-rotate").then(() => writeJson(res, 200, publicState()))
         return
       }
       
@@ -352,9 +384,9 @@ export const ProxyCommand = effectCmd({
             res.writeHead(403)
             res.end("Plain HTTP over TOR not yet fully implemented, use HTTPS.")
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         res.writeHead(400)
-        res.end(e.message)
+        res.end(e instanceof Error ? e.message : String(e))
       }
     })
 
@@ -368,16 +400,24 @@ export const ProxyCommand = effectCmd({
       if (state.type === "direct") {
         UI.println(UI.Style.TEXT_NORMAL + `[Proxy] DIRECT -> ${hostname}:${port}`)
 
+        const operationIndex = currentState
         const serverSocket = net.connect(port, hostname, () => {
-          markSuccess(currentState)
+          serverSocket.setTimeout(0)
+          markSuccess(operationIndex)
           clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
           if (head && head.length > 0) serverSocket.write(head)
           serverSocket.pipe(clientSocket)
           clientSocket.pipe(serverSocket)
         })
+        serverSocket.setTimeout(10_000, () => {
+          markFailure(operationIndex, new Error("Direct connect timeout"))
+          void rotate("direct-connect-timeout")
+          if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+          serverSocket.destroy()
+        })
         serverSocket.on("error", (e) => {
           UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Direct Connect Error: ${e.message}`)
-          markFailure(currentState, e)
+          markFailure(operationIndex, e)
           void rotate("direct-connect-error")
           if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
         })
