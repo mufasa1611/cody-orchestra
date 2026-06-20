@@ -1576,6 +1576,16 @@ const layer: Layer.Layer<
                 timeout: false,
               })
 
+              if (await ProxyControl.usageLimitResponse(res)) {
+                return wrapSSE(res, streamFirstChunkTimeout, streamIdleChunkTimeout, chunkAbortCtl, async (phase) => {
+                  await ProxyControl.rotate("stream-timeout", {
+                    phase,
+                    providerID: model.providerID,
+                    modelID: model.id,
+                  })
+                })
+              }
+
               if (ProxyControl.retryableStatus(res.status) && attempt < MAX_PROXY_RETRIES) {
                 await res.body?.cancel(`retryable status ${res.status}`)
                 await ProxyControl.rotate("retryable-status", {

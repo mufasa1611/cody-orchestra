@@ -34,6 +34,12 @@ export function retryableStatus(status: number) {
   return RETRYABLE_STATUS.has(status)
 }
 
+export async function usageLimitResponse(response: Response) {
+  if (response.status !== 429) return false
+  const body = await response.clone().text().catch(() => "")
+  return body.includes("FreeUsageLimitError") || body.includes("GoUsageLimitError")
+}
+
 export function retryableError(error: unknown) {
   const any = error as { name?: string; code?: string; message?: string; cause?: { code?: string } }
   const text = `${any.name ?? ""} ${any.code ?? ""} ${any.cause?.code ?? ""} ${any.message ?? ""}`.toLowerCase()
