@@ -1393,7 +1393,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 agent: initAgent,
                 model: initModel,
               })
-            }).pipe(Effect.ensuring(Effect.sync(() => { initializing = false })))
+            })().pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  initializing = false
+                }),
+              ),
+            )
           }
         }
 
