@@ -50,22 +50,28 @@ function View(props: { api: TuiPluginApi }) {
     return "https://install.kingkung.men/feedback"
   })
 
-  const pulseColors = [
-    RGBA.fromHex("#6e7681"),
-    RGBA.fromHex("#8b949e"),
-    RGBA.fromHex("#adbac7"),
-    RGBA.fromHex("#d0d7de"),
-    RGBA.fromHex("#f0f6fc"),
-    RGBA.fromHex("#ffffff"),
-    RGBA.fromHex("#f0f6fc"),
-    RGBA.fromHex("#d0d7de"),
-    RGBA.fromHex("#adbac7"),
-    RGBA.fromHex("#8b949e"),
-  ]
-  const [pulse, setPulse] = createSignal(0)
-  const pulseTimer = setInterval(() => setPulse((p) => (p + 1) % pulseColors.length), 500)
-  onCleanup(() => clearInterval(pulseTimer))
-  const pulseColor = createMemo(() => pulseColors[pulse()])
+  const feedbackText = "Send your feedback — click here"
+  const feedbackChars = [...feedbackText]
+  const shineWidth = 4
+  const maxOffset = feedbackChars.length - shineWidth
+  const [shine, setShine] = createSignal({ offset: maxOffset, dir: -1 })
+  const shineTimer = setInterval(() => {
+    setShine((prev) => {
+      const next = prev.offset + prev.dir
+      if (next <= 0) return { offset: 0, dir: 1 }
+      if (next >= maxOffset) return { offset: maxOffset, dir: -1 }
+      return { offset: next, dir: prev.dir }
+    })
+  }, 100)
+  onCleanup(() => clearInterval(shineTimer))
+  const textParts = createMemo(() => {
+    const o = shine().offset
+    return {
+      left: feedbackChars.slice(0, o).join(""),
+      middle: feedbackChars.slice(o, o + shineWidth).join(""),
+      right: feedbackChars.slice(o + shineWidth).join(""),
+    }
+  })
 
   return (
     <box gap={1}>
@@ -114,7 +120,11 @@ function View(props: { api: TuiPluginApi }) {
         <span>{props.api.app.version}</span>
       </text>
       <text fg={theme().textMuted}>multi Agent build by <span style={{ fg: RGBA.fromHex("#ff8c00") }}><b>M.Farid</b></span> <span style={{ fg: RGBA.fromHex("#90ee90") }}><b>(Mufasa)</b></span></text>
-      <Link href={feedbackUrl()} fg={pulseColor()}>Send your feedback — click here</Link>
+      <Link href={feedbackUrl()}>
+        <span style={{ fg: RGBA.fromHex("#1a3a5c") }}>{textParts().left}</span>
+        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().middle}</span>
+        <span style={{ fg: RGBA.fromHex("#1a3a5c") }}>{textParts().right}</span>
+      </Link>
     </box>
   )
 }
