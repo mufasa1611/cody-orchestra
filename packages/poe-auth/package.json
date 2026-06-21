@@ -1,0 +1,44 @@
+{
+  "name": "@cody/poe-auth",
+  "version": "0.0.4",
+  "description": "Poe OAuth authentication plugin for Cody (fully self-contained)",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cody",
+    "poe",
+    "oauth",
+    "oauth2",
+    "authentication",
+    "auth",
+    "login",
+    "pkce"
+  ],
+  "dependencies": {
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "@cody/plugin": "workspace:*",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/poe-platform/poe-code.git",
+    "directory": "packages/opencode-poe-auth"
+  },
+  "homepage": "https://github.com/poe-platform/poe-code/tree/main/packages/opencode-poe-auth",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

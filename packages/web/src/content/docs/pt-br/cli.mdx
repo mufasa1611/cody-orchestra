@@ -1,0 +1,611 @@
+---
+title: CLI
+description: Opções e comandos da CLI do cody.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components"
+
+A CLI do cody, por padrão, inicia o [TUI](/docs/tui) quando executada sem argumentos.
+
+```bash
+cody
+```
+
+Mas também aceita comandos conforme documentado nesta página. Isso permite que você interaja com o cody programaticamente.
+
+```bash
+cody run "Explain how closures work in JavaScript"
+```
+
+---
+
+### tui
+
+Inicie a interface de usuário do terminal do cody.
+
+```bash
+cody [project]
+```
+
+#### Opções
+
+| Flag                                     | Curto | Descrição                                                                  |
+| ---------------------------------------- | ----- | -------------------------------------------------------------------------- |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continue a última sessão                                                   |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Criar um fork da sessão ao continuar (use com `--continue` ou `--session`) |
+| <nobr><code>{"--prompt"}</code></nobr>   |       | Prompt a ser usado                                                         |
+| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a ser usado na forma de provider/model                              |
+| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a ser usado                                                         |
+| <nobr><code>{"--port"}</code></nobr>     |       | Porta para escutar                                                         |
+| <nobr><code>{"--hostname"}</code></nobr> |       | Nome do host para escutar                                                  |
+
+---
+
+## Comandos
+
+A CLI do cody também possui os seguintes comandos.
+
+---
+
+### agent
+
+Gerencie agentes para o cody.
+
+```bash
+cody agent [command]
+```
+
+---
+
+### attach
+
+Anexe um terminal a um servidor backend do cody já em execução, iniciado via comandos `serve` ou `web`.
+
+```bash
+cody attach [url]
+```
+
+Isso permite usar o TUI com um backend cody remoto. Por exemplo:
+
+```bash
+# Inicie o servidor backend para acesso web/mobile
+cody web --port 4096 --hostname 0.0.0.0
+
+# Em outro terminal, anexe o TUI ao backend em execução
+cody attach http://10.20.30.40:4096
+```
+
+#### Opções
+
+| Flag                                     | Curto | Descrição                                                                         |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de trabalho para iniciar o TUI                                          |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar a última sessão                                                         |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                       |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar a sessão ao continuar (use com `--continue` ou `--session`)              |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `CODY_SERVER_PASSWORD`)                 |
+| <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuário de autenticação básica (padrão: `CODY_SERVER_USERNAME` ou `cody`) |
+
+---
+
+#### create
+
+Crie um novo agente com configuração personalizada.
+
+```bash
+cody agent create
+```
+
+Este comando irá guiá-lo na criação de um novo agente com um prompt de sistema personalizado e configuração de ferramentas.
+
+---
+
+#### list
+
+Liste todos os agentes disponíveis.
+
+```bash
+cody agent list
+```
+
+---
+
+### auth
+
+Comando para gerenciar credenciais e login para provedores.
+
+```bash
+cody auth [command]
+```
+
+---
+
+#### login
+
+O cody é alimentado pela lista de provedores em [Models.dev](https://models.dev), então você pode usar `cody auth login` para configurar chaves de API para qualquer provedor que você gostaria de usar. Isso é armazenado em `~/.local/share/cody/auth.json`.
+
+```bash
+cody auth login
+```
+
+Quando o cody é iniciado, ele carrega os provedores do arquivo de credenciais. E se houver chaves definidas em seus ambientes ou em um arquivo `.env` em seu projeto.
+
+---
+
+#### list
+
+Lista todos os provedores autenticados conforme armazenado no arquivo de credenciais.
+
+```bash
+cody auth list
+```
+
+Ou a versão curta.
+
+```bash
+cody auth ls
+```
+
+---
+
+#### logout
+
+Desconecta você de um provedor limpando-o do arquivo de credenciais.
+
+```bash
+cody auth logout
+```
+
+---
+
+### github
+
+Gerencie o agente do GitHub para automação de repositórios.
+
+```bash
+cody github [command]
+```
+
+---
+
+#### install
+
+Instale o agente do GitHub em seu repositório.
+
+```bash
+cody github install
+```
+
+Isso configura o fluxo de trabalho necessário do GitHub Actions e o guia pelo processo de configuração. [Saiba mais](/docs/github).
+
+---
+
+#### run
+
+Execute o agente do GitHub. Isso é tipicamente usado em GitHub Actions.
+
+```bash
+cody github run
+```
+
+##### Opções
+
+| Flag                                  | Descrição                                        |
+| ------------------------------------- | ------------------------------------------------ |
+| <nobr><code>{"--event"}</code></nobr> | Evento simulado do GitHub para executar o agente |
+| <nobr><code>{"--token"}</code></nobr> | Token de acesso pessoal do GitHub                |
+
+---
+
+### mcp
+
+Gerencie servidores do Model Context Protocol.
+
+```bash
+cody mcp [command]
+```
+
+---
+
+#### add
+
+Adicione um servidor MCP à sua configuração.
+
+```bash
+cody mcp add
+```
+
+Este comando irá guiá-lo na adição de um servidor MCP local ou remoto.
+
+---
+
+#### list
+
+Liste todos os servidores MCP configurados e seu status de conexão.
+
+```bash
+cody mcp list
+```
+
+Ou use a versão curta.
+
+```bash
+cody mcp ls
+```
+
+---
+
+#### auth
+
+Autentique-se com um servidor MCP habilitado para OAuth.
+
+```bash
+cody mcp auth [name]
+```
+
+Se você não fornecer um nome de servidor, será solicitado que você selecione entre os servidores disponíveis habilitados para OAuth.
+
+Você também pode listar servidores habilitados para OAuth e seu status de autenticação.
+
+```bash
+cody mcp auth list
+```
+
+Ou use a versão curta.
+
+```bash
+cody mcp auth ls
+```
+
+---
+
+#### logout
+
+Remova credenciais OAuth para um servidor MCP.
+
+```bash
+cody mcp logout [name]
+```
+
+---
+
+#### debug
+
+Depure problemas de conexão OAuth para um servidor MCP.
+
+```bash
+cody mcp debug <name>
+```
+
+---
+
+### models
+
+Liste todos os modelos disponíveis dos provedores configurados.
+
+```bash
+cody models [provider]
+```
+
+Este comando exibe todos os modelos disponíveis entre seus provedores configurados no formato `provider/model`.
+
+Isso é útil para descobrir o nome exato do modelo a ser usado em [sua configuração](/docs/config/).
+
+Você pode opcionalmente passar um ID de provedor para filtrar modelos por esse provedor.
+
+```bash
+cody models anthropic
+```
+
+#### Opções
+
+| Flag                                    | Descrição                                                             |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| <nobr><code>{"--refresh"}</code></nobr> | Atualiza o cache de modelos a partir do models.dev                    |
+| <nobr><code>{"--verbose"}</code></nobr> | Use uma saída de modelo mais detalhada (inclui metadados como custos) |
+
+Use a flag `--refresh` para atualizar a lista de modelos em cache. Isso é útil quando novos modelos foram adicionados a um provedor e você deseja vê-los no cody.
+
+```bash
+cody models --refresh
+```
+
+---
+
+### run
+
+Execute o cody em modo não interativo passando um prompt diretamente.
+
+```bash
+cody run [message..]
+```
+
+Isso é útil para scripts, automação ou quando você deseja uma resposta rápida sem iniciar o TUI completo. Por exemplo.
+
+```bash "cody run"
+cody run Explique o uso de context em Go
+```
+
+Você também pode se anexar a uma instância em execução do `cody serve` para evitar tempos de inicialização a frio do servidor MCP em cada execução:
+
+```bash
+# Inicie um servidor sem cabeça em um terminal
+cody serve
+
+# Em outro terminal, execute comandos que se anexam a ele
+cody run --attach http://localhost:4096 "Explique async/await em JavaScript"
+```
+
+#### Opções
+
+| Flag                                     | Curto | Descrição                                                                         |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| <nobr><code>{"--command"}</code></nobr>  |       | O comando a ser executado, use mensagem para argumentos                           |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continue a última sessão                                                          |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                       |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Criar um fork da sessão ao continuar (use com `--continue` ou `--session`)        |
+| <nobr><code>{"--share"}</code></nobr>    |       | Compartilhe a sessão                                                              |
+| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a ser usado na forma de provider/model                                     |
+| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a ser usado                                                                |
+| <nobr><code>{"--file"}</code></nobr>     | `-f`  | Arquivo(s) a serem anexados à mensagem                                            |
+| <nobr><code>{"--format"}</code></nobr>   |       | Formato: padrão (formatado) ou json (eventos JSON brutos)                         |
+| <nobr><code>{"--title"}</code></nobr>    |       | Título para a sessão (usa o prompt truncado se nenhum valor for fornecido)        |
+| <nobr><code>{"--attach"}</code></nobr>   |       | Anexe a um servidor cody em execução (por exemplo, http://localhost:4096)     |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `CODY_SERVER_PASSWORD`)                 |
+| <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuário de autenticação básica (padrão: `CODY_SERVER_USERNAME` ou `cody`) |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de execução, ou caminho no servidor remoto ao anexar                    |
+| <nobr><code>{"--variant"}</code></nobr>  |       | Variante do modelo (nível de raciocínio específico do provedor)                   |
+| <nobr><code>{"--thinking"}</code></nobr> |       | Mostrar blocos de pensamento                                                      |
+| <nobr><code>{"--port"}</code></nobr>     |       | Porta para o servidor local (padrão para porta aleatória)                         |
+
+---
+
+### serve
+
+Inicie um servidor cody sem cabeça para acesso à API. Confira a [documentação do servidor](/docs/server) para a interface HTTP completa.
+
+```bash
+cody serve
+```
+
+Isso inicia um servidor HTTP que fornece acesso à funcionalidade do cody sem a interface TUI. Defina `CODY_SERVER_PASSWORD` para habilitar a autenticação básica HTTP (o nome de usuário padrão é `cody`).
+
+#### Opções
+
+| Flag                                     | Descrição                                             |
+| ---------------------------------------- | ----------------------------------------------------- |
+| <nobr><code>{"--port"}</code></nobr>     | Porta para escutar                                    |
+| <nobr><code>{"--hostname"}</code></nobr> | Nome do host para escutar                             |
+| <nobr><code>{"--mdns"}</code></nobr>     | Habilitar descoberta mDNS                             |
+| <nobr><code>{"--cors"}</code></nobr>     | Origem(ns) de navegador adicionais para permitir CORS |
+
+---
+
+### session
+
+Gerencie sessões do cody.
+
+```bash
+cody session [command]
+```
+
+---
+
+#### list
+
+Liste todas as sessões do cody.
+
+```bash
+cody session list
+```
+
+##### Opções
+
+| Flag                                      | Curto | Descrição                                 |
+| ----------------------------------------- | ----- | ----------------------------------------- |
+| <nobr><code>{"--max-count"}</code></nobr> | `-n`  | Limitar às N sessões mais recentes        |
+| <nobr><code>{"--format"}</code></nobr>    |       | Formato de saída: tabela ou json (tabela) |
+
+---
+
+### stats
+
+Mostre o uso de tokens e estatísticas de custo para suas sessões do cody.
+
+```bash
+cody stats
+```
+
+#### Opções
+
+| Flag                                    | Descrição                                                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| <nobr><code>{"--days"}</code></nobr>    | Mostre estatísticas dos últimos N dias (todo o tempo)                                                |
+| <nobr><code>{"--tools"}</code></nobr>   | Número de ferramentas a serem mostradas (todas)                                                      |
+| <nobr><code>{"--models"}</code></nobr>  | Mostre a divisão do uso de modelos (oculto por padrão). Passe um número para mostrar os N principais |
+| <nobr><code>{"--project"}</code></nobr> | Filtrar por projeto (todos os projetos, string vazia: projeto atual)                                 |
+
+---
+
+### export
+
+Exporte dados da sessão como JSON.
+
+```bash
+cody export [sessionID]
+```
+
+Se você não fornecer um ID de sessão, será solicitado que você selecione entre as sessões disponíveis.
+
+---
+
+### import
+
+Importe dados da sessão de um arquivo JSON ou URL de compartilhamento do cody.
+
+```bash
+cody import <file>
+```
+
+Você pode importar de um arquivo local ou de uma URL de compartilhamento do cody.
+
+```bash
+cody import session.json
+cody import https://opncd.ai/s/abc123
+```
+
+---
+
+### web
+
+Inicie um servidor cody sem cabeça com uma interface web.
+
+```bash
+cody web
+```
+
+Isso inicia um servidor HTTP e abre um navegador para acessar o cody através de uma interface web. Defina `CODY_SERVER_PASSWORD` para habilitar a autenticação básica HTTP (o nome de usuário padrão é `cody`).
+
+#### Opções
+
+| Flag                                     | Descrição                                             |
+| ---------------------------------------- | ----------------------------------------------------- |
+| <nobr><code>{"--port"}</code></nobr>     | Porta para escutar                                    |
+| <nobr><code>{"--hostname"}</code></nobr> | Nome do host para escutar                             |
+| <nobr><code>{"--mdns"}</code></nobr>     | Habilitar descoberta mDNS                             |
+| <nobr><code>{"--cors"}</code></nobr>     | Origem(ns) de navegador adicionais para permitir CORS |
+
+---
+
+### acp
+
+Inicie um servidor ACP (Agent Client Protocol).
+
+```bash
+cody acp
+```
+
+Este comando inicia um servidor ACP que se comunica via stdin/stdout usando nd-JSON.
+
+#### Opções
+
+| Flag                                     | Descrição                 |
+| ---------------------------------------- | ------------------------- |
+| <nobr><code>{"--cwd"}</code></nobr>      | Diretório de trabalho     |
+| <nobr><code>{"--port"}</code></nobr>     | Porta para escutar        |
+| <nobr><code>{"--hostname"}</code></nobr> | Nome do host para escutar |
+
+---
+
+### uninstall
+
+Desinstale o cody e remova todos os arquivos relacionados.
+
+```bash
+cody uninstall
+```
+
+#### Opções
+
+| Flag                                        | Curto | Descrição                                |
+| ------------------------------------------- | ----- | ---------------------------------------- |
+| <nobr><code>{"--keep-config"}</code></nobr> | `-c`  | Manter arquivos de configuração          |
+| <nobr><code>{"--keep-data"}</code></nobr>   | `-d`  | Manter dados de sessão e snapshots       |
+| <nobr><code>{"--dry-run"}</code></nobr>     |       | Mostrar o que seria removido sem remover |
+| <nobr><code>{"--force"}</code></nobr>       | `-f`  | Pular prompts de confirmação             |
+
+---
+
+### upgrade
+
+Atualiza o cody para a versão mais recente ou uma versão específica.
+
+```bash
+cody upgrade [target]
+```
+
+Para atualizar para a versão mais recente.
+
+```bash
+cody upgrade
+```
+
+Para atualizar para uma versão específica.
+
+```bash
+cody upgrade v0.1.48
+```
+
+#### Opções
+
+| Flag                                   | Curto | Descrição                                                        |
+| -------------------------------------- | ----- | ---------------------------------------------------------------- |
+| <nobr><code>{"--method"}</code></nobr> | `-m`  | O método de instalação que foi usado; curl, npm, pnpm, bun, brew |
+
+---
+
+## Opções Globais
+
+A CLI do cody aceita as seguintes flags globais.
+
+| Flag                                       | Curto | Descrição                               |
+| ------------------------------------------ | ----- | --------------------------------------- |
+| <nobr><code>{"--help"}</code></nobr>       | `-h`  | Exibir ajuda                            |
+| <nobr><code>{"--version"}</code></nobr>    | `-v`  | Imprimir número da versão               |
+| <nobr><code>{"--print-logs"}</code></nobr> |       | Imprimir logs no stderr                 |
+| <nobr><code>{"--log-level"}</code></nobr>  |       | Nível de log (DEBUG, INFO, WARN, ERROR) |
+
+---
+
+## Variáveis de ambiente
+
+O cody pode ser configurado usando variáveis de ambiente.
+
+| Variável                              | Tipo    | Descrição                                                             |
+| ------------------------------------- | ------- | --------------------------------------------------------------------- |
+| `CODY_AUTO_SHARE`                 | boolean | Compartilhar sessões automaticamente                                  |
+| `CODY_GIT_BASH_PATH`              | string  | Caminho para o executável do Git Bash no Windows                      |
+| `CODY_CONFIG`                     | string  | Caminho para o arquivo de configuração                                |
+| `CODY_CONFIG_DIR`                 | string  | Caminho para o diretório de configuração                              |
+| `CODY_CONFIG_CONTENT`             | string  | Conteúdo de configuração json inline                                  |
+| `CODY_DISABLE_AUTOUPDATE`         | boolean | Desabilitar verificações de atualização automática                    |
+| `CODY_DISABLE_PRUNE`              | boolean | Desabilitar a poda de dados antigos                                   |
+| `CODY_DISABLE_TERMINAL_TITLE`     | boolean | Desabilitar atualizações automáticas do título do terminal            |
+| `CODY_PERMISSION`                 | string  | Configuração de permissões json inline                                |
+| `CODY_DISABLE_DEFAULT_PLUGINS`    | boolean | Desabilitar plugins padrão                                            |
+| `CODY_DISABLE_LSP_DOWNLOAD`       | boolean | Desabilitar downloads automáticos do servidor LSP                     |
+| `CODY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Habilitar modelos experimentais                                       |
+| `CODY_DISABLE_AUTOCOMPACT`        | boolean | Desabilitar compactação automática de contexto                        |
+| `CODY_DISABLE_CLAUDE_CODE`        | boolean | Desabilitar leitura de `.claude` (prompt + habilidades)               |
+| `CODY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Desabilitar leitura de `~/.claude/CLAUDE.md`                          |
+| `CODY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Desabilitar carregamento de `.claude/skills`                          |
+| `CODY_DISABLE_MODELS_FETCH`       | boolean | Desabilitar busca de modelos de fontes remotas                        |
+| `CODY_FAKE_VCS`                   | string  | Provedor VCS falso para fins de teste                                 |
+| `CODY_CLIENT`                     | string  | Identificador do cliente (padrão é `cli`)                             |
+| `CODY_ENABLE_EXA`                 | boolean | Habilitar ferramentas de busca web Exa                                |
+| `CODY_SERVER_PASSWORD`            | string  | Habilitar autenticação básica para `serve`/`web`                      |
+| `CODY_SERVER_USERNAME`            | string  | Substituir nome de usuário de autenticação básica (padrão `cody`) |
+| `CODY_MODELS_URL`                 | string  | URL personalizada para buscar configuração de modelos                 |
+
+---
+
+### Experimental
+
+Essas variáveis de ambiente habilitam recursos experimentais que podem mudar ou ser removidos.
+
+| Variável                                        | Tipo    | Descrição                                                 |
+| ----------------------------------------------- | ------- | --------------------------------------------------------- |
+| `CODY_EXPERIMENTAL`                         | boolean | Habilitar todos os recursos experimentais                 |
+| `CODY_EXPERIMENTAL_ICON_DISCOVERY`          | boolean | Habilitar descoberta de ícones                            |
+| `CODY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolean | Desabilitar cópia ao selecionar no TUI                    |
+| `CODY_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS` | number  | Tempo limite padrão para comandos bash em ms              |
+| `CODY_EXPERIMENTAL_OUTPUT_TOKEN_MAX`        | number  | Máximo de tokens de saída para respostas LLM              |
+| `CODY_EXPERIMENTAL_FILEWATCHER`             | boolean | Habilitar monitoramento de arquivos para todo o diretório |
+| `CODY_EXPERIMENTAL_OXFMT`                   | boolean | Habilitar formatador oxfmt                                |
+| `CODY_EXPERIMENTAL_LSP_TOOL`                | boolean | Habilitar ferramenta LSP experimental                     |
+| `CODY_EXPERIMENTAL_DISABLE_FILEWATCHER`     | boolean | Desabilitar monitoramento de arquivos                     |
+| `CODY_EXPERIMENTAL_EXA`                     | boolean | Habilitar recursos experimentais do Exa                   |
+| `CODY_EXPERIMENTAL_LSP_TY`                  | boolean | Habilitar TY LSP para arquivos python                     |
+| `CODY_EXPERIMENTAL_MARKDOWN`                | boolean | Habilitar recursos experimentais de markdown              |
+| `CODY_EXPERIMENTAL_PLAN_MODE`               | boolean | Habilitar modo de plano                                   |

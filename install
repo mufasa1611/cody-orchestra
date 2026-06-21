@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="mufasa1611/cody-orchestra"
+BRANCH="${CODY_BRANCH:-main}"
+
+echo "[warn] This installer (root 'install') is deprecated." >&2
+echo "[warn] Use the unified script/install.sh instead:" >&2
+echo "  curl -fsSL https://raw.githubusercontent.com/$REPO/$BRANCH/script/install.sh | bash" >&2
+echo "" >&2
+
+NEW_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/script/install.sh"
+TMP="$(mktemp)"
+if curl -fsSL "$NEW_URL" -o "$TMP" 2>/dev/null; then
+  exec bash "$TMP" "$@"
+fi
+echo "[error] Could not download script/install.sh. Falling through to legacy installer." >&2
+
+REPO_URL="https://github.com/$REPO.git"
+DEFAULT_ROOT="${HOME:-~}/.local/share/codyx"
+SELF_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/install"
+
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+if [ -z "${CODY_INSTALLER_SELF_UPDATED:-}" ] && [ -f "$SCRIPT_PATH" ]; then
+  TMP_INSTALLER="$(mktemp)"
+  if curl -fsSL "$SELF_URL" -o "$TMP_INSTALLER" 2>/dev/null; then
+    if ! cmp -s "$SCRIPT_PATH" "$TMP_INSTALLER"; then
+      echo "[info] New installer found. Running latest from GitHub..."
+      export CODY_INSTALLER_SELF_UPDATED=1
+      exec bash "$TMP_INSTALLER" "$@"
+    fi
+    echo "[ok] Installer is up to date."
+  fi
+  rm -f "$TMP_INSTALLER"
+fi
+
+# ---- OS detection ----
+OS="$(uname -s 2>/dev/null || echo unknown)"
+ARCH="$(uname -m 2>/dev/null || echo unknown)"
+
+case "$OS" in
+  Linux*|Darwin*)
+    echo "cody-x installer for $OS ($ARCH)"
+    if [ -n "${ANDROID_ROOT:-}" ] || [ -n "${TERMUX_VERSION:-}" ]; then
+      echo "[info] Android/Termux-like environment detected."
+    fi
+    echo "[info] Downloading platform installer..."
+    exec bash <(curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/install.sh") "$@"
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    echo "cody-x installer for Windows (Git Bash/MSYS)"
+    echo "[info] Switching to PowerShell installer..."
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+      "iwr https://raw.githubusercontent.com/$REPO/$BRANCH/install.ps1 -UseBasicParsing | iex"
+    ;;
+  *)
+    echo ""
+    echo "=========================================="
+    echo "  cody-x Installer"
+    echo "=========================================="
+    echo ""
+    echo "  This script requires bash. Detected: $OS ($ARCH)"
+    echo ""
+    echo "  For Windows PowerShell, run:"
+    echo "    iwr https://raw.githubusercontent.com/$REPO/$BRANCH/install.ps1 | iex"
+    echo ""
+    echo "  For Linux/macOS, run:"
+    echo "    curl -fsSL https://raw.githubusercontent.com/$REPO/$BRANCH/install.sh | bash"
+    echo ""
+    exit 1
+    ;;
+esac
