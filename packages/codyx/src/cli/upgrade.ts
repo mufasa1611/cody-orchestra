@@ -29,11 +29,7 @@ async function codyProUpgrade() {
     if (!repoRoot) return
     const branch = process.env.CODY_BRANCH || currentBranch()
     execSync("git fetch origin " + branch + " --quiet", { cwd: repoRoot, encoding: "utf8", timeout: 15000 })
-    const behind = execSync("git rev-list --count HEAD..origin/" + branch, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: 5000,
-    }).trim()
+    const behind = execSync("git rev-list --count HEAD..origin/" + branch, { cwd: repoRoot, encoding: "utf8", timeout: 5000 }).trim()
     if (behind === "0" || behind === "") return
 
     await Bus.publish(Installation.Event.UpdateAvailable, { version: "latest" })
@@ -50,14 +46,6 @@ async function codyProUpgrade() {
 
 export function gitUpgrade() {
   try {
-    if (process.env.CODY_INSTALL_METHOD === "npm") {
-      execSync("npm install -g codyx-ai@latest --no-audit --no-fund --force", {
-        encoding: "utf8",
-        timeout: 120000,
-      })
-      Rpc.emit("restart", {})
-      return
-    }
     const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
     gitPullRestart(repoRoot)
   } catch {
@@ -67,19 +55,11 @@ export function gitUpgrade() {
 
 export function checkForUpdates() {
   try {
-    if (process.env.CODY_INSTALL_METHOD === "npm") {
-      const latest = execSync("npm view codyx-ai version", { encoding: "utf8", timeout: 15000 }).trim()
-      return { updateAvailable: latest !== "" && latest !== InstallationVersion }
-    }
     const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
     if (!repoRoot) return { updateAvailable: false }
     const branch = process.env.CODY_BRANCH || currentBranch()
     execSync("git fetch origin " + branch + " --quiet", { cwd: repoRoot, encoding: "utf8", timeout: 15000 })
-    const behind = execSync("git rev-list --count HEAD..origin/" + branch, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: 5000,
-    }).trim()
+    const behind = execSync("git rev-list --count HEAD..origin/" + branch, { cwd: repoRoot, encoding: "utf8", timeout: 5000 }).trim()
     if (behind === "0" || behind === "") return { updateAvailable: false }
     return { updateAvailable: true }
   } catch (e) {
@@ -93,16 +73,14 @@ export async function upgrade() {
   if (config.autoupdate === false || Flag.CODY_DISABLE_AUTOUPDATE) return
 
   // Auto-detect git-based installs
-  if (process.env.CODY_INSTALL_METHOD !== "npm" && process.env.CODY_PRO) {
+  if (process.env.CODY_PRO) {
     return codyProUpgrade()
   }
-  if (process.env.CODY_INSTALL_METHOD !== "npm") {
-    try {
-      execSync("git rev-parse --git-dir", { encoding: "utf8", timeout: 3000 })
-      return codyProUpgrade()
-    } catch {
-      // Not a git repo, fall through to npm/brew/scoop method
-    }
+  try {
+    execSync("git rev-parse --git-dir", { encoding: "utf8", timeout: 3000 })
+    return codyProUpgrade()
+  } catch {
+    // Not a git repo, fall through to npm/brew/scoop method
   }
 
   const method = await Installation.method()

@@ -1,45 +1,45 @@
-# cody GitHub Action
+# codyx GitHub Action
 
-A GitHub Action that integrates [cody](https://cody.ai) directly into your GitHub workflow.
+A GitHub Action that integrates codyx directly into your GitHub workflow.
 
-Mention `/cody` in your comment, and cody will execute tasks within your GitHub Actions runner.
+Mention `/codyx` in your comment, and codyx will execute tasks within your GitHub Actions runner.
 
 ## Features
 
 #### Explain an issue
 
-Leave the following comment on a GitHub issue. `cody` will read the entire thread, including all comments, and reply with a clear explanation.
+Leave the following comment on a GitHub issue. `codyx` will read the entire thread, including all comments, and reply with a clear explanation.
 
 ```
-/cody explain this issue
+/codyx explain this issue
 ```
 
 #### Fix an issue
 
-Leave the following comment on a GitHub issue. cody will create a new branch, implement the changes, and open a PR with the changes.
+Leave the following comment on a GitHub issue. codyx will create a new branch, implement the changes, and open a PR with the changes.
 
 ```
-/cody fix this
+/codyx fix this
 ```
 
 #### Review PRs and make changes
 
-Leave the following comment on a GitHub PR. cody will implement the requested change and commit it to the same PR.
+Leave the following comment on a GitHub PR. codyx will implement the requested change and commit it to the same PR.
 
 ```
-Delete the attachment from S3 when the note is removed /oc
+Delete the attachment from S3 when the note is removed /codyx
 ```
 
 #### Review specific code lines
 
-Leave a comment directly on code lines in the PR's "Files" tab. cody will automatically detect the file, line numbers, and diff context to provide precise responses.
+Leave a comment directly on code lines in the PR's "Files" tab. codyx will automatically detect the file, line numbers, and diff context to provide precise responses.
 
 ```
 [Comment on specific lines in Files tab]
-/oc add error handling here
+/codyx add error handling here
 ```
 
-When commenting on specific lines, cody receives:
+When commenting on specific lines, codyx receives:
 
 - The exact file being reviewed
 - The specific lines of code
@@ -53,18 +53,18 @@ This allows for more targeted requests without needing to specify file paths or 
 Run the following command in the terminal from your GitHub repo:
 
 ```bash
-cody github install
+codyx github install
 ```
 
 This will walk you through installing the GitHub app, creating the workflow, and setting up secrets.
 
 ### Manual Setup
 
-1. Install the GitHub app https://github.com/apps/cody-agent. Make sure it is installed on the target repository.
-2. Add the following workflow file to `.github/workflows/cody.yml` in your repo. Set the appropriate `model` and required API keys in `env`.
+1. Install the GitHub App configured for your cody-orchestra deployment. Make sure it is installed on the target repository.
+2. Add the following workflow file to `.github/workflows/codyx.yml` in your repo. Set the appropriate `model` and required API keys in `env`.
 
    ```yml
-   name: cody
+   name: codyx
 
    on:
      issue_comment:
@@ -73,22 +73,21 @@ This will walk you through installing the GitHub app, creating the workflow, and
        types: [created]
 
    jobs:
-     cody:
+     codyx:
        if: |
-         contains(github.event.comment.body, '/oc') ||
-         contains(github.event.comment.body, '/cody')
+         contains(github.event.comment.body, '/codyx')
        runs-on: ubuntu-latest
        permissions:
          id-token: write
        steps:
-          - name: Checkout repository
-            uses: actions/checkout@v6
-            with:
-              fetch-depth: 1
-              persist-credentials: false
+         - name: Checkout repository
+           uses: actions/checkout@v6
+           with:
+             fetch-depth: 1
+             persist-credentials: false
 
-          - name: Run cody
-           uses: anomalyco/cody/github@latest
+         - name: Run codyx
+           uses: mufasa1611/cody-orchestra/github@dev
            env:
              ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,7 +100,7 @@ This will walk you through installing the GitHub app, creating the workflow, and
 
 ## Support
 
-This is an early release. If you encounter issues or have feedback, please create an issue at https://github.com/your-org/cody/issues.
+This is an early release. If you encounter issues or have feedback, please create an issue at https://github.com/mufasa1611/cody-orchestra/issues.
 
 ## Development
 
@@ -121,20 +120,20 @@ To test locally:
      GITHUB_RUN_ID=dummy \
      MOCK_TOKEN=github_pat_1234567890 \
      MOCK_EVENT='{"eventName":"issue_comment",...}' \
-     bun /path/to/cody/github/index.ts
+     bun /path/to/cody-orchestra/github/index.ts
    ```
 
-   - `MODEL`: The model used by cody. Same as the `MODEL` defined in the GitHub workflow.
+   - `MODEL`: The model used by codyx. Same as the `MODEL` defined in the GitHub workflow.
    - `ANTHROPIC_API_KEY`: Your model provider API key. Same as the keys defined in the GitHub workflow.
    - `GITHUB_RUN_ID`: Dummy value to emulate GitHub action environment.
    - `MOCK_TOKEN`: A GitHub personal access token. This token is used to verify you have `admin` or `write` access to the test repo. Generate a token [here](https://github.com/settings/personal-access-tokens).
    - `MOCK_EVENT`: Mock GitHub event payload (see templates below).
-   - `/path/to/cody`: Path to your cloned cody repo. `bun /path/to/cody/github/index.ts` runs your local version of `cody`.
+   - `/path/to/cody-orchestra`: Path to your cloned cody-orchestra repo. `bun /path/to/cody-orchestra/github/index.ts` runs your local version of `codyx`.
 
 ### Issue comment event
 
 ```
-MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4},"comment":{"id":1,"body":"hey cody, summarize thread"}}}'
+MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4},"comment":{"id":1,"body":"hey codyx, summarize thread"}}}'
 ```
 
 Replace:
@@ -143,12 +142,12 @@ Replace:
 - `"repo":"hello-world"` with repo name
 - `"actor":"fwang"` with the GitHub username of commenter
 - `"number":4` with the GitHub issue id
-- `"body":"hey cody, summarize thread"` with comment body
+- `"body":"hey codyx, summarize thread"` with comment body
 
 ### Issue comment with image attachment.
 
 ```
-MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4},"comment":{"id":1,"body":"hey cody, what is in my image ![Image](https://github.com/user-attachments/assets/xxxxxxxx)"}}}'
+MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4},"comment":{"id":1,"body":"hey codyx, what is in my image ![Image](https://github.com/user-attachments/assets/xxxxxxxx)"}}}'
 ```
 
 Replace the image URL `https://github.com/user-attachments/assets/xxxxxxxx` with a valid GitHub attachment (you can generate one by commenting with an image in any issue).
@@ -156,11 +155,11 @@ Replace the image URL `https://github.com/user-attachments/assets/xxxxxxxx` with
 ### PR comment event
 
 ```
-MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4,"pull_request":{}},"comment":{"id":1,"body":"hey cody, summarize thread"}}}'
+MOCK_EVENT='{"eventName":"issue_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"issue":{"number":4,"pull_request":{}},"comment":{"id":1,"body":"hey codyx, summarize thread"}}}'
 ```
 
 ### PR review comment event
 
 ```
-MOCK_EVENT='{"eventName":"pull_request_review_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"pull_request":{"number":7},"comment":{"id":1,"body":"hey cody, add error handling","path":"src/components/Button.tsx","diff_hunk":"@@ -45,8 +45,11 @@\n- const handleClick = () => {\n-   console.log('clicked')\n+ const handleClick = useCallback(() => {\n+   console.log('clicked')\n+   doSomething()\n+ }, [doSomething])","line":47,"original_line":45,"position":10,"commit_id":"abc123","original_commit_id":"def456"}}}'
+MOCK_EVENT='{"eventName":"pull_request_review_comment","repo":{"owner":"sst","repo":"hello-world"},"actor":"fwang","payload":{"pull_request":{"number":7},"comment":{"id":1,"body":"hey codyx, add error handling","path":"src/components/Button.tsx","diff_hunk":"@@ -45,8 +45,11 @@\n- const handleClick = () => {\n-   console.log('clicked')\n+ const handleClick = useCallback(() => {\n+   console.log('clicked')\n+   doSomething()\n+ }, [doSomething])","line":47,"original_line":45,"position":10,"commit_id":"abc123","original_commit_id":"def456"}}}'
 ```

@@ -2,7 +2,12 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { keyedHash, generateCode, signReceipt, timingSafeEqual, verifyReceipt } from "./crypto"
 import { cleanup, ensureSchema } from "./db"
-import { sendAdminRegistrationNotification, sendAdminUninstallNotification, sendVerificationEmail } from "./email"
+import {
+  sendAdminRegistrationNotification,
+  sendAdminUninstallNotification,
+  sendAdminFeedbackNotification,
+  sendVerificationEmail,
+} from "./email"
 import {
   CODE_TTL_MS,
   MAX_ATTEMPTS,
@@ -14,6 +19,8 @@ import {
   canResend,
 } from "./policy"
 import { privacyPage } from "./privacy"
+import { adminPanel } from "./admin-panel"
+import { feedbackPage } from "./feedback"
 import type { Bindings, ChallengeRow } from "./types"
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -28,14 +35,16 @@ const challengeSchema = z.object({
   display_name: z.string().trim().min(2).max(100),
   email: emailSchema,
   installer_version: z.string().trim().min(1).max(64),
-  platform: z.literal("windows"),
+  platform: z.enum(["windows", "macos", "linux"]),
+  machine_id: z.string().max(512).optional(),
 })
 const verifySchema = z.object({ code: z.string().regex(/^\d{6}$/) })
 const receiptSchema = z.object({
   install_id: z.string().uuid(),
   receipt: z.string().min(1).max(2048),
   installer_version: z.string().trim().min(1).max(64).optional(),
-  platform: z.literal("windows").optional(),
+  platform: z.enum(["windows", "macos", "linux"]).optional(),
+  machine_id: z.string().max(512).optional(),
 })
 const commandActionSchema = z.object({
   install_id: z.string().uuid(),
@@ -45,7 +54,7 @@ const commandActionSchema = z.object({
 
 class ApiError extends Error {
   constructor(
-    readonly status: 400 | 401 | 404 | 409 | 429 | 500 | 502 | 503,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 502 | 503,
     readonly code: string,
     message: string,
     readonly retryAfter?: number,
@@ -212,6 +221,13 @@ app.use("*", async (context, next) => {
   await next()
 })
 
+app.get("/admin", (context) =>
+  context.html(adminPanel(), 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "X-Robots-Tag": "noindex",
+  }),
+)
+
 app.get("/health", (context) => context.json({ healthy: true, environment: context.env.INSTALLER_ENVIRONMENT }))
 
 app.get("/privacy", (context) =>
@@ -220,12 +236,42 @@ app.get("/privacy", (context) =>
   }),
 )
 
+app.get("/feedback", async (context) => {
+  const installId = context.req.query("install_id")
+  const sent = context.req.query("sent") === "1"
+  let name = context.req.query("name") || undefined
+  let email = context.req.query("email") || undefined
+  if (installId && (!name || !email)) {
+    const row = await context.env.InstallerVerificationDatabase.prepare(
+      "SELECT display_name, email FROM registration WHERE install_id = ?",
+    )
+      .bind(installId)
+      .first<{ display_name: string; email: string }>()
+    if (row) {
+      if (!name) name = row.display_name
+      if (!email) email = row.email
+    }
+  }
+  return context.html(feedbackPage(name, email, sent), 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "X-Robots-Tag": "noindex",
+  })
+})
+
 app.post("/v1/challenges", async (context) => {
   await applyIpRateLimit(context.env, context.req.raw)
   const input = parse(challengeSchema, await jsonBody(context.req.raw))
   const db = context.env.InstallerVerificationDatabase
   const now = Date.now()
   const id = crypto.randomUUID()
+  if (input.machine_id) {
+    const banned = await db
+      .prepare("SELECT 1 FROM banned_machine WHERE machine_id = ? LIMIT 1")
+      .bind(input.machine_id)
+      .first()
+    if (banned)
+      throw new ApiError(403, "machine_banned", "This device has been banned for violating Mufasa registration rules.")
+  }
   const code = context.env.INSTALLER_TEST_CODE ?? generateCode()
   const hash = await emailHash(context.env, input.email)
   const sendEventId = await reserveEmailSend(db, hash, now)
@@ -233,8 +279,8 @@ app.post("/v1/challenges", async (context) => {
     .prepare(
       `INSERT INTO challenge
         (id, install_id, display_name, email, email_hash, code_hash, installer_version, platform,
-         attempts, created_at, last_sent_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+         machine_id, attempts, created_at, last_sent_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -245,6 +291,7 @@ app.post("/v1/challenges", async (context) => {
       await keyedHash(secrets(context.env).otp, `${id}:${code}`),
       input.installer_version,
       input.platform,
+      input.machine_id ?? null,
       now,
       now,
       now + CODE_TTL_MS,
@@ -322,6 +369,14 @@ app.post("/v1/challenges/:id/verify", async (context) => {
   if (row.expires_at <= now) throw new ApiError(409, "code_expired", "The verification code has expired.")
   if (row.attempts >= MAX_ATTEMPTS)
     throw new ApiError(429, "attempts_exhausted", "Too many incorrect verification attempts.")
+  if (row.machine_id) {
+    const banned = await db
+      .prepare("SELECT 1 FROM banned_machine WHERE machine_id = ? LIMIT 1")
+      .bind(row.machine_id)
+      .first()
+    if (banned)
+      throw new ApiError(403, "machine_banned", "This device has been banned for violating Mufasa registration rules.")
+  }
   const value = secrets(context.env)
   const expected = await keyedHash(value.otp, `${row.id}:${input.code}`)
   if (!(await timingSafeEqual(value.otp, expected, row.code_hash))) {
@@ -341,8 +396,8 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       .prepare(
         `INSERT INTO registration
           (install_id, display_name, email, email_verified_at, installer_version, platform,
-           created_at, updated_at, retain_until)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           created_at, updated_at, retain_until, machine_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(install_id) DO UPDATE SET
            display_name = excluded.display_name,
            email = excluded.email,
@@ -350,7 +405,8 @@ app.post("/v1/challenges/:id/verify", async (context) => {
            installer_version = excluded.installer_version,
            platform = excluded.platform,
            updated_at = excluded.updated_at,
-           retain_until = excluded.retain_until`,
+           retain_until = excluded.retain_until,
+           machine_id = COALESCE(excluded.machine_id, machine_id)`,
       )
       .bind(
         row.install_id,
@@ -362,6 +418,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
         now,
         now,
         now + RETENTION_MS,
+        row.machine_id ?? null,
       ),
     db
       .prepare("INSERT INTO receipt (id, install_id, issued_at, expires_at) VALUES (?, ?, ?, ?)")
@@ -386,6 +443,49 @@ app.post("/v1/challenges/:id/verify", async (context) => {
     }),
     expires_at: new Date(expiresAt).toISOString(),
   })
+})
+
+app.post("/v1/feedback", async (context) => {
+  const input = parse(
+    z.object({
+      name: z.string().max(100).optional(),
+      email: z.string().max(254).optional(),
+      message: z.string().trim().min(1).max(5000),
+    }),
+    await jsonBody(context.req.raw),
+  )
+  const now = Date.now()
+  await context.env.InstallerVerificationDatabase.prepare(
+    "INSERT INTO feedback (id, display_name, email, message, created_at, retain_until) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      input.name ?? null,
+      input.email ?? null,
+      input.message,
+      now,
+      now + 365 * 24 * 60 * 60 * 1000,
+    )
+    .run()
+  const adminEmail = context.env.INSTALLER_ADMIN_EMAIL
+  if (adminEmail) {
+    const value = secrets(context.env)
+    context.executionCtx.waitUntil(
+      sendAdminFeedbackNotification({
+        apiBase: context.env.INSTALLER_MAILGUN_API_BASE,
+        domain: context.env.INSTALLER_MAILGUN_DOMAIN,
+        sendingKey: value.mailgunSendingKey,
+        sender: "Codyx Feedback <installer@verification.kingkung.men>",
+        adminEmail,
+        name: input.name ?? null,
+        email: input.email ?? null,
+        message: input.message,
+      }).catch(() => {
+        console.warn(JSON.stringify({ status: 502, error: "feedback_notification_failed" }))
+      }),
+    )
+  }
+  return context.json({ status: "ok" }, 201)
 })
 
 app.post("/v1/receipts/validate", async (context) => {
@@ -413,9 +513,9 @@ app.post("/v1/receipts/validate", async (context) => {
     db
       .prepare(
         `UPDATE registration SET installer_version = COALESCE(?, installer_version),
-         platform = COALESCE(?, platform), updated_at = ? WHERE install_id = ?`,
+         platform = COALESCE(?, platform), machine_id = COALESCE(?, machine_id), updated_at = ? WHERE install_id = ?`,
       )
-      .bind(input.installer_version ?? null, input.platform ?? null, now, payload.install_id),
+      .bind(input.installer_version ?? null, input.platform ?? null, input.machine_id ?? null, now, payload.install_id),
   ])
   return context.json({ valid: true, expires_at: new Date(payload.expires_at).toISOString() })
 })
@@ -424,12 +524,24 @@ app.get("/v1/admin/installations", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   const format = context.req.query("format") ?? "json"
   if (format !== "json" && format !== "csv") throw new ApiError(400, "invalid_format", "Format must be json or csv.")
-  const result = await context.env.InstallerVerificationDatabase.prepare(
-    `SELECT install_id, display_name, email, email_verified_at, installer_version, platform,
-      created_at, updated_at, retain_until
-     FROM registration ORDER BY created_at DESC LIMIT 10000`,
-  ).all()
-  if (format === "json") return context.json({ installations: result.results })
+  const db = context.env.InstallerVerificationDatabase
+  const result = await db
+    .prepare(
+      `SELECT r.install_id, r.display_name, r.email, r.email_verified_at, r.installer_version, r.platform,
+      r.machine_id, r.created_at, r.updated_at, r.retain_until,
+      (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_status,
+      (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_id,
+      (SELECT 1 FROM banned_machine b WHERE b.machine_id = r.machine_id LIMIT 1) AS is_banned
+     FROM registration r ORDER BY r.created_at DESC LIMIT 10000`,
+    )
+    .all()
+  const rows = result.results.map((row) => ({
+    ...row,
+    command_status: row.command_status ?? null,
+    command_id: row.command_id ?? null,
+    is_banned: row.is_banned === 1,
+  }))
+  if (format === "json") return context.json({ installations: rows })
   const columns = [
     "install_id",
     "display_name",
@@ -437,13 +549,17 @@ app.get("/v1/admin/installations", async (context) => {
     "email_verified_at",
     "installer_version",
     "platform",
+    "machine_id",
     "created_at",
     "updated_at",
     "retain_until",
+    "command_status",
+    "command_id",
+    "is_banned",
   ]
   const csv = [
     columns.join(","),
-    ...result.results.map((row) => columns.map((column) => csvCell(row[column])).join(",")),
+    ...rows.map((row) => columns.map((column) => csvCell((row as Record<string, unknown>)[column])).join(",")),
   ].join("\n")
   return context.body(csv, 200, {
     "Content-Type": "text/csv; charset=utf-8",
@@ -508,6 +624,80 @@ app.post("/v1/admin/installations/:installID/uninstall", async (context) => {
     db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
   ])
   return context.json({ command_id: commandId }, 201)
+})
+
+app.post("/v1/admin/installations/:installID/ban", async (context) => {
+  await requireAdmin(context.env, context.req.raw)
+  const db = context.env.InstallerVerificationDatabase
+  const installId = parse(z.string().uuid(), context.req.param("installID"))
+  const now = Date.now()
+
+  const registration = await db
+    .prepare("SELECT machine_id FROM registration WHERE install_id = ?")
+    .bind(installId)
+    .first<{ machine_id: string | null }>()
+  if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
+
+  let machineBanned = false
+  if (registration.machine_id) {
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO banned_machine (id, machine_id, reason, banned_by, created_at, retain_until) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), registration.machine_id, null, null, now, now + RETENTION_MS)
+      .run()
+    machineBanned = true
+  }
+
+  const existingCommand = await db
+    .prepare("SELECT 1 FROM remote_command WHERE install_id = ? AND status IN ('pending', 'acknowledged') LIMIT 1")
+    .bind(installId)
+    .first()
+
+  let uninstallTriggered = false
+  if (!existingCommand) {
+    const commandId = crypto.randomUUID()
+    const receipts = await db
+      .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
+      .bind(installId)
+      .all<{ id: string; expires_at: number }>()
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO remote_command (id, install_id, type, status, created_at, retain_until) VALUES (?, ?, 'uninstall', 'pending', ?, ?)",
+        )
+        .bind(commandId, installId, now, now + 30 * 24 * 60 * 60 * 1000),
+      ...receipts.results.map((receipt) =>
+        db
+          .prepare(
+            "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
+          )
+          .bind(receipt.id, installId, now, receipt.expires_at),
+      ),
+      db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
+    ])
+    uninstallTriggered = true
+  }
+
+  return context.json({ banned: machineBanned, uninstall_triggered: uninstallTriggered })
+})
+
+app.post("/v1/admin/installations/:installID/unban", async (context) => {
+  await requireAdmin(context.env, context.req.raw)
+  const db = context.env.InstallerVerificationDatabase
+  const installId = parse(z.string().uuid(), context.req.param("installID"))
+
+  const registration = await db
+    .prepare("SELECT machine_id FROM registration WHERE install_id = ?")
+    .bind(installId)
+    .first<{ machine_id: string | null }>()
+  if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
+
+  if (registration.machine_id) {
+    await db.prepare("DELETE FROM banned_machine WHERE machine_id = ?").bind(registration.machine_id).run()
+  }
+
+  return context.json({ unbanned: true })
 })
 
 app.get("/v1/commands", async (context) => {

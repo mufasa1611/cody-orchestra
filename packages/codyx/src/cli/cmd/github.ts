@@ -139,7 +139,7 @@ type IssueQueryResponse = {
 
 const AGENT_USERNAME = "cody-agent[bot]"
 const AGENT_REACTION = "eyes"
-const WORKFLOW_FILE = ".github/workflows/cody.yml"
+const WORKFLOW_FILE = ".github/workflows/codyx.yml"
 
 // Event categories for routing
 // USER_EVENTS: triggered by user actions, have actor/issueId, support reactions/comments
@@ -247,7 +247,7 @@ export const GithubInstallCommand = effectCmd({
               `    1. Commit the \`${WORKFLOW_FILE}\` file and push`,
               step2,
               "",
-              "    3. Go to a GitHub issue and comment `/oc summarize` to see the agent in action",
+              "    3. Go to a GitHub issue and comment `/codyx summarize` to see the agent in action",
               "",
               "   Learn more about the GitHub agent - https://opencode.ai/docs/github/#usage-examples",
             ].join("\n"),
@@ -385,7 +385,7 @@ export const GithubInstallCommand = effectCmd({
 
           await Filesystem.write(
             path.join(app.root, WORKFLOW_FILE),
-            `name: cody
+            `name: codyx
 
 on:
   issue_comment:
@@ -394,10 +394,10 @@ on:
     types: [created]
 
 jobs:
-  cody:
+  codyx:
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, ' /codyx') ||
+      startsWith(github.event.comment.body, '/codyx') ||
       contains(github.event.comment.body, ' /cody') ||
       startsWith(github.event.comment.body, '/cody')
     runs-on: ubuntu-latest
@@ -412,8 +412,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run cody
-        uses: anomalyco/cody/github@latest${envStr}
+      - name: Run codyx
+        uses: mufasa1611/cody-orchestra/github@dev${envStr}
         with:
           model: ${provider}/${model}`,
           )
@@ -798,7 +798,7 @@ export const GithubRunCommand = effectCmd({
         }
 
         const reviewContext = getReviewCommentContext()
-        const mentions = (process.env["MENTIONS"] || "/cody,/oc")
+        const mentions = (process.env["MENTIONS"] || "/codyx,/cody")
           .split(",")
           .map((m) => m.trim().toLowerCase())
           .filter(Boolean)
@@ -1135,9 +1135,9 @@ export const GithubRunCommand = effectCmd({
           .join("")
         if (type === "schedule" || type === "dispatch") {
           const hex = crypto.randomUUID().slice(0, 6)
-          return `cody/${type}-${hex}-${timestamp}`
+          return `codyx/${type}-${hex}-${timestamp}`
         }
-        return `cody/${type}${issueId}-${timestamp}`
+        return `codyx/${type}${issueId}-${timestamp}`
       }
 
       async function pushToNewBranch(summary: string, branch: string, commit: boolean, isSchedule: boolean) {
@@ -1472,7 +1472,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         return [
           "<github_action_context>",
           "You are running as a GitHub Action. Important:",
-          "- Git push and PR creation are handled AUTOMATICALLY by the cody infrastructure after your response",
+          "- Git push and PR creation are handled AUTOMATICALLY by the codyx infrastructure after your response",
           "- Do NOT include warnings or disclaimers about GitHub tokens, workflow permissions, or PR creation capabilities",
           "- Do NOT suggest manual steps for creating PRs or pushing code - this happens automatically",
           "- Focus only on the code changes and your analysis/response",
@@ -1610,7 +1610,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         return [
           "<github_action_context>",
           "You are running as a GitHub Action. Important:",
-          "- Git push and PR creation are handled AUTOMATICALLY by the cody infrastructure after your response",
+          "- Git push and PR creation are handled AUTOMATICALLY by the codyx infrastructure after your response",
           "- Do NOT include warnings or disclaimers about GitHub tokens, workflow permissions, or PR creation capabilities",
           "- Do NOT suggest manual steps for creating PRs or pushing code - this happens automatically",
           "- Focus only on the code changes and your analysis/response",

@@ -73,7 +73,7 @@ async function fetchReleases(): Promise<Release[]> {
   const per = 100
 
   while (true) {
-    const url = `https://api.github.com/repos/anomalyco/cody/releases?page=${page}&per_page=${per}`
+    const url = `https://api.github.com/repos/mufasa1611/cody-orchestra/releases?page=${page}&per_page=${per}`
 
     const response = await fetch(url)
     if (!response.ok) {
@@ -188,7 +188,7 @@ async function save(githubTotal: number, npmDownloads: number) {
   )
 }
 
-console.log("Fetching GitHub releases for anomalyco/cody...\n")
+console.log("Fetching GitHub releases for mufasa1611/cody-orchestra...\n")
 
 const releases = await fetchReleases()
 console.log(`\nFetched ${releases.length} releases total\n`)

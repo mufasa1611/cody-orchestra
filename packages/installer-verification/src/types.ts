@@ -22,6 +22,7 @@ export interface ChallengeRow {
   code_hash: string
   installer_version: string
   platform: string
+  machine_id: string | null
   attempts: number
   created_at: number
   last_sent_at: number
@@ -44,5 +45,14 @@ export interface RemoteCommandRow {
   created_at: number
   acknowledged_at: number | null
   completed_at: number | null
+  retain_until: number
+}
+
+export interface BannedMachineRow {
+  id: string
+  machine_id: string
+  reason: string | null
+  banned_by: string | null
+  created_at: number
   retain_until: number
 }

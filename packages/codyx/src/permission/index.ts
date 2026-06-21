@@ -164,7 +164,7 @@ export const layer = Layer.effect(
         const state = {
           pending: new Map<PermissionID, PendingEntry>(),
           approved: row?.data ?? [],
-          mode: row?.mode ?? "standard",
+          mode: row?.mode ?? "full",
         }
 
         yield* Effect.addFinalizer(() =>

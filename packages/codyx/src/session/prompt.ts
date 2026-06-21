@@ -62,6 +62,7 @@ import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { SessionTable } from "./session.sql"
 import * as AgentHub from "@/server/agent/hub"
+import { Question } from "@/question"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1370,10 +1371,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return { info, parts }
     }, Effect.scoped)
 
+    let initializing = false
+    const initDeferred = new Set<string>()
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.prompt")(
       function* (input: PromptInput) {
         const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
         yield* revert.cleanup(session)
+
         const message = yield* createUserMessage(input)
         yield* sessions.touch(input.sessionID)
 
@@ -1387,9 +1392,81 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }
 
         if (input.noReply === true) return message
-        return yield* loop({ sessionID: input.sessionID })
+        const result = yield* loop({ sessionID: input.sessionID })
+
+        if (!initializing) {
+          const ctx = yield* InstanceState.context
+          if (!ctx.project.time.initialized && !initDeferred.has(ctx.project.id)) {
+            initializing = true
+            try {
+              const question = yield* Question.Service
+              const answers = yield* question.ask({
+                sessionID: input.sessionID,
+                questions: [{
+                  question: "Codyx needs to check your system to collect important info. This will take ~2 minutes and will help me process your future requests better. Would you like to start now?",
+                  header: "System Setup",
+                  options: [
+                    { label: "OK, start now", description: "Check system and set up this repo (~2 min)" },
+                    { label: "Not now", description: "Skip for now, you can run /init command whenever you want" },
+                  ],
+                  multiple: false,
+                  custom: false,
+                }],
+              })
+              const choice = answers[0]?.[0]
+              if (choice === "OK, start now") {
+                const initAgent = input.agent ?? (yield* agents.defaultAgent())
+                const ag = yield* agents.get(initAgent)
+                const sessionInfo = yield* sessions.get(session.id)
+                const inputModel = input.model ? { id: input.model.modelID, providerID: input.model.providerID } : undefined
+                const agentModel = ag?.model ? { id: ag.model.modelID, providerID: ag.model.providerID } : undefined
+                const sessionModel = sessionInfo.model ? { id: sessionInfo.model.id, providerID: sessionInfo.model.providerID } : undefined
+                const useModel = inputModel ?? agentModel ?? sessionModel
+                if (useModel) {
+                  const announcement: MessageV2.Assistant = {
+                    id: MessageID.ascending(),
+                    sessionID: input.sessionID,
+                    parentID: message.info.id,
+                    role: "assistant",
+                    mode: initAgent,
+                    agent: initAgent,
+                    path: { cwd: ctx.directory, root: ctx.worktree },
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    modelID: useModel.id,
+                    providerID: useModel.providerID,
+                    time: { created: Date.now() },
+                  }
+                  yield* sessions.updateMessage(announcement)
+                  const announcementPart: MessageV2.TextPart = {
+                    id: PartID.ascending(),
+                    sessionID: input.sessionID,
+                    messageID: announcement.id,
+                    type: "text",
+                    text: "⚙ Codyx is collecting system info to set up this repo. This takes ~2 minutes.",
+                  }
+                  yield* sessions.updatePart(announcementPart)
+                }
+                yield* command({
+                  sessionID: input.sessionID,
+                  command: Command.Default.INIT,
+                  arguments: "",
+                  agent: initAgent,
+                  model: useModel ? `${useModel.providerID}/${useModel.id}` : undefined,
+                })
+              } else {
+                initDeferred.add(ctx.project.id)
+              }
+            } catch {
+              initDeferred.add(ctx.project.id)
+            }
+            initializing = false
+          }
+        }
+
+        return result
       },
-    )
+    ) as (input: PromptInput) => Effect.Effect<MessageV2.WithParts>
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
       const match = yield* sessions.findMessage(sessionID, (m) => m.info.role !== "user")

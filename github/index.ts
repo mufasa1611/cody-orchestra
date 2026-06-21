@@ -232,7 +232,7 @@ function createcody() {
   const host = "127.0.0.1"
   const port = 4096
   const url = `http://${host}:${port}`
-  const proc = spawn(`cody`, [`serve`, `--hostname=${host}`, `--port=${port}`])
+  const proc = spawn(`codyx`, [`serve`, `--hostname=${host}`, `--port=${port}`])
   const client = createcodyClient({ baseUrl: url })
 
   return {
@@ -244,8 +244,8 @@ function createcody() {
 function assertPayloadKeyword() {
   const payload = useContext().payload as IssueCommentEvent | PullRequestReviewCommentEvent
   const body = payload.comment.body.trim()
-  if (!body.match(/(?:^|\s)(?:\/cody|\/oc)(?=$|\s)/)) {
-    throw new Error("Comments must mention `/cody` or `/oc`")
+  if (!body.match(/(?:^|\s)(?:\/codyx|\/cody)(?=$|\s)/)) {
+    throw new Error("Comments must mention `/codyx`")
   }
 }
 
@@ -366,6 +366,10 @@ function useShareUrl() {
   return isMock() ? "https://dev.cody.ai" : "https://cody.ai"
 }
 
+function useOidcBaseUrl() {
+  return (process.env["OIDC_BASE_URL"] || "https://api.opencode.ai").replace(/\/+$/, "")
+}
+
 async function getAccessToken() {
   const { repo } = useContext()
 
@@ -374,7 +378,7 @@ async function getAccessToken() {
 
   let response
   if (isMock()) {
-    response = await fetch("https://api.cody.ai/exchange_github_app_token_with_pat", {
+    response = await fetch(`${useOidcBaseUrl()}/exchange_github_app_token_with_pat`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${useEnvMock().mockToken}`,
@@ -383,7 +387,7 @@ async function getAccessToken() {
     })
   } else {
     const oidcToken = await core.getIDToken("cody-github-action")
-    response = await fetch("https://api.cody.ai/exchange_github_app_token", {
+    response = await fetch(`${useOidcBaseUrl()}/exchange_github_app_token`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${oidcToken}`,
@@ -418,19 +422,19 @@ async function getUserPrompt() {
 
   let prompt = (() => {
     const body = payload.comment.body.trim()
-    if (body === "/cody" || body === "/oc") {
+    if (body === "/codyx" || body === "/cody") {
       if (reviewContext) {
         return `Review this code change and suggest improvements for the commented lines:\n\nFile: ${reviewContext.file}\nLines: ${reviewContext.line}\n\n${reviewContext.diffHunk}`
       }
       return "Summarize this thread"
     }
-    if (body.includes("/cody") || body.includes("/oc")) {
+    if (body.includes("/codyx") || body.includes("/cody")) {
       if (reviewContext) {
         return `${body}\n\nContext: You are reviewing a comment on file "${reviewContext.file}" at line ${reviewContext.line}.\n\nDiff context:\n${reviewContext.diffHunk}`
       }
       return body
     }
-    throw new Error("Comments must mention `/cody` or `/oc`")
+    throw new Error("Comments must mention `/codyx`")
   })()
 
   // Handle images
@@ -607,7 +611,7 @@ async function resolveAgent(): Promise<string | undefined> {
 }
 
 async function chat(text: string, files: PromptFiles = []) {
-  console.log("Sending message to cody...")
+  console.log("Sending message to codyx...")
   const { providerID, modelID } = useEnvModel()
   const agent = await resolveAgent()
 
@@ -710,7 +714,7 @@ function generateBranchName(type: "issue" | "pr") {
     .replace(/\.\d{3}Z/, "")
     .split("T")
     .join("")
-  return `cody/${type}${useIssueId()}-${timestamp}`
+  return `codyx/${type}${useIssueId()}-${timestamp}`
 }
 
 async function pushToNewBranch(summary: string, branch: string) {

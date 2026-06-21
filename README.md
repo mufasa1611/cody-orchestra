@@ -28,10 +28,10 @@ irm https://raw.githubusercontent.com/mufasa1611/cody-orchestra/main/script/inst
 codyx
 ```
 
-> The Windows installer installs a user-local Node.js LTS runtime when needed,
-> pauses for email ownership verification, installs `codyx-ai@latest` from npm, and
-> verifies the global command before finishing. It does not require administrator
-> rights. A valid saved verification receipt lets later runs continue automatically.
+> The Windows installer sets up Git and [Bun](https://bun.sh) 1.3.13+ when possible,
+> pauses for email ownership verification, installs `codyx` for the current user, and
+> verifies the global command before finishing. A valid saved verification receipt lets
+> later runs continue automatically.
 > Docker images are available for headless/server deployments.
 
 ---
@@ -118,9 +118,9 @@ Connect MCP servers, expose local tools, and integrate with the broader AI tooli
 Three extension surfaces:
 
 - **npm plugins** — Full plugins published to npm
-  - **Local tools** — `.cody/{tool,tools}/*.{ts,js}` scripts loaded as CLI tools
-  - **Local plugins** — `.cody/{plugin,plugins}/*.{ts,js}` for system extensions
-  - **Agent definitions** — `.cody/{agent,agents}/**/*.md` for custom agent configurations
+  - **Local tools** — .cody/{tool,tools}/\*.{ts,js} scripts loaded as CLI tools
+  - **Local plugins** — .cody/{plugin,plugins}/\*.{ts,js} for system extensions
+  - **Agent definitions** — .cody/{agent,agents}/\*_/_.md for custom agent configurations
 
 ### Private by Default
 
@@ -249,9 +249,9 @@ flowchart TB
 | `CODY_SKIP_MODEL_DISCOVERY` | Set to `1` to skip model discovery on startup             |
 | `CODY_X=0`                  | Disable codyx branding, fall back to upstream styling     |
 | `XDG_DATA_HOME`             | Override data directory (default: `~/.local/share/codyx`) |
-| `codyproXMOX_URL`           | Proxmox API endpoint for infra inspection                 |
-| `codyproXMOX_TOKEN_ID`      | Proxmox API token ID                                      |
-| `codyproXMOX_TOKEN_SECRET`  | Proxmox API token secret                                  |
+| `CODY_PROXMOX_URL`          | Proxmox API endpoint for infra inspection                 |
+| `CODY_PROXMOX_TOKEN_ID`     | Proxmox API token ID                                      |
+| `CODY_PROXMOX_TOKEN_SECRET` | Proxmox API token secret                                  |
 
 ---
 
@@ -337,12 +337,9 @@ bun run dev
 ### Global npm Shim
 
 ```bash
-npm install -g codyx-ai@latest
+npm install -g codyx-ai
 codyx
 ```
-
-Direct npm installation requires Node.js 18 or newer. The recommended Windows
-PowerShell one-liner installs Node.js LTS automatically when it is missing.
 
 ---
 
@@ -424,4 +421,4 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 ## License
 
 MIT © 2026 Mufasa (M. Farid)
-Uses the upstream [cody](https://github.com/mufasa1611/codypro) project as base (also MIT).
+cody-orchestra is maintained at https://github.com/mufasa1611/cody-orchestra.

@@ -50,22 +50,6 @@ function testLayer(
 }
 
 describe("installation", () => {
-  describe("method", () => {
-    test("trusts the npm launcher marker even inside a Git checkout", async () => {
-      const original = process.env.CODY_INSTALL_METHOD
-      process.env.CODY_INSTALL_METHOD = "npm"
-      try {
-        const result = await Effect.runPromise(
-          Installation.Service.use((svc) => svc.method()).pipe(Effect.provide(testLayer(() => jsonResponse({})))),
-        )
-        expect(result).toBe("npm")
-      } finally {
-        if (original === undefined) delete process.env.CODY_INSTALL_METHOD
-        else process.env.CODY_INSTALL_METHOD = original
-      }
-    })
-  })
-
   describe("latest", () => {
     test("reads release version from GitHub releases", async () => {
       const layer = testLayer(() => jsonResponse({ tag_name: "v1.2.3" }))

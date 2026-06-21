@@ -1,4 +1,4 @@
-﻿.DS_Store
+.DS_Store
 node_modules
 .worktrees
 .sst
@@ -52,6 +52,8 @@ CODY_LEGACY_AUDIT.md
 *.bak
 # Personal planning
 personalize-todo-list.md
+proxy-strategy.md
+codyx_todolist.md
 
 # Log files
 *.log
@@ -74,3 +76,6 @@ cody-x_todolist.md
 .cody/session-log.md
 memo.md
 /admin
+
+cody-orchestra
+codyx

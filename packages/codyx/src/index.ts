@@ -29,7 +29,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
-import { checkRemoteCommands } from "./installation/command"
+import { checkRemoteCommands, ensureVerification, syncMachineId } from "./installation/command"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
@@ -104,8 +104,6 @@ function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): 
 // Auto-update at startup (skip for help/version/upgrade subcommands)
 if (
   process.env.CODY_PRO !== "0" &&
-  process.env.CODY_INSTALL_METHOD !== "npm" &&
-  process.env.CODY_SKIP_UPDATE_CHECK !== "1" &&
   !rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) &&
   rawArgs[0] !== "upgrade"
 ) {
@@ -266,15 +264,13 @@ const cli = yargs(args)
   .strict()
 
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v", "uninstall"].includes(a)) && rawArgs[0] !== "upgrade") {
-  checkRemoteCommands().catch(() => {})
+  await ensureVerification().catch(() => {})
+  await syncMachineId().catch(() => {})
+  await checkRemoteCommands().catch(() => {})
 }
 
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) && !rawArgs.includes("--no-banner")) {
   process.stderr.write(UI.logo() + EOL + EOL)
-}
-if (rawArgs.length === 0) {
-  cli.showHelp()
-  process.exit(0)
 }
 
 try {

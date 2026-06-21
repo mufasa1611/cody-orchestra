@@ -184,8 +184,7 @@ export const RunCommand = effectCmd({
       })
       .option("attach", {
         type: "string",
-        describe:
-          "attach to a running codyx server (e.g., http://localhost:4097)",
+        describe: "attach to a running codyx server (e.g., http://localhost:4097)",
       })
       .option("password", {
         alias: ["p"],
@@ -788,8 +787,8 @@ export const RunCommand = effectCmd({
         const { runInteractiveLocalMode } = await runtimeTask
         const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
           const { Server } = await import("@/server/server")
-          const request = new Request(input, init);
-        request.headers.set('x-cody-cli-local', '1');
+          const request = new Request(input, init)
+          request.headers.set("x-cody-cli-local", "1")
           return Server.Default().app.fetch(request)
         }) as typeof globalThis.fetch
 
@@ -822,6 +821,7 @@ export const RunCommand = effectCmd({
       const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const { Server } = await import("@/server/server")
         const request = new Request(input, init)
+        request.headers.set("x-cody-cli-local", "1")
         return Server.Default().app.fetch(request)
       }) as typeof globalThis.fetch
       const sdk = createCodyClient({

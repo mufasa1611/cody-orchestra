@@ -3,9 +3,9 @@
 .SYNOPSIS
     Install codyx on Windows - single-command setup for novice users.
 .DESCRIPTION
-    Public/streamed use installs Node.js LTS when needed, verifies email
-    ownership, and installs codyx-ai from npm. Running this file from a codyx
-    source checkout retains the Git/Bun developer installation workflow.
+    Detects prerequisites, verifies email ownership, installs what's missing,
+    clones/updates the repo, installs dependencies, builds the web UI, configures
+    the Cloudflare proxy tunnel, and installs the global codyx command.
 .PARAMETER Yes
     Auto-confirm optional installer prompts. Email verification is never bypassed.
 .PARAMETER Branch
@@ -52,18 +52,6 @@ $CheckoutRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { $
 $IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "codyx.cmd")))
 $CreatedRepo = $false
 
-if ($IsStandalone) {
-  $npmInstallerUrl = "https://raw.githubusercontent.com/mufasa1611/cody-orchestra/$Branch/script/install-npm.ps1"
-  try {
-    $npmInstaller = Invoke-RestMethod -Uri $npmInstallerUrl -TimeoutSec 30
-    & ([scriptblock]::Create($npmInstaller)) -Yes:$Yes -Branch $Branch -Verbose:$Verbose
-    exit $LASTEXITCODE
-  } catch {
-    Write-Host "[error] Could not start the npm installer: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-  }
-}
-
 # Verbose logging
 $VerbosePref = if ($Verbose) { "Continue" } else { "SilentlyContinue" }
 
@@ -88,6 +76,56 @@ function Write-Err($Message) {
 function Write-Section($Number, $Label) {
   Write-Host ""
   Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
+}
+
+$Script:CodyxUserName = ""
+
+function Ensure-UserMemo {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath
+  )
+
+  $memoPath = Join-Path $RootPath "memo.md"
+  $existing = if (Test-Path -LiteralPath $memoPath) {
+    [System.IO.File]::ReadAllText($memoPath, [System.Text.Encoding]::UTF8)
+  } else {
+    ""
+  }
+
+  if ($existing.Contains("- username:")) {
+    Write-Ok "Username already saved in memo.md."
+    $Script:CodyxUserName = ($existing -split "`n" | Where-Object { $_ -match "- username:" } | ForEach-Object { $_ -replace ".*- username: " } | Select-Object -First 1).Trim()
+    return
+  }
+
+  Write-Step "Saving your username to memo.md..."
+  while ($true) {
+    $value = (Read-Host "What would you like codyx to call you?").Trim()
+    if ($value.Length -lt 1) {
+      Write-Warn "Enter a name."
+      continue
+    }
+    if ($value.Length -gt 100) {
+      Write-Warn "Keep it under 100 characters."
+      continue
+    }
+    $Script:CodyxUserName = $value
+    $content = if ([string]::IsNullOrWhiteSpace($existing)) {
+@"
+# Private Workspace Memo
+*Note: This file is Gitignored and contains private machine-specific info.*
+
+## User
+- username: $value
+"@
+    } else {
+      ($existing.TrimEnd() + "`r`n`r`n## User`r`n- username: $value`r`n")
+    }
+    [System.IO.File]::WriteAllText($memoPath, $content, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "Saved username to $memoPath"
+    return
+  }
 }
 
 function Write-VerboseMsg($Message) {
@@ -137,8 +175,6 @@ function Add-UserPathEntry($entry) {
   }
   if (-not $inCurrent) { $env:PATH = "$full;$env:PATH" }
 }
-
-# Installation helpers
 
 function Install-WithWinget($Id, $Label) {
   if (-not (Test-Command winget)) {
@@ -211,6 +247,60 @@ function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
   }
 }
 
+function Sync-InstallCheckout($TargetBranch) {
+  Write-VerboseMsg "Fetching origin/$TargetBranch..."
+  & git fetch origin $TargetBranch --quiet
+  if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+
+  $currentBranch = (& git branch --show-current 2>$null).Trim()
+  if (-not $currentBranch) {
+    Write-Step "Reattaching checkout to branch $TargetBranch..."
+    & git switch -C $TargetBranch --track origin/$TargetBranch
+    if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
+  } elseif ($currentBranch -ne $TargetBranch) {
+    Write-Step "Switching to branch $TargetBranch..."
+    & git switch $TargetBranch
+    if ($LASTEXITCODE -ne 0) {
+      & git switch -C $TargetBranch --track origin/$TargetBranch
+      if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
+    }
+  }
+
+  $counts = (& git rev-list --left-right --count HEAD...origin/$TargetBranch 2>$null).Trim()
+  $ahead = 0
+  $behind = 0
+  if ($counts) {
+    $parts = $counts -split "\s+"
+    if ($parts.Length -ge 2) {
+      [void][int]::TryParse($parts[0], [ref]$ahead)
+      [void][int]::TryParse($parts[1], [ref]$behind)
+    }
+  }
+
+  $trackedChanges = @(& git status --porcelain --untracked-files=no 2>$null | Where-Object { $_ -and $_.Trim() })
+  $needsRepair = $ahead -gt 0 -or $trackedChanges.Count -gt 0
+
+  if ($needsRepair) {
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupBranch = "installer-backup-$timestamp"
+    $patchPath = Join-Path $env:TEMP "codyx-install-backup-$timestamp.patch"
+    Write-Warn "Existing install checkout has local tracked changes or divergent commits."
+    Write-Warn "Creating backup branch $backupBranch and patch $patchPath before repair."
+    & git branch $backupBranch | Out-Null
+    if ($trackedChanges.Count -gt 0) {
+      & git diff --binary > $patchPath
+    }
+  }
+
+  if ($behind -gt 0 -or $needsRepair) {
+    Write-Step "Syncing install checkout to origin/$TargetBranch..."
+    & git reset --hard origin/$TargetBranch
+    if ($LASTEXITCODE -ne 0) { throw "git reset failed" }
+  } else {
+    Write-Ok "Repository already up to date."
+  }
+}
+
 # Banner
 
 Write-Host ""
@@ -253,6 +343,9 @@ if (-not (Test-BunVersion)) {
   Write-Ok "Bun 1.3.13+ found."
 }
 
+# Collect username before email verification (used in verification email and memo.md)
+Ensure-UserMemo -RootPath $Root
+
 # Email verification intentionally runs after Git/Bun and before any remaining
 # installation work. The -Yes switch never bypasses this gate.
 Write-Step "Loading installer email verification..."
@@ -266,6 +359,7 @@ $verificationParameters = @{
   ServiceUrl = $Script:VERIFICATION_URL
   ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json")
   NonInteractive = -not (Test-InteractiveHost)
+  DisplayName = $Script:CodyxUserName
 }
 
 if ($verificationPath -and (Test-Path -LiteralPath $verificationPath)) {
@@ -330,21 +424,9 @@ if ($IsStandalone) {
   # Update if .git exists
   if (Test-Path (Join-Path $Root ".git")) {
     Push-Location $Root
-    $currentBranch = git branch --show-current 2>$null
-    if ($currentBranch -and $currentBranch -ne $Branch) {
-      Write-Step "Switching to branch $Branch..."
-      Invoke-WithRetry {
-        & git fetch origin $Branch --quiet
-        if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-        & git switch $Branch
-        if ($LASTEXITCODE -ne 0) { throw "git switch failed" }
-      } "git fetch/switch"
-    }
-    Write-VerboseMsg "Pulling latest changes..."
     Invoke-WithRetry {
-      & git pull --ff-only
-      if ($LASTEXITCODE -ne 0) { throw "git pull failed" }
-    } "git pull"
+      Sync-InstallCheckout $Branch
+    } "git sync"
     Pop-Location
     Write-Ok "Repository up to date."
   }
@@ -368,6 +450,18 @@ Invoke-WithRetry {
   if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
 } "bun install"
 Write-Progress -Activity $activity -Completed
+
+if (Test-Path (Join-Path $Root ".git")) {
+  Push-Location $Root
+  & git diff --quiet -- bun.lock
+  if ($LASTEXITCODE -ne 0) {
+    & git restore --source=HEAD --worktree --staged -- bun.lock
+    if ($LASTEXITCODE -eq 0) {
+      Write-Ok "Restored tracked bun.lock after dependency install."
+    }
+  }
+  Pop-Location
+}
 
 Write-Ok "Dependencies installed."
 
@@ -452,6 +546,35 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
+# Track files created before the marker existed
+$markerPath = Join-Path $Root ".codyx-install-marker"
+$memoPath = Join-Path $Root "memo.md"
+$envProxyPath = Join-Path $Root ".env.proxy"
+$verificationDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
+$verificationFile = Join-Path $verificationDir "verification.json"
+if (Test-Path -LiteralPath $markerPath) {
+  try {
+    $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+    if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
+    function addTracked($p) {
+      if ($marker.installed -notcontains $p) { $marker.installed += $p }
+    }
+    if (Test-Path -LiteralPath $memoPath) { addTracked $memoPath }
+    if (Test-Path -LiteralPath $envProxyPath) { addTracked $envProxyPath }
+    if (Test-Path -LiteralPath $verificationDir) { addTracked $verificationDir }
+    if (Test-Path -LiteralPath $verificationFile) { addTracked $verificationFile }
+    addTracked $markerPath
+    [System.IO.File]::WriteAllText(
+      $markerPath,
+      ($marker | ConvertTo-Json -Compress),
+      [System.Text.UTF8Encoding]::new($false)
+    )
+    Write-Ok "Updated install marker with all created files."
+  } catch {
+    Write-Warn "Could not update install marker with pre-existing files."
+  }
+}
+
 # Phase 8: Health check
 
 Write-Section 8 "Health check"
@@ -488,6 +611,24 @@ $shortcut.Description = "Uninstall codyx"
 $shortcut.WorkingDirectory = $Root
 $shortcut.Save()
 Write-Ok "Uninstall shortcut created."
+
+$markerPath = Join-Path $Root ".codyx-install-marker"
+if (Test-Path -LiteralPath $markerPath) {
+  try {
+    $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+    if (-not $marker.shortcuts) { $marker | Add-Member -NotePropertyName shortcuts -NotePropertyValue @() }
+    if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
+    if ($marker.shortcuts -notcontains $shortcutPath) { $marker.shortcuts += $shortcutPath }
+    $addTracked = { param($p) if ($marker.installed -notcontains $p) { $marker.installed += $p } }; & $addTracked $shortcutPath
+    [System.IO.File]::WriteAllText(
+      $markerPath,
+      ($marker | ConvertTo-Json -Compress),
+      [System.Text.UTF8Encoding]::new($false)
+    )
+  } catch {
+    Write-Warn "Could not update install marker with uninstall shortcut."
+  }
+}
 
 # Done
 

@@ -76,7 +76,7 @@ export function isLocal() {
   return InstallationChannel === "local"
 }
 
-export class UpgradeFailedError extends Schema.TaggedErrorClass<UpgradeFailedError>()("UpgradeFailedError", {
+export class UpgradeFailedError extends Schema.TaggedErrorClass<UpgradeFailedError>()("UpgradeFailedError", {   
   stderr: Schema.String,
 }) {}
 
@@ -101,269 +101,275 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@cody/Installation") {}
 
-export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildProcessSpawner.ChildProcessSpawner> =
-  Layer.effect(
-    Service,
-    Effect.gen(function* () {
-      const http = yield* HttpClient.HttpClient
-      const httpOk = HttpClient.filterStatusOk(withTransientReadRetry(http))
-      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | 
+ChildProcessSpawner.ChildProcessSpawner> =
+    Layer.effect(
+      Service,
+      Effect.gen(function* () {
+        const http = yield* HttpClient.HttpClient
+        const httpOk = HttpClient.filterStatusOk(withTransientReadRetry(http))
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 
-      const text = Effect.fnUntraced(
-        function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string> }) {
-          const proc = ChildProcess.make(cmd[0], cmd.slice(1), {
-            cwd: opts?.cwd,
-            env: opts?.env,
-            extendEnv: true,
-          })
-          const handle = yield* spawner.spawn(proc)
-          const out = yield* Stream.mkString(Stream.decodeText(handle.stdout))
-          yield* handle.exitCode
-          return out
-        },
-        Effect.scoped,
-        Effect.catch(() => Effect.succeed("")),
-      )
+        const text = Effect.fnUntraced(
+          function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string> }) {
+            const proc = ChildProcess.make(cmd[0], cmd.slice(1), {
+              cwd: opts?.cwd,
+              env: opts?.env,
+              extendEnv: true,
+            })
+            const handle = yield* spawner.spawn(proc)
+            const out = yield* Stream.mkString(Stream.decodeText(handle.stdout))
+            yield* handle.exitCode
+            return out
+          },
+          Effect.scoped,
+          Effect.catch(() => Effect.succeed("")),
+        )
 
-      const run = Effect.fnUntraced(
-        function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string> }) {
-          const proc = ChildProcess.make(cmd[0], cmd.slice(1), {
-            cwd: opts?.cwd,
-            env: opts?.env,
-            extendEnv: true,
-          })
-          const handle = yield* spawner.spawn(proc)
-          const [stdout, stderr] = yield* Effect.all(
-            [Stream.mkString(Stream.decodeText(handle.stdout)), Stream.mkString(Stream.decodeText(handle.stderr))],
-            { concurrency: 2 },
-          )
-          const code = yield* handle.exitCode
-          return { code, stdout, stderr }
-        },
-        Effect.scoped,
-        Effect.catch(() => Effect.succeed({ code: ChildProcessSpawner.ExitCode(1), stdout: "", stderr: "" })),
-      )
+        const run = Effect.fnUntraced(
+          function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string> }) {
+            const proc = ChildProcess.make(cmd[0], cmd.slice(1), {
+              cwd: opts?.cwd,
+              env: opts?.env,
+              extendEnv: true,
+            })
+            const handle = yield* spawner.spawn(proc)
+            const [stdout, stderr] = yield* Effect.all(
+              [Stream.mkString(Stream.decodeText(handle.stdout)),
+Stream.mkString(Stream.decodeText(handle.stderr))],
+              { concurrency: 2 },
+            )
+            const code = yield* handle.exitCode
+            return { code, stdout, stderr }
+          },
+          Effect.scoped,
+          Effect.catch(() => Effect.succeed({ code: ChildProcessSpawner.ExitCode(1), stdout: "", stderr: ""     
+})),
+        )
 
-      const getBrewFormula = Effect.fnUntraced(function* () {
-        const tapFormula = yield* text(["brew", "list", "--formula", "mufasa1611/tap/codyx"])
-        if (tapFormula.includes("codyx")) return "mufasa1611/tap/codyx"
-        const coreFormula = yield* text(["brew", "list", "--formula", "codyx"])
-        if (coreFormula.includes("codyx")) return "codyx"
-        return "codyx"
-      })
+        const getBrewFormula = Effect.fnUntraced(function* () {
+          const tapFormula = yield* text(["brew", "list", "--formula", "mufasa1611/tap/codyx"])
+          if (tapFormula.includes("codyx")) return "mufasa1611/tap/codyx"
+          const coreFormula = yield* text(["brew", "list", "--formula", "codyx"])
+          if (coreFormula.includes("codyx")) return "codyx"
+          return "codyx"
+        })
 
-      const upgradeCurl = Effect.fnUntraced(
-        function* (target: string) {
-          const response = yield* httpOk.execute(HttpClientRequest.get("https://opencode.ai/install"))
-          const body = yield* response.text
-          const bodyBytes = new TextEncoder().encode(body)
-          const proc = ChildProcess.make("bash", [], {
-            stdin: Stream.make(bodyBytes),
-            env: { VERSION: target },
-            extendEnv: true,
-          })
-          const handle = yield* spawner.spawn(proc)
-          const [stdout, stderr] = yield* Effect.all(
-            [Stream.mkString(Stream.decodeText(handle.stdout)), Stream.mkString(Stream.decodeText(handle.stderr))],
-            { concurrency: 2 },
-          )
-          const code = yield* handle.exitCode
-          return { code, stdout, stderr }
-        },
-        Effect.scoped,
-        Effect.orDie,
-      )
+        const upgradeCurl = Effect.fnUntraced(
+          function* (target: string) {
+            const response = yield* httpOk.execute(HttpClientRequest.get("https://opencode.ai/install"))        
+            const body = yield* response.text
+            const bodyBytes = new TextEncoder().encode(body)
+            const proc = ChildProcess.make("bash", [], {
+              stdin: Stream.make(bodyBytes),
+              env: { VERSION: target },
+              extendEnv: true,
+            })
+            const handle = yield* spawner.spawn(proc)
+            const [stdout, stderr] = yield* Effect.all(
+              [Stream.mkString(Stream.decodeText(handle.stdout)),
+Stream.mkString(Stream.decodeText(handle.stderr))],
+              { concurrency: 2 },
+            )
+            const code = yield* handle.exitCode
+            return { code, stdout, stderr }
+          },
+          Effect.scoped,
+          Effect.orDie,
+        )
 
-      const result: Interface = {
-        info: Effect.fn("Installation.info")(function* () {
-          return {
-            version: InstallationVersion,
-            latest: yield* result.latest(),
-          }
-        }),
-        method: Effect.fn("Installation.method")(function* () {
-          if (process.env.CODY_INSTALL_METHOD === "npm") return "npm" as Method
-          const isGit = yield* text(["git", "rev-parse", "--is-inside-work-tree"])
-          if (isGit.trim() === "true") return "git" as Method
-
-          if (process.execPath.includes(path.join(".cody", "bin"))) return "curl" as Method
-          if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
-          const exec = process.execPath.toLowerCase()
-
-          const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = [
-            { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
-            { name: "yarn", command: () => text(["yarn", "global", "list"]) },
-            { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
-            { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
-            { name: "brew", command: () => text(["brew", "list", "--formula", "codyx"]) },
-            { name: "scoop", command: () => text(["scoop", "list", "codyx"]) },
-            { name: "choco", command: () => text(["choco", "list", "--limit-output", "codyx"]) },
-          ]
-
-          checks.sort((a, b) => {
-            const aMatches = exec.includes(a.name)
-            const bMatches = exec.includes(b.name)
-            if (aMatches && !bMatches) return -1
-            if (!aMatches && bMatches) return 1
-            return 0
-          })
-
-          for (const check of checks) {
-            const output = yield* check.command()
-            const installedName =
-              check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "codyx" : "codyx-ai"
-            if (output.includes(installedName)) {
-              return check.name
+        const result: Interface = {
+          info: Effect.fn("Installation.info")(function* () {
+            return {
+              version: InstallationVersion,
+              latest: yield* result.latest(),
             }
-          }
+          }),
+          method: Effect.fn("Installation.method")(function* () {
+            const isGit = yield* text(["git", "rev-parse", "--is-inside-work-tree"])
+            if (isGit.trim() === "true") return "git" as Method
 
-          return "unknown" as Method
-        }),
-        latest: Effect.fn("Installation.latest")(function* (installMethod?: Method) {
-          const detectedMethod = installMethod || (yield* result.method())
+            if (process.execPath.includes(path.join(".cody", "bin"))) return "curl" as Method
+            if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
+            const exec = process.execPath.toLowerCase()
 
-          if (detectedMethod === "git") {
-            const branch = process.env.CODY_BRANCH || "main"
-            yield* run(["git", "fetch", "origin", branch])
-            const behind = yield* text(["git", "rev-list", "--count", `HEAD..origin/${branch}`])
-            if (behind.trim() !== "0" && behind.trim() !== "") return "update-available"
-            return InstallationVersion
-          }
+            const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = [
+              { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
+              { name: "yarn", command: () => text(["yarn", "global", "list"]) },
+              { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
+              { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
+              { name: "brew", command: () => text(["brew", "list", "--formula", "codyx"]) },
+              { name: "scoop", command: () => text(["scoop", "list", "codyx"]) },
+              { name: "choco", command: () => text(["choco", "list", "--limit-output", "codyx"]) },
+            ]
 
-          if (detectedMethod === "brew") {
-            const formula = yield* getBrewFormula()
-            if (formula.includes("/")) {
-              const infoJson = yield* text(["brew", "info", "--json=v2", formula])
-              const info = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BrewInfoV2))(infoJson)
-              return info.formulae[0].versions.stable
+            checks.sort((a, b) => {
+              const aMatches = exec.includes(a.name)
+              const bMatches = exec.includes(b.name)
+              if (aMatches && !bMatches) return -1
+              if (!aMatches && bMatches) return 1
+              return 0
+            })
+
+            for (const check of checks) {
+              const output = yield* check.command()
+              const installedName =
+                check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "codyx" :
+"codyx-ai"
+              if (output.includes(installedName)) {
+                return check.name
+              }
             }
+
+            return "unknown" as Method
+          }),
+          latest: Effect.fn("Installation.latest")(function* (installMethod?: Method) {
+            const detectedMethod = installMethod || (yield* result.method())
+
+            if (detectedMethod === "git") {
+              const branch = process.env.CODY_BRANCH || "main"
+              yield* run(["git", "fetch", "origin", branch])
+              const behind = yield* text(["git", "rev-list", "--count", `HEAD..origin/${branch}`])
+              if (behind.trim() !== "0" && behind.trim() !== "") return "update-available"
+              return InstallationVersion
+            }
+
+            if (detectedMethod === "brew") {
+              const formula = yield* getBrewFormula()
+              if (formula.includes("/")) {
+                const infoJson = yield* text(["brew", "info", "--json=v2", formula])
+                const info = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BrewInfoV2))(infoJson)
+                return info.formulae[0].versions.stable
+              }
+              const response = yield* httpOk.execute(
+                HttpClientRequest.get(`https://formulae.brew.sh/api/formula/${formula}.json`).pipe(
+                  HttpClientRequest.acceptJson,
+                ),
+              )
+              const data = yield* HttpClientResponse.schemaBodyJson(BrewFormula)(response)
+              return data.versions.stable
+            }
+
+            if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
+              const response = yield* httpOk.execute(
+                HttpClientRequest.get(
+                  `${yield* NpmConfig.registry(process.cwd())}/${NPM_PACKAGE}/${InstallationChannel}`,
+                ).pipe(HttpClientRequest.acceptJson),
+              )
+              const data = yield* HttpClientResponse.schemaBodyJson(NpmPackage)(response)
+              return data.version
+            }
+
+            if (detectedMethod === "choco") {
+              const response = yield* httpOk.execute(
+                HttpClientRequest.get(
+                  "https://community.chocolatey.org/api/v2/Packages?$filter=Id%20eq%20%27codyx%27%20and%20IsLatestVersion&$select=Version",
+                ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json;odata=verbose" })),
+              )
+              const data = yield* HttpClientResponse.schemaBodyJson(ChocoPackage)(response)
+              return data.d.results[0].Version
+            }
+
+            if (detectedMethod === "scoop") {
+              const response = yield* httpOk.execute(
+                HttpClientRequest.get(
+                  "https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/codyx.json",
+                ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json" })),
+              )
+              const data = yield* HttpClientResponse.schemaBodyJson(ScoopManifest)(response)
+              return data.version
+            }
+
             const response = yield* httpOk.execute(
-              HttpClientRequest.get(`https://formulae.brew.sh/api/formula/${formula}.json`).pipe(
+              HttpClientRequest.get(`https://api.github.com/repos/${GH_REPO}/releases/latest`).pipe(
                 HttpClientRequest.acceptJson,
               ),
             )
-            const data = yield* HttpClientResponse.schemaBodyJson(BrewFormula)(response)
-            return data.versions.stable
-          }
-
-          if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
-            const response = yield* httpOk.execute(
-              HttpClientRequest.get(
-                `${yield* NpmConfig.registry(process.cwd())}/${NPM_PACKAGE}/${InstallationChannel}`,
-              ).pipe(HttpClientRequest.acceptJson),
-            )
-            const data = yield* HttpClientResponse.schemaBodyJson(NpmPackage)(response)
-            return data.version
-          }
-
-          if (detectedMethod === "choco") {
-            const response = yield* httpOk.execute(
-              HttpClientRequest.get(
-                "https://community.chocolatey.org/api/v2/Packages?$filter=Id%20eq%20%27codyx%27%20and%20IsLatestVersion&$select=Version",
-              ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json;odata=verbose" })),
-            )
-            const data = yield* HttpClientResponse.schemaBodyJson(ChocoPackage)(response)
-            return data.d.results[0].Version
-          }
-
-          if (detectedMethod === "scoop") {
-            const response = yield* httpOk.execute(
-              HttpClientRequest.get(
-                "https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/codyx.json",
-              ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json" })),
-            )
-            const data = yield* HttpClientResponse.schemaBodyJson(ScoopManifest)(response)
-            return data.version
-          }
-
-          const response = yield* httpOk.execute(
-            HttpClientRequest.get(`https://api.github.com/repos/${GH_REPO}/releases/latest`).pipe(
-              HttpClientRequest.acceptJson,
-            ),
-          )
-          const data = yield* HttpClientResponse.schemaBodyJson(GitHubRelease)(response)
-          return data.tag_name.replace(/^v/, "")
-        }, Effect.orDie),
-        upgrade: Effect.fn("Installation.upgrade")(function* (m: Method, target: string) {
-          yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Starting upgrade..." }))
-          let upgradeResult: { code: ChildProcessSpawner.ExitCode; stdout: string; stderr: string } | undefined
-          switch (m) {
-            case "git":
-              yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Running git pull..." }))
-              upgradeResult = yield* run(["git", "pull", "--ff-only"])
-              break
-            case "curl":
-              upgradeResult = yield* upgradeCurl(target)
-              break
-            case "npm":
-              upgradeResult = yield* run(["npm", "install", "-g", "--force", `codyx-ai@${target}`])
-              break
-            case "pnpm":
-              upgradeResult = yield* run(["pnpm", "install", "-g", `codyx-ai@${target}`])
-              break
-            case "bun":
-              upgradeResult = yield* run(["bun", "install", "-g", `codyx-ai@${target}`])
-              break
-            case "brew": {
-              const formula = yield* getBrewFormula()
-              const env = { HOMEBREW_NO_AUTO_UPDATE: "1" }
-              if (formula.includes("/")) {
-                const tap = yield* run(["brew", "tap", "mufasa1611/tap"], { env })
-                if (tap.code !== 0) {
-                  upgradeResult = tap
-                  break
-                }
-                const repo = yield* text(["brew", "--repo", "mufasa1611/tap"])
-                const dir = repo.trim()
-                if (dir) {
-                  const pull = yield* run(["git", "pull", "--ff-only"], { cwd: dir, env })
-                  if (pull.code !== 0) {
-                    upgradeResult = pull
+            const data = yield* HttpClientResponse.schemaBodyJson(GitHubRelease)(response)
+            return data.tag_name.replace(/^v/, "")
+          }, Effect.orDie),
+          upgrade: Effect.fn("Installation.upgrade")(function* (m: Method, target: string) {
+            yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Starting upgrade..." }))
+            let upgradeResult: { code: ChildProcessSpawner.ExitCode; stdout: string; stderr: string } |
+undefined
+            switch (m) {
+              case "git":
+                yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Running git pull..." }))
+                upgradeResult = yield* run(["git", "pull", "--ff-only"])
+                break
+              case "curl":
+                upgradeResult = yield* upgradeCurl(target)
+                break
+              case "npm":
+                upgradeResult = yield* run(["npm", "install", "-g", `codyx-ai@${target}`])
+                break
+              case "pnpm":
+                upgradeResult = yield* run(["pnpm", "install", "-g", `codyx-ai@${target}`])
+                break
+              case "bun":
+                upgradeResult = yield* run(["bun", "install", "-g", `codyx-ai@${target}`])
+                break
+              case "brew": {
+                const formula = yield* getBrewFormula()
+                const env = { HOMEBREW_NO_AUTO_UPDATE: "1" }
+                if (formula.includes("/")) {
+                  const tap = yield* run(["brew", "tap", "mufasa1611/tap"], { env })
+                  if (tap.code !== 0) {
+                    upgradeResult = tap
                     break
                   }
+                  const repo = yield* text(["brew", "--repo", "mufasa1611/tap"])
+                  const dir = repo.trim()
+                  if (dir) {
+                    const pull = yield* run(["git", "pull", "--ff-only"], { cwd: dir, env })
+                    if (pull.code !== 0) {
+                      upgradeResult = pull
+                      break
+                    }
+                  }
                 }
+                upgradeResult = yield* run(["brew", "upgrade", formula], { env })
+                break
               }
-              upgradeResult = yield* run(["brew", "upgrade", formula], { env })
-              break
+              case "choco":
+                upgradeResult = yield* run(["choco", "upgrade", "codyx", `--version=${target}`, "-y"])
+                break
+              case "scoop":
+                upgradeResult = yield* run(["scoop", "install", `cody@${target}`])
+                break
+              default:
+                return yield* new UpgradeFailedError({ stderr: `Unknown method: ${m}` })
             }
-            case "choco":
-              upgradeResult = yield* run(["choco", "upgrade", "codyx", `--version=${target}`, "-y"])
-              break
-            case "scoop":
-              upgradeResult = yield* run(["scoop", "install", `cody@${target}`])
-              break
-            default:
-              return yield* new UpgradeFailedError({ stderr: `Unknown method: ${m}` })
-          }
-          if (!upgradeResult || upgradeResult.code !== 0) {
-            const stderr = m === "choco" ? "not running from an elevated command shell" : upgradeResult?.stderr || ""
-            return yield* new UpgradeFailedError({ stderr })
-          }
-          log.info("upgraded", {
-            method: m,
-            target,
-            stdout: upgradeResult.stdout,
-            stderr: upgradeResult.stderr,
-          })
-          yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Upgrade successful. Restarting..." }))
-          yield* Effect.promise(() => Bus.publish(Event.Updated, { version: target }))
-          yield* text([process.execPath, "--version"])
-        }),
-      }
+            if (!upgradeResult || upgradeResult.code !== 0) {
+              const stderr = m === "choco" ? "not running from an elevated command shell" :
+upgradeResult?.stderr || ""
+              return yield* new UpgradeFailedError({ stderr })
+            }
+            log.info("upgraded", {
+              method: m,
+              target,
+              stdout: upgradeResult.stdout,
+              stderr: upgradeResult.stderr,
+            })
+            yield* Effect.promise(() => Bus.publish(Event.Progress, { message: "Upgrade successful. Restarting..." }))
+            yield* Effect.promise(() => Bus.publish(Event.Updated, { version: target }))
+            yield* text([process.execPath, "--version"])
+          }),
+        }
 
-      return Service.of(result)
-    }),
+        return Service.of(result)
+      }),
+    )
+
+  export const defaultLayer = layer.pipe(
+    Layer.provide(FetchHttpClient.layer),
+    Layer.provide(CrossSpawnSpawner.defaultLayer),
   )
 
-export const defaultLayer = layer.pipe(
-  Layer.provide(FetchHttpClient.layer),
-  Layer.provide(CrossSpawnSpawner.defaultLayer),
-)
+  const { runPromise } = makeRuntime(Service, defaultLayer)
 
-const { runPromise } = makeRuntime(Service, defaultLayer)
+  export const latest = (...args: Parameters<Interface["latest"]>) => runPromise((s) => s.latest(...args))      
+  export const method = () => runPromise((s) => s.method())
+  export const upgrade = (...args: Parameters<Interface["upgrade"]>) => runPromise((s) => s.upgrade(...args))   
 
-export const latest = (...args: Parameters<Interface["latest"]>) => runPromise((s) => s.latest(...args))
-export const method = () => runPromise((s) => s.method())
-export const upgrade = (...args: Parameters<Interface["upgrade"]>) => runPromise((s) => s.upgrade(...args))
-
-export * as Installation from "."
+  export * as Installation from "."

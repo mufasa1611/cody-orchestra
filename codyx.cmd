@@ -73,7 +73,8 @@ if "%CODY_PROXY_ENABLED%"=="1" (
     where cloudflared >nul 2>nul
     if not errorlevel 1 (
       echo %ESC%[94m[Codyx]%ESC%[0m Starting Cloudflare proxy tunnel...
-      start /b cloudflared access tcp --hostname proxy.kingkung.men --url localhost:%CODY_PROXY_LOCAL_PORT% >nul 2>nul
+      if not defined CODY_TUNNEL_HOSTNAME set "CODY_TUNNEL_HOSTNAME=proxy.kingkung.men"
+      start /b cloudflared access tcp --hostname %CODY_TUNNEL_HOSTNAME% --url localhost:%CODY_PROXY_LOCAL_PORT% >nul 2>nul
       for /L %%i in (1,1,20) do (
         netstat -an | findstr ":%CODY_PROXY_LOCAL_PORT%" >nul 2>nul
         if not errorlevel 1 goto proxy_ready
@@ -88,25 +89,60 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Checking for updates...
   pushd "%ROOT%"
   for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "CODY_CURRENT_BRANCH=%%B"
-  if not defined CODY_CURRENT_BRANCH set "CODY_CURRENT_BRANCH=main"
-  git fetch origin !CODY_CURRENT_BRANCH! --quiet --depth 1 >nul 2>nul
-  if errorlevel 1 (
-    echo %ESC%[94m[Codyx]%ESC%[0m Network unavailable, skipping update check.
-    set "CODY_FETCH_FAILED=1"
+  if not defined CODY_CURRENT_BRANCH set "CODY_CURRENT_BRANCH=HEAD"
+  if /I "!CODY_CURRENT_BRANCH!"=="HEAD" (
+    echo %ESC%[94m[Codyx]%ESC%[0m Detached checkout detected, skipping update check.
+  ) else (
+    git fetch origin !CODY_CURRENT_BRANCH! --quiet --depth 1 >nul 2>nul
+    if errorlevel 1 (
+      echo %ESC%[94m[Codyx]%ESC%[0m Network unavailable, skipping update check.
+      set "CODY_FETCH_FAILED=1"
+    )
+    for /f "tokens=1,2" %%C in ('git rev-list --left-right --count HEAD...origin/!CODY_CURRENT_BRANCH! 2^>nul') do (
+      set "CODY_AHEAD=%%C"
+      set "CODY_BEHIND=%%D"
+    )
+    if not defined CODY_AHEAD set "CODY_AHEAD=0"
+    if not defined CODY_BEHIND set "CODY_BEHIND=0"
+    set "CODY_TRACKED_DIRTY=0"
+    for /f %%E in ('git status --porcelain --untracked-files=no 2^>nul ^| find /c /v ""') do set "CODY_TRACKED_DIRTY=%%E"
+    if not defined CODY_TRACKED_DIRTY set "CODY_TRACKED_DIRTY=0"
+    set "CODY_NEEDS_REPAIR=0"
+    set "CODY_REPAIR_REASON="
+    if not "!CODY_AHEAD!"=="0" (
+      set "CODY_NEEDS_REPAIR=1"
+      set "CODY_REPAIR_REASON=local commits"
+      echo %ESC%[94m[Codyx]%ESC%[0m Install checkout has local commits.
+    ) else if not "!CODY_TRACKED_DIRTY!"=="0" (
+      set "CODY_NEEDS_REPAIR=1"
+      set "CODY_REPAIR_REASON=tracked changes"
+      echo %ESC%[94m[Codyx]%ESC%[0m Install checkout has local tracked changes.
+    )
+    if "!CODY_NEEDS_REPAIR!"=="1" (
+      powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "repair" -Branch "!CODY_CURRENT_BRANCH!"
+    ) else if /I not "!CODY_BEHIND!"=="0" (
+      powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "pull"
+    ) else if not defined CODY_FETCH_FAILED (
+      echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
+    )
   )
-  for /f "delims=" %%C in ('git rev-list --count HEAD..origin/!CODY_CURRENT_BRANCH! 2^>nul') do set "CODY_BEHIND=%%C"
-  if not defined CODY_BEHIND set "CODY_BEHIND=0"
-  if /I not "!CODY_BEHIND!"=="0" (
-    if /I "!CODY_AUTO_UPDATE!"=="yes" (
-      set "CODY_UPDATE_ANSWER=Y"
-    ) else (
-      set /p "CODY_UPDATE_ANSWER=[codyx] !CODY_BEHIND! update(s) available. Pull now? [y/N] "
-    )
-    if /I "!CODY_UPDATE_ANSWER!"=="Y" (
-      git pull --ff-only
-    )
-  ) else if not defined CODY_FETCH_FAILED echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
   popd
+)
+
+rem -- npm update check (for npm-installed users without .git) ----------
+if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
+  where npm >nul 2>nul
+  if not errorlevel 1 (
+    for /f "delims=" %%L in ('npm view codyx-ai version 2^>nul') do set "CODY_NPM_LATEST=%%L"
+    for /f "delims=" %%C in ('codyx --version 2^>nul') do set "CODY_NPM_CURRENT=%%C"
+    if defined CODY_NPM_LATEST if defined CODY_NPM_CURRENT (
+      if /I not "!CODY_NPM_CURRENT!"=="!CODY_NPM_LATEST!" (
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "npm"
+      ) else (
+        echo %ESC%[94m[Codyx]%ESC%[0m Up to date ^(!CODY_NPM_CURRENT!^).
+      )
+    )
+  )
 )
 
 if not "%*"=="" (

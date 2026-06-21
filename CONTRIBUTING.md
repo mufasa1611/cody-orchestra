@@ -14,10 +14,10 @@ However, any UI or core product feature must go through a design review with the
 
 If you are unsure if a PR would be accepted, feel free to ask a maintainer or look for issues with any of the following labels:
 
-- [`help wanted`](https://github.com/your-org/cody/issues?q=is%3Aissue%20state%3Aopen%20label%3Ahelp-wanted)
-- [`good first issue`](https://github.com/your-org/cody/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
-- [`bug`](https://github.com/your-org/cody/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
-- [`perf`](https://github.com/your-org/cody/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22perf%22)
+- [`help wanted`](https://github.com/mufasa1611/cody-orchestra/issues?q=is%3Aissue%20state%3Aopen%20label%3Ahelp-wanted)
+- [`good first issue`](https://github.com/mufasa1611/cody-orchestra/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
+- [`bug`](https://github.com/mufasa1611/cody-orchestra/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
+- [`perf`](https://github.com/mufasa1611/cody-orchestra/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22perf%22)
 
 > [!NOTE]
 > PRs that ignore these guardrails will likely be closed.
@@ -47,7 +47,7 @@ By default, `bun dev` runs codyx in the `packages/codyx` directory. To run it ag
 bun dev <directory>
 ```
 
-To run codyx in the root of the cody repo itself:
+To run codyx in the root of the cody-orchestra repo itself:
 
 ```bash
 bun dev .
@@ -64,7 +64,7 @@ To compile a standalone executable:
 Then run it with:
 
 ```bash
-./packages/codyx/dist/cody-<platform>/bin/cody
+./packages/codyx/dist/codyx-<platform>/bin/codyx
 ```
 
 Replace `<platform>` with your platform (e.g., `darwin-arm64`, `linux-x64`).
@@ -76,9 +76,9 @@ Replace `<platform>` with your platform (e.g., `darwin-arm64`, `linux-x64`).
   - `packages/desktop`: The native desktop app, built with Electron (wraps `packages/app`)
   - `packages/plugin`: Source for `@cody/plugin`
 
-### Understanding bun dev vs cody
+### Understanding bun dev vs codyx
 
-During development, `bun dev` is the local equivalent of the built `cody` command. Both run the same CLI interface:
+During development, `bun dev` is the local equivalent of the built `codyx` command. Both run the same CLI interface:
 
 ```bash
 # Development (from project root)
@@ -88,10 +88,10 @@ bun dev web              # Start server + open web interface
 bun dev <directory>      # Start TUI in specific directory
 
 # Production
-cody --help          # Show all available commands
-cody serve           # Start headless API server
-cody web             # Start server + open web interface
-cody <directory>     # Start TUI in specific directory
+codyx --help          # Show all available commands
+codyx serve           # Start headless API server
+codyx web             # Start server + open web interface
+codyx <directory>     # Start TUI in specific directory
 ```
 
 ### Running the API Server
@@ -156,7 +156,7 @@ Caveats:
   the usual `bun dev`. This is because `bun dev` runs the server in a worker thread and breakpoints might not work there.
 - If `spawn` does not work for you, you can debug the server separately:
   - Debug server: `bun run --inspect=ws://localhost:6499/ --cwd packages/codyx ./src/index.ts serve --port 4096`,
-    then attach TUI with `cody attach http://localhost:4096`
+    then attach TUI with `codyx attach http://localhost:4096`
   - Debug TUI: `bun run --inspect=ws://localhost:6499/ --cwd packages/codyx --conditions=browser ./src/index.ts`
 
 Other tips and tricks:
@@ -224,7 +224,7 @@ You can optionally include a scope to indicate which package is affected:
 
 - `feat(app):` feature in the app package
 - `fix(desktop):` bug fix in the desktop package
-- `chore(cody):` maintenance in the cody package
+- `chore(codyx):` maintenance in the codyx package
 
 Examples:
 
