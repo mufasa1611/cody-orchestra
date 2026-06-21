@@ -194,7 +194,7 @@ export async function ensureVerification(): Promise<void> {
       const res = await fetch(`${baseUrl}/v1/challenges/${challengeId}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: (code as string).trim() }),
+        body: JSON.stringify({ code: (code as string).trim(), machine_id: machineId || undefined }),
       })
 
       if (res.ok) {
