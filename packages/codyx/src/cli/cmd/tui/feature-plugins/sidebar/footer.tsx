@@ -50,7 +50,7 @@ function View(props: { api: TuiPluginApi }) {
     return "https://install.kingkung.men/feedback"
   })
 
-  const feedbackText = "Send your feedback — click here"
+  const feedbackText = "Send your feedback — "
   const feedbackChars = [...feedbackText]
   const shineWidth = 4
   const maxOffset = feedbackChars.length - shineWidth
@@ -121,9 +121,10 @@ function View(props: { api: TuiPluginApi }) {
       </text>
       <text fg={theme().textMuted}>multi Agent build by <span style={{ fg: RGBA.fromHex("#ff8c00") }}><b>M.Farid</b></span> <span style={{ fg: RGBA.fromHex("#90ee90") }}><b>(Mufasa)</b></span></text>
       <Link href={feedbackUrl()}>
-        <span style={{ fg: RGBA.fromHex("#1a3a5c") }}>{textParts().left}</span>
-        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().middle}</span>
-        <span style={{ fg: RGBA.fromHex("#1a3a5c") }}>{textParts().right}</span>
+        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().left}</span>
+        <span style={{ fg: RGBA.fromHex("#ff4444") }}>{textParts().middle}</span>
+        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().right}</span>
+        <span style={{ fg: RGBA.fromHex("#58a6ff") }}>click here</span>
       </Link>
     </box>
   )
