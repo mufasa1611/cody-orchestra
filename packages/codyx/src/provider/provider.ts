@@ -33,7 +33,7 @@ import { ModelID, ProviderID } from "./schema"
 const log = Log.create({ service: "provider" })
 const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 10_000
 const DEFAULT_IDLE_CHUNK_TIMEOUT_MS = 15_000
-const MAX_PROXY_RETRIES = 5
+const MAX_PROXY_RETRIES = 8
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
@@ -1577,6 +1577,19 @@ const layer: Layer.Layer<
               })
 
               if (await ProxyControl.usageLimitResponse(res)) {
+                if (
+                  attempt < MAX_PROXY_RETRIES &&
+                  (await ProxyControl.usageLimitNext("usage-limit", {
+                    status: res.status,
+                    providerID: model.providerID,
+                    modelID: model.id,
+                    attempt: attempt + 1,
+                  }))
+                ) {
+                  await res.body?.cancel("usage limit route retry")
+                  await new Promise((resolve) => setTimeout(resolve, 3000))
+                  continue
+                }
                 return wrapSSE(res, streamFirstChunkTimeout, streamIdleChunkTimeout, chunkAbortCtl, async (phase) => {
                   await ProxyControl.rotate("stream-timeout", {
                     phase,

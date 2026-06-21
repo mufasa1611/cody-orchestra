@@ -68,6 +68,7 @@ async function post(url: string, body: unknown) {
     signal: AbortSignal.timeout(CONTROL_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`proxy control returned ${res.status}`)
+  return res
 }
 
 export async function rotate(reason: string, metadata?: Record<string, unknown>) {
@@ -76,7 +77,7 @@ export async function rotate(reason: string, metadata?: Record<string, unknown>)
 
   const body = { reason, ...metadata }
   try {
-    await post(`${base}/__cody_proxy/rotate`, body)
+    await post(`${base}/__cody_proxy/rotate?reason=${encodeURIComponent(reason)}`, body)
     log.warn("proxy rotated", { reason, base, ...metadata })
     return true
   } catch (error) {
@@ -97,5 +98,50 @@ export async function rotate(reason: string, metadata?: Record<string, unknown>)
       })
       return false
     }
+  }
+}
+
+export async function direct(reason: string, metadata?: Record<string, unknown>) {
+  const base = proxyBaseURL()
+  if (!base) return false
+
+  try {
+    await post(`${base}/__cody_proxy/direct?reason=${encodeURIComponent(reason)}`, { reason, ...metadata })
+    log.warn("proxy switched to direct", { reason, base, ...metadata })
+    return true
+  } catch (error) {
+    log.warn("proxy direct switch failed", {
+      reason,
+      base,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}
+
+export async function usageLimitNext(reason: string, metadata?: Record<string, unknown>) {
+  const base = proxyBaseURL()
+  if (!base) return false
+
+  try {
+    const res = await post(`${base}/__cody_proxy/usage-limit-next?reason=${encodeURIComponent(reason)}`, {
+      reason,
+      ...metadata,
+    })
+    const body = (await res.json().catch(() => undefined)) as { exhausted?: unknown } | undefined
+    const moved = body?.exhausted === false
+    log.warn(moved ? "proxy advanced after usage limit" : "proxy usage-limit routes exhausted", {
+      reason,
+      base,
+      ...metadata,
+    })
+    return moved
+  } catch (error) {
+    log.warn("proxy usage-limit advance failed", {
+      reason,
+      base,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
   }
 }

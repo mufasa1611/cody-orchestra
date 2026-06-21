@@ -4,17 +4,25 @@ import { UI } from "../ui"
 import * as net from "net"
 import * as http from "http"
 
-const PORTS = [
+type Route =
+  | { type: "direct"; port: 0; ctrl: 0 }
+  | { type: "tor"; port: number; ctrl: number }
+  | { type: "proxmox"; port: 0; ctrl: 0; url: string }
+
+const PROXMOX_PROXY_URL = process.env.CODY_PROXMOX_PROXY_URL || process.env.CODY_PROXY_PROXMOX_URL
+const PORTS: Route[] = [
   { type: "direct", port: 0, ctrl: 0 },
   { type: "tor", port: 9050, ctrl: 9051 },
   { type: "tor", port: 9052, ctrl: 9053 },
   { type: "tor", port: 9054, ctrl: 9055 },
   { type: "tor", port: 9056, ctrl: 9057 },
 ]
+if (PROXMOX_PROXY_URL) PORTS.push({ type: "proxmox", port: 0, ctrl: 0, url: PROXMOX_PROXY_URL })
 
 let currentState = 0
 const PROXY_PORT = Number(process.env.CODY_PROXY_PORT || 8888)
 let transitionSeq = 0
+const usageLimitTried = new Set<number>()
 const routeHealth = PORTS.map(() => ({
   failures: 0,
   successes: 0,
@@ -25,15 +33,23 @@ const routeHealth = PORTS.map(() => ({
 }))
 let lastRotationReason = "startup"
 
+function publicRoute(route: Route) {
+  if (route.type !== "proxmox") return route
+  const url = new URL(route.url)
+  url.username = ""
+  url.password = ""
+  return { ...route, url: url.toString() }
+}
+
 function publicState() {
   return {
     current: {
       index: currentState,
-      ...PORTS[currentState],
+      ...publicRoute(PORTS[currentState]),
       health: routeHealth[currentState],
     },
     lastRotationReason,
-    routes: PORTS.map((route, index) => ({ index, ...route, health: routeHealth[index] })),
+    routes: PORTS.map((route, index) => ({ index, ...publicRoute(route), health: routeHealth[index] })),
   }
 }
 
@@ -69,6 +85,10 @@ function writeJson(res: http.ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body))
 }
 
+function controlReason(req: http.IncomingMessage, fallback: string) {
+  return new URL(req.url ?? "/", "http://localhost").searchParams.get("reason") ?? fallback
+}
+
 function markSuccess(index: number, ip?: string) {
   const health = routeHealth[index]
   health.successes++
@@ -97,7 +117,21 @@ function nextHealthyState(from = currentState) {
   return (from + 1) % PORTS.length
 }
 
+function stateLabel(state: Route) {
+  if (state.type === "direct") return "Direct"
+  if (state.type === "tor") return "Tor on port " + state.port
+  return "Proxmox proxy"
+}
+
+function usageLimitOrder() {
+  return [
+    ...PORTS.flatMap((route, index) => (route.type === "tor" ? [index] : [])),
+    ...PORTS.flatMap((route, index) => (route.type === "proxmox" ? [index] : [])),
+  ]
+}
+
 async function rotate(reason = "manual") {
+  usageLimitTried.clear()
   const seq = ++transitionSeq
   let from = currentState
 
@@ -105,8 +139,7 @@ async function rotate(reason = "manual") {
     const index = nextHealthyState(from)
     from = index
     const state = PORTS[index]
-    const stateStr = state.type === "direct" ? "Direct" : "Tor on port " + state.port
-    UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Checking State ${index}: ${stateStr} (${reason})`)
+    UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Checking State ${index}: ${stateLabel(state)} (${reason})`)
 
     const ip = await getCurrentIP(state)
     if (seq !== transitionSeq) return
@@ -141,6 +174,7 @@ async function rotate(reason = "manual") {
 }
 
 async function direct(reason = "manual-direct") {
+  usageLimitTried.clear()
   const seq = ++transitionSeq
   currentState = 0
   lastRotationReason = reason
@@ -153,6 +187,51 @@ async function direct(reason = "manual-direct") {
   }
   UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Switched to Direct (${reason})`)
   UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (DIRECT)`)
+}
+
+async function usageLimitNext(reason = "usage-limit") {
+  const seq = ++transitionSeq
+  usageLimitTried.add(currentState)
+
+  for (const index of usageLimitOrder()) {
+    if (usageLimitTried.has(index)) continue
+    const state = PORTS[index]
+    UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Usage limit on current route; checking ${stateLabel(state)}`)
+
+    const ip = await getCurrentIP(state)
+    if (seq !== transitionSeq) return { exhausted: true, state: publicState() }
+
+    if (probeFailed(ip)) {
+      usageLimitTried.add(index)
+      markFailure(index, new Error(ip))
+      UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] State ${index} failed IP check: ${ip}`)
+      continue
+    }
+
+    currentState = index
+    lastRotationReason = reason
+    markSuccess(index, ip)
+    UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (${state.type.toUpperCase()})`)
+    return { exhausted: false, state: publicState() }
+  }
+
+  if (currentState !== 0) {
+    currentState = 0
+    lastRotationReason = `${reason}-fallback-direct`
+    const ip = await getCurrentIP(PORTS[0])
+    if (seq !== transitionSeq || currentState !== 0) return { exhausted: true, state: publicState() }
+    if (probeFailed(ip)) {
+      markFailure(0, new Error(ip))
+    } else {
+      markSuccess(0, ip)
+    }
+    UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Usage-limit routes exhausted; switched to Direct`)
+    UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Active Public IP: [${ip}] (DIRECT)`)
+    return { exhausted: false, state: publicState() }
+  }
+
+  usageLimitTried.clear()
+  return { exhausted: true, state: publicState() }
 }
 
 function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket, head: Buffer, proxyPort: number) {
@@ -243,6 +322,67 @@ function handleSocks5Connect(req: http.IncomingMessage, clientSocket: net.Socket
   })
 }
 
+function proxyAuthHeader(url: URL) {
+  if (!url.username) return ""
+  return `Proxy-Authorization: Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString("base64")}\r\n`
+}
+
+function handleUpstreamConnect(req: http.IncomingMessage, clientSocket: net.Socket, head: Buffer, proxyUrl: string) {
+  const url = new URL(proxyUrl)
+  const operationIndex = currentState
+  UI.println(UI.Style.TEXT_NORMAL + `[Proxy] PROXMOX -> ${req.url}`)
+
+  const proxySocket = net.connect(Number(url.port || 8888), url.hostname, () => {
+    proxySocket.write(`CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\n${proxyAuthHeader(url)}\r\n`)
+  })
+
+  let connected = false
+  let responseData = Buffer.alloc(0)
+  proxySocket.setTimeout(10_000, () => {
+    markFailure(operationIndex, new Error("Proxmox proxy timeout"))
+    void rotate("proxmox-timeout")
+    if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+    proxySocket.destroy()
+  })
+
+  proxySocket.on("data", (data) => {
+    if (connected) return
+    responseData = Buffer.concat([responseData, data])
+    const headerEnd = responseData.indexOf("\r\n\r\n")
+    if (headerEnd === -1) return
+
+    const header = responseData.subarray(0, headerEnd).toString()
+    if (!/^HTTP\/\d(?:\.\d)? 200\b/.test(header)) {
+      markFailure(operationIndex, new Error(header.split("\r\n")[0] ?? "Proxmox CONNECT failed"))
+      void rotate("proxmox-connect-failed")
+      clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+      proxySocket.destroy()
+      return
+    }
+
+    connected = true
+    proxySocket.setTimeout(0)
+    markSuccess(operationIndex)
+    clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
+    if (head.length > 0) proxySocket.write(head)
+    const extra = responseData.subarray(headerEnd + 4)
+    if (extra.length > 0) clientSocket.write(extra)
+    proxySocket.pipe(clientSocket)
+    clientSocket.pipe(proxySocket)
+  })
+
+  proxySocket.on("error", (e) => {
+    UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Proxmox Socket Error: ${e.message}`)
+    markFailure(operationIndex, e)
+    void rotate("proxmox-socket-error")
+    if (!clientSocket.destroyed) clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+  })
+
+  clientSocket.on("error", () => {
+    if (!proxySocket.destroyed) proxySocket.destroy()
+  })
+}
+
 
 
 async function getCurrentIP(state: typeof PORTS[0]): Promise<string> {
@@ -259,6 +399,41 @@ async function getCurrentIP(state: typeof PORTS[0]): Promise<string> {
         resolve("Timeout")
       })
       return;
+    }
+
+    if (state.type === "proxmox") {
+      const url = new URL(state.url)
+      const req = http.request(
+        {
+          host: url.hostname,
+          port: Number(url.port || 8888),
+          method: "GET",
+          path: "http://api.ipify.org/",
+          headers: {
+            host: "api.ipify.org",
+            ...(url.username
+              ? {
+                  "proxy-authorization": `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString("base64")}`,
+                }
+              : {}),
+          },
+          timeout: 10_000,
+        },
+        (res) => {
+          let data = ""
+          res.on("data", (chunk) => {
+            data += chunk
+          })
+          res.on("end", () => resolve(data.trim()))
+        },
+      )
+      req.on("error", (e) => resolve("Error via Proxmox: " + e.message))
+      req.on("timeout", () => {
+        req.destroy()
+        resolve("Timeout")
+      })
+      req.end()
+      return
     }
 
     // SOCKS5 state machine for TOR
@@ -345,7 +520,16 @@ export const ProxyCommand = effectCmd({
           writeJson(res, 403, { error: "Forbidden" })
           return
         }
-        void direct("control-direct").then(() => writeJson(res, 200, publicState()))
+        void direct(controlReason(req, "control-direct")).then(() => writeJson(res, 200, publicState()))
+        return
+      }
+
+      if (req.url?.startsWith("/__cody_proxy/usage-limit-next")) {
+        if (!authorizedControl(req)) {
+          writeJson(res, 403, { error: "Forbidden" })
+          return
+        }
+        void usageLimitNext(controlReason(req, "usage-limit")).then((result) => writeJson(res, 200, result))
         return
       }
 
@@ -354,7 +538,7 @@ export const ProxyCommand = effectCmd({
           writeJson(res, 403, { error: "Forbidden" })
           return
         }
-        void rotate("control-rotate").then(() => writeJson(res, 200, publicState()))
+        void rotate(controlReason(req, "control-rotate")).then(() => writeJson(res, 200, publicState()))
         return
       }
       
@@ -377,6 +561,33 @@ export const ProxyCommand = effectCmd({
                 UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] HTTP Direct Error: ${e.message}`)
                 markFailure(currentState, e)
                 void rotate("http-direct-error")
+                res.writeHead(502)
+                res.end()
+            })
+        } else if (state.type === "proxmox") {
+            const proxyUrl = new URL(state.url)
+            const proxyReq = http.request({
+                host: proxyUrl.hostname,
+                port: Number(proxyUrl.port || 8888),
+                method: req.method,
+                path: url.href,
+                headers: {
+                  ...req.headers,
+                  ...(proxyUrl.username
+                    ? {
+                        "proxy-authorization": `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString("base64")}`,
+                      }
+                    : {}),
+                },
+            }, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode!, proxyRes.headers)
+                proxyRes.pipe(res)
+            })
+            req.pipe(proxyReq)
+            proxyReq.on("error", (e) => {
+                UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] HTTP Proxmox Error: ${e.message}`)
+                markFailure(currentState, e)
+                void rotate("http-proxmox-error")
                 res.writeHead(502)
                 res.end()
             })
@@ -424,8 +635,10 @@ export const ProxyCommand = effectCmd({
         clientSocket.on("error", () => {
           if (!serverSocket.destroyed) serverSocket.destroy()
         })
-      } else {
+      } else if (state.type === "tor") {
         handleSocks5Connect(req, clientSocket as net.Socket, head, state.port)
+      } else {
+        handleUpstreamConnect(req, clientSocket as net.Socket, head, state.url)
       }
     })
 
