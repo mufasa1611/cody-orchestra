@@ -1,4 +1,14 @@
-import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type Accessor,
+  type JSX,
+} from "solid-js"
 import {
   DragDropProvider,
   DragDropSensors,
@@ -30,11 +40,37 @@ export const SidebarContent = (props: {
   onOpenSettings: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
+  feedbackLabel: Accessor<string>
   renderPanel: () => JSX.Element
 }): JSX.Element => {
   const expanded = createMemo(() => !!props.mobile || props.opened())
   const placement = () => (props.mobile ? "bottom" : "right")
   let panel: HTMLDivElement | undefined
+
+  const shineWidth = 4
+  const [shinePos, setShinePos] = createSignal(0)
+  const textChars = () => [...props.feedbackLabel()]
+  const maxOffset = () => Math.max(0, textChars().length - shineWidth)
+
+  onMount(() => {
+    const interval = setInterval(() => {
+      setShinePos((prev) => {
+        const max = maxOffset()
+        if (max <= 0) return 0
+        const cycle = max * 2
+        return (prev + 1) % cycle
+      })
+    }, 120)
+    onCleanup(() => clearInterval(interval))
+  })
+
+  const isShining = (index: number) => {
+    const pos = shinePos()
+    const max = maxOffset()
+    if (max <= 0) return false
+    const effective = pos <= max ? pos : max * 2 - pos
+    return index >= effective && index < effective + shineWidth
+  }
 
   createEffect(() => {
     const el = panel
@@ -108,6 +144,17 @@ export const SidebarContent = (props: {
               aria-label={props.helpLabel()}
             />
           </Tooltip>
+          <button
+            onClick={props.onOpenHelp}
+            class="flex flex-wrap justify-center text-center leading-tight pt-1 pb-2 px-1 text-11-medium hover:text-text-interactive-base transition-colors cursor-pointer bg-transparent border-none"
+          >
+            <span class="w-full" style={{ color: "var(--text-weak)" }}>
+              <For each={textChars()}>
+                {(char, i) => <span style={{ color: isShining(i()) ? "#ff4444" : undefined }}>{char}</span>}
+              </For>
+            </span>
+            <span style={{ color: "#58a6ff" }}>click here</span>
+          </button>
         </div>
       </div>
 

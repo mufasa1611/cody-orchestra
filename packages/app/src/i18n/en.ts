@@ -678,6 +678,8 @@ export const dict = {
   "sidebar.nav.projectsAndSessions": "Projects and sessions",
   "sidebar.settings": "Settings",
   "sidebar.help": "Help",
+  "sidebar.feedback": "Send your feedback — ",
+  "sidebar.feedback.link": "click here",
   "sidebar.workspaces.enable": "Enable workspaces",
   "sidebar.workspaces.disable": "Disable workspaces",
   "sidebar.gettingStarted.title": "Getting started",
@@ -963,7 +965,8 @@ export const dict = {
   "settings.section.connect": "Remote PC",
   "settings.tab.agentConnect": "Connect My PC",
   "settings.agentConnect.title": "Remote PC Connection",
-  "settings.agentConnect.description": "Connect to a remote PC using the codyx agent. Run connect.mjs on the remote PC to establish a connection.",
+  "settings.agentConnect.description":
+    "Connect to a remote PC using the codyx agent. Run connect.mjs on the remote PC to establish a connection.",
   "settings.agentConnect.connected": "Connected",
   "settings.agentConnect.disconnected": "Not connected",
   "settings.agentConnect.pairedAt": "Connected at",
@@ -972,5 +975,6 @@ export const dict = {
   "settings.agentConnect.copy": "Copy code",
   "settings.agentConnect.expiresIn": "Expires in",
   "settings.agentConnect.disconnect": "Disconnect",
-  "settings.agentConnect.connectedHint": "Your PC is connected. Use the file tree to browse remote files and run agent commands.",
+  "settings.agentConnect.connectedHint":
+    "Your PC is connected. Use the file tree to browse remote files and run agent commands.",
 }
