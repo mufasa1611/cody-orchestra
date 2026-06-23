@@ -100,6 +100,7 @@ function getMachineId(): string {
 export async function ensureVerification(): Promise<void> {
   if (process.env.CODY_SKIP_VERIFICATION) return
   if (readVerification()) return
+  if (!process.stdout.isTTY) return
 
   prompts.intro("Verification Required")
   prompts.log.warn("Your installation is not linked to an account. Remote management will not work.")
