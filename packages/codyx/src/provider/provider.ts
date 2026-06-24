@@ -1576,7 +1576,7 @@ const layer: Layer.Layer<
                 timeout: false,
               })
 
-              if (await ProxyControl.usageLimitResponse(res)) {
+              if (res.status === 429) {
                 if (
                   attempt < MAX_PROXY_RETRIES &&
                   (await ProxyControl.usageLimitNext("usage-limit", {
@@ -1586,7 +1586,7 @@ const layer: Layer.Layer<
                     attempt: attempt + 1,
                   }))
                 ) {
-                  await res.body?.cancel("usage limit route retry")
+                  await res.body?.cancel("rate limit route retry")
                   await new Promise((resolve) => setTimeout(resolve, 3000))
                   continue
                 }

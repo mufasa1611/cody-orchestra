@@ -36,8 +36,25 @@ export function retryableStatus(status: number) {
 
 export async function usageLimitResponse(response: Response) {
   if (response.status !== 429) return false
+  
+  const retryAfter = response.headers.get("retry-after")
+  const rateLimitRemaining = response.headers.get("x-ratelimit-remaining")
+  if (rateLimitRemaining === "0") return true
+  if (retryAfter) return true
+  
   const body = await response.clone().text().catch(() => "")
-  return body.includes("FreeUsageLimitError") || body.includes("GoUsageLimitError")
+  return (
+    body.includes("FreeUsageLimitError") ||
+    body.includes("GoUsageLimitError") ||
+    body.includes("rate limit") ||
+    body.includes("rate_limit") ||
+    body.includes("rateLimit") ||
+    body.includes("too many") ||
+    body.includes("quota") ||
+    body.includes("exceeded") ||
+    body.includes("retry after") ||
+    body.includes("try again")
+  )
 }
 
 export function retryableError(error: unknown) {

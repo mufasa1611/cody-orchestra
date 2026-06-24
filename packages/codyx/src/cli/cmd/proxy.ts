@@ -23,6 +23,10 @@ let currentState = 0
 const PROXY_PORT = Number(process.env.CODY_PROXY_PORT || 8888)
 let transitionSeq = 0
 const usageLimitTried = new Set<number>()
+
+const COOLDOWN_MS = 15_000
+const PROBE_INTERVAL_MS = 30_000
+
 const routeHealth = PORTS.map(() => ({
   failures: 0,
   successes: 0,
@@ -99,13 +103,50 @@ function markFailure(index: number, error: unknown) {
   const health = routeHealth[index]
   health.failures++
   health.lastFailure = Date.now()
-  health.cooldownUntil = Date.now() + 60_000
+  health.cooldownUntil = Date.now() + COOLDOWN_MS
   health.lastError = error instanceof Error ? error.message : String(error)
 }
 
 function probeFailed(ip: string) {
   const value = ip.trim().toLowerCase()
   return !value || value === "timeout" || value === "unknown" || value.startsWith("error ") || value.includes(" failed")
+}
+
+async function probeCircuit(index: number) {
+  const state = PORTS[index]
+  if (state.type === "direct") return
+  const ip = await getCurrentIP(state)
+  const health = routeHealth[index]
+  if (probeFailed(ip)) {
+    if (health.cooldownUntil > Date.now()) {
+      UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] Circuit ${index} still down: ${ip}`)
+    }
+    return
+  }
+  const wasInCooldown = health.cooldownUntil > Date.now()
+  health.lastIP = ip
+  health.cooldownUntil = 0
+  if (wasInCooldown) {
+    UI.println(UI.Style.TEXT_SUCCESS_BOLD + `[Proxy] Circuit ${index} recovered: ${ip}`)
+  }
+}
+
+async function backgroundCircuitProbe() {
+  const now = Date.now()
+  const probePromises = PORTS.map((_, index) => {
+    const state = PORTS[index]
+    if (state.type === "direct") return
+    const health = routeHealth[index]
+    if (health.cooldownUntil > now) return probeCircuit(index)
+    if (now - health.lastFailure > 30_000 && now - health.lastFailure < 60_000) return probeCircuit(index)
+  }).filter(Boolean) as Promise<void>[]
+  const results = await Promise.allSettled(probePromises)
+  if (probePromises.length > 0) {
+    const recovered = results.filter((r) => r.status === "fulfilled").length
+    UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Probe: ${recovered}/${probePromises.length} ok`)
+  }
+  const healthy = routeHealth.filter((h, i) => PORTS[i].type !== "direct" && h.cooldownUntil <= now)
+  UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Circuits: ${healthy.length} healthy, ${routeHealth.length - 1 - healthy.length} in cooldown`)
 }
 
 function nextHealthyState(from = currentState) {
@@ -192,10 +233,19 @@ async function direct(reason = "manual-direct") {
 async function usageLimitNext(reason = "usage-limit") {
   const seq = ++transitionSeq
   usageLimitTried.add(currentState)
+  const now = Date.now()
 
   for (const index of usageLimitOrder()) {
     if (usageLimitTried.has(index)) continue
     const state = PORTS[index]
+    const health = routeHealth[index]
+
+    if (health.cooldownUntil > now) {
+      usageLimitTried.add(index)
+      UI.println(UI.Style.TEXT_DANGER_BOLD + `[Proxy] State ${index} ${stateLabel(state)} in cooldown (${Math.ceil((health.cooldownUntil - now) / 1000)}s remaining)`)
+      continue
+    }
+
     UI.println(UI.Style.TEXT_WARNING_BOLD + `[Proxy] Usage limit on current route; checking ${stateLabel(state)}`)
 
     const ip = await getCurrentIP(state)
@@ -645,6 +695,10 @@ export const ProxyCommand = effectCmd({
     server.listen(PROXY_PORT, "0.0.0.0", () => {
       UI.println(UI.Style.TEXT_INFO_BOLD + `[Proxy] Proxy listening on http://0.0.0.0:${PROXY_PORT}`)
       UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Current State: Direct (Home IP)`)
+      void backgroundCircuitProbe().then(() => {
+        setInterval(backgroundCircuitProbe, PROBE_INTERVAL_MS)
+        UI.println(UI.Style.TEXT_NORMAL + `[Proxy] Background circuit probe running every ${PROBE_INTERVAL_MS / 1000}s`)
+      })
     })
 
     yield* Effect.never
