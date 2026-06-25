@@ -1,5 +1,6 @@
 import path from "path"
 import os from "os"
+import fs from "fs/promises"
 import * as EffectZod from "@/util/effect-zod"
 import { SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
@@ -45,7 +46,7 @@ import { AppFileSystem } from "@cody/core/filesystem"
 import { Truncate } from "@/tool/truncate"
 import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
-import { Cause, Effect, Exit, FileSystem, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
+import { Cause, Effect, Exit, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
 import { zod } from "@/util/effect-zod"
 import { withStatics } from "@/util/schema"
 import * as EffectLogger from "@cody/core/effect/logger"
@@ -78,6 +79,10 @@ IMPORTANT:
 const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested structured output. You MUST use the StructuredOutput tool to provide your final response. Do NOT respond with plain text - you MUST call the StructuredOutput tool with your answer formatted according to the schema.`
 
 const log = Log.create({ service: "session.prompt" })
+
+function memoUsername(content: string) {
+  return content.match(/^-\s*username:\s*(.+?)\s*$/m)?.[1]?.trim()
+}
 const elog = EffectLogger.create({ service: "session.prompt" })
 
 export interface Interface {
@@ -121,6 +126,19 @@ export const layer = Layer.effect(
     const hub = yield* AgentHub.Service
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
+    })
+    const savedUsername = Effect.fn("SessionPrompt.savedUsername")(function* (root: string) {
+      const files = [
+        path.join(root, "memo.md"),
+        ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, "codyx", "memo.md")] : []),
+      ]
+      for (const file of files) {
+        const content = yield* Effect.promise(() => fs.readFile(file, "utf8")).pipe(Effect.option)
+        if (Option.isNone(content)) continue
+        const username = memoUsername(content.value)
+        if (username) return username
+      }
+      return undefined
     })
     const ops = Effect.fn("SessionPrompt.ops")(function* () {
       return {
@@ -1403,25 +1421,26 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               const answers = yield* question.ask({
                 sessionID: input.sessionID,
                 questions: [{
-                  question: "Codyx needs to check your system to collect important info. This will take ~2 minutes and will help me process your future requests better. Would you like to start now?",
+                  question: "Would you like to give Codyx a chance to get to know more about your system so future help can be faster and more accurate?",
                   header: "System Setup",
                   options: [
-                    { label: "OK, start now", description: "Check system and set up this repo (~2 min)" },
-                    { label: "Not now", description: "Skip for now, you can run /init command whenever you want" },
+                    { label: "Yes please", description: "Run /init once with full temporary permission and save private details in memo.md" },
+                    { label: "No, not now", description: "Skip for now; you can run /init later when you want Codyx to know more" },
                   ],
                   multiple: false,
                   custom: false,
                 }],
               })
               const choice = answers[0]?.[0]
-              if (choice === "OK, start now") {
-                const initAgent = input.agent ?? (yield* agents.defaultAgent())
-                const ag = yield* agents.get(initAgent)
-                const sessionInfo = yield* sessions.get(session.id)
-                const inputModel = input.model ? { id: input.model.modelID, providerID: input.model.providerID } : undefined
-                const agentModel = ag?.model ? { id: ag.model.modelID, providerID: ag.model.providerID } : undefined
-                const sessionModel = sessionInfo.model ? { id: sessionInfo.model.id, providerID: sessionInfo.model.providerID } : undefined
-                const useModel = inputModel ?? agentModel ?? sessionModel
+              const initAgent = input.agent ?? (yield* agents.defaultAgent())
+              const ag = yield* agents.get(initAgent)
+              const sessionInfo = yield* sessions.get(session.id)
+              const inputModel = input.model ? { id: input.model.modelID, providerID: input.model.providerID } : undefined
+              const agentModel = ag?.model ? { id: ag.model.modelID, providerID: ag.model.providerID } : undefined
+              const sessionModel = sessionInfo.model ? { id: sessionInfo.model.id, providerID: sessionInfo.model.providerID } : undefined
+              const useModel = inputModel ?? agentModel ?? sessionModel
+              if (choice === "Yes please") {
+                initDeferred.add(ctx.project.id)
                 if (useModel) {
                   const announcement: MessageV2.Assistant = {
                     id: MessageID.ascending(),
@@ -1443,18 +1462,53 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     sessionID: input.sessionID,
                     messageID: announcement.id,
                     type: "text",
-                    text: "⚙ Codyx is collecting system info to set up this repo. This takes ~2 minutes.",
+                    text: "Codyx is collecting system info now. Sensitive machine-specific details will go to memo.md; reusable repo guidance will go to AGENTS.md.",
                   }
                   yield* sessions.updatePart(announcementPart)
                 }
+                const previousPermission = [...(sessionInfo.permission ?? session.permission ?? [])]
+                const initPermission: Permission.Ruleset = [{ permission: "*", action: "allow", pattern: "*" }]
+                session.permission = initPermission
+                yield* sessions.setPermission({ sessionID: session.id, permission: initPermission })
                 yield* command({
                   sessionID: input.sessionID,
                   command: Command.Default.INIT,
                   arguments: "",
                   agent: initAgent,
                   model: useModel ? `${useModel.providerID}/${useModel.id}` : undefined,
-                })
+                }).pipe(
+                  Effect.ensuring(
+                    Effect.gen(function* () {
+                      session.permission = previousPermission
+                      yield* sessions.setPermission({ sessionID: session.id, permission: previousPermission })
+                    }),
+                  ),
+                )
               } else {
+                if (useModel) {
+                  const declined: MessageV2.Assistant = {
+                    id: MessageID.ascending(),
+                    sessionID: input.sessionID,
+                    parentID: message.info.id,
+                    role: "assistant",
+                    mode: initAgent,
+                    agent: initAgent,
+                    path: { cwd: ctx.directory, root: ctx.worktree },
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    modelID: useModel.id,
+                    providerID: useModel.providerID,
+                    time: { created: Date.now() },
+                  }
+                  yield* sessions.updateMessage(declined)
+                  yield* sessions.updatePart({
+                    id: PartID.ascending(),
+                    sessionID: input.sessionID,
+                    messageID: declined.id,
+                    type: "text",
+                    text: "Ok, as you like. You can execute the /init command when you want me to be more helpful.",
+                  })
+                }
                 initDeferred.add(ctx.project.id)
               }
             } catch {
@@ -1673,6 +1727,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               MessageV2.toModelMessagesEffect(msgs, model),
             ])
             const system = [...env, ...instructions, ...(skills ? [skills] : [])]
+            if (!ctx.project.time.initialized && step === 1) {
+              const username = yield* savedUsername(ctx.worktree)
+              if (username) {
+                system.push(
+                  `This is the first chat after setup. Begin this response exactly with: "Hi ${username}, it is nice to serve you." Then answer the user's prompt normally.`,
+                )
+              }
+            }
             const agentStatus = yield* hub.getStatus
             if (agentStatus.connected) {
               system.push(

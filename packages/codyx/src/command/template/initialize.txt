@@ -21,6 +21,7 @@ Before working on AGENTS.md, collect maximum information about the system enviro
 8. **Project-specific env**: Read `package.json`, `docker-compose.yml`, `.env.example`, any `*.env` files in the project.
 
 Write the collected intelligence to `memo.md` under a `## System Intelligence` section. Sanitize sensitive tokens (never write raw secrets).
+Preserve `## User` if it already exists in `memo.md`; the user's display name belongs there as `- username: <name>`.
 
 ## Phase 2: AGENTS.md Generation
 

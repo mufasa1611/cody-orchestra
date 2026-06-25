@@ -330,6 +330,16 @@ const boot = Effect.fn("test.boot")(function* (input?: { title?: string }) {
   return { prompt, run, sessions, chat }
 })
 
+const waitForQuestion = Effect.fn("test.waitForQuestion")(function* () {
+  const question = yield* Question.Service
+  for (let i = 0; i < 50; i++) {
+    const pending = yield* question.list()
+    if (pending.length) return pending[0]!
+    yield* Effect.sleep("10 millis")
+  }
+  throw new Error("Timed out waiting for onboarding question")
+})
+
 // Loop semantics
 
 it.live("loop exits immediately when last assistant has stop finish", () =>
@@ -514,6 +524,109 @@ it.live("static loop consumes queued replies across turns", () =>
 
       expect(yield* llm.hits).toHaveLength(2)
       expect(yield* llm.pending).toBe(0)
+    }),
+    { git: true, config: providerCfg },
+  ),
+)
+
+it.live("first chat greets saved username and asks onboarding only after the first reply", () =>
+  provideTmpdirServer(
+    ({ dir, llm }) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          Bun.write(path.join(dir, "memo.md"), "# Private Workspace Memo\n\n## User\n- username: Installer User\n"),
+        )
+        const prompt = yield* SessionPrompt.Service
+        const sessions = yield* Session.Service
+        const question = yield* Question.Service
+        const session = yield* sessions.create({
+          title: "Onboarding first chat",
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        })
+
+        yield* llm.text("first answer")
+        const first = yield* prompt
+          .prompt({
+            sessionID: session.id,
+            agent: "build",
+            parts: [{ type: "text", text: "hello first" }],
+          })
+          .pipe(Effect.forkChild)
+
+        const onboarding = yield* waitForQuestion()
+        expect(onboarding.questions[0]?.options.map((option) => option.label)).toEqual(["Yes please", "No, not now"])
+
+        const beforeReply = yield* sessions.messages({ sessionID: session.id })
+        expect(
+          beforeReply.some((message) =>
+            message.parts.some((part) => part.type === "text" && part.text === "first answer"),
+          ),
+        ).toBe(true)
+
+        yield* question.reply({ requestID: onboarding.id, answers: [["No, not now"]] })
+        expect(Exit.isSuccess(yield* Fiber.await(first))).toBe(true)
+
+        expect(JSON.stringify(yield* llm.inputs)).toContain("Hi Installer User, it is nice to serve you.")
+
+        yield* llm.text("second answer")
+        const second = yield* prompt
+          .prompt({
+            sessionID: session.id,
+            agent: "build",
+            parts: [{ type: "text", text: "hello second" }],
+          })
+          .pipe(Effect.forkChild)
+        yield* Effect.sleep("100 millis")
+        const repeated = yield* question.list()
+        if (repeated[0]) yield* question.reply({ requestID: repeated[0].id, answers: [["No, not now"]] })
+        expect(repeated).toHaveLength(0)
+
+        const secondExit = yield* Fiber.await(second)
+        expect(Exit.isSuccess(secondExit)).toBe(true)
+        if (Exit.isSuccess(secondExit)) {
+          expect(secondExit.value.parts.some((part) => part.type === "text" && part.text === "second answer")).toBe(
+            true,
+          )
+        }
+      }),
+    { git: true, config: providerCfg },
+  ),
+)
+
+it.live("init onboarding opt-in does not recursively ask again while /init runs", () =>
+  provideTmpdirServer(
+    Effect.fnUntraced(function* ({ llm }) {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const question = yield* Question.Service
+      const session = yield* sessions.create({
+        title: "Onboarding init",
+        permission: [{ permission: "bash", pattern: "*", action: "ask" }],
+      })
+
+      yield* llm.text("first answer")
+      yield* llm.text("init done")
+      const run = yield* prompt
+        .prompt({
+          sessionID: session.id,
+          agent: "build",
+          parts: [{ type: "text", text: "hello init" }],
+        })
+        .pipe(Effect.forkChild)
+
+      const onboarding = yield* waitForQuestion()
+      yield* question.reply({ requestID: onboarding.id, answers: [["Yes please"]] })
+      expect(Exit.isSuccess(yield* Fiber.await(run))).toBe(true)
+      expect(yield* question.list()).toHaveLength(0)
+
+      const updated = yield* sessions.get(session.id)
+      expect(updated.permission).toEqual([{ permission: "bash", pattern: "*", action: "ask" }])
+      const messages = yield* sessions.messages({ sessionID: session.id })
+      expect(
+        messages.some((message) =>
+          message.parts.some((part) => part.type === "text" && part.text.includes("Codyx is collecting system info")),
+        ),
+      ).toBe(true)
     }),
     { git: true, config: providerCfg },
   ),

@@ -5,6 +5,7 @@ param(
   [string]$ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json"),
   [switch]$NonInteractive,
   [string]$DisplayName = "",
+  [string]$MemoPath = "",
   [scriptblock]$RequestAction,
   [scriptblock]$ReadAction = { param($Prompt) Read-Host $Prompt },
   [scriptblock]$SleepAction = { param($Seconds) Start-Sleep -Seconds $Seconds }
@@ -48,6 +49,31 @@ function Test-EmailAddress($Value) {
   } catch {
     return $false
   }
+}
+
+function Save-InstallerUsername($Name) {
+  if (-not $MemoPath) { return }
+  $directory = Split-Path -Parent $MemoPath
+  if ($directory) {
+    $null = New-Item -ItemType Directory -Force -Path $directory
+  }
+  $existing = if (Test-Path -LiteralPath $MemoPath) {
+    [System.IO.File]::ReadAllText($MemoPath, [System.Text.Encoding]::UTF8)
+  } else {
+    ""
+  }
+  $line = "- username: $Name"
+  if ($existing -match "(?m)^-\s*username:\s*") {
+    $next = [regex]::Replace($existing, "(?m)^-\s*username:\s*.*$", $line, 1)
+  } elseif ($existing -match "(?m)^## User\s*$") {
+    $next = [regex]::Replace($existing, "(?m)^## User\s*$", "## User`r`n$line", 1)
+  } elseif ([string]::IsNullOrWhiteSpace($existing)) {
+    $next = "# Private Workspace Memo`r`n*Note: This file is Gitignored and contains private machine-specific info.*`r`n`r`n## User`r`n$line`r`n"
+  } else {
+    $next = $existing.TrimEnd() + "`r`n`r`n## User`r`n$line`r`n"
+  }
+  [System.IO.File]::WriteAllText($MemoPath, $next, [System.Text.UTF8Encoding]::new($false))
+  Write-VerificationOk "Saved username to $MemoPath"
 }
 
 function Get-ErrorResponse($ErrorRecord) {
@@ -205,11 +231,22 @@ Write-Host "Deletion requests: privacy@kingkung.men"
 Write-Host "wish you smooth installation (Mufasa)"
 Write-Host ""
 
-$email = $null
-
-if (-not $DisplayName) {
-  Write-VerificationWarn "No display name provided. Verification will proceed without a name."
+$DisplayName = $DisplayName.Trim()
+while (-not $DisplayName) {
+  $value = (Read-InstallerValue "Your name (required, or 'cancel')").Trim()
+  if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-VerificationWarn "Installation cancelled before registration."
+    return New-VerificationResult $false "cancelled"
+  }
+  if ($value.Length -lt 2 -or $value.Length -gt 100) {
+    Write-VerificationWarn "Enter a name between 2 and 100 characters."
+    continue
+  }
+  $DisplayName = $value
 }
+Save-InstallerUsername $DisplayName
+
+$email = $null
 
 while ($true) {
   while (-not $email) {

@@ -360,6 +360,7 @@ $verificationParameters = @{
   ReceiptPath = (Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json")
   NonInteractive = -not (Test-InteractiveHost)
   DisplayName = $Script:CodyxUserName
+  MemoPath = (Join-Path $Root "memo.md")
 }
 
 if ($verificationPath -and (Test-Path -LiteralPath $verificationPath)) {

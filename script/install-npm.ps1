@@ -40,12 +40,44 @@ function Refresh-Path {
   $env:PATH = "$machine;$user"
 }
 
+function Save-UserMemo($Name) {
+  $memoPath = Join-Path (Join-Path $env:LOCALAPPDATA "codyx") "memo.md"
+  $directory = Split-Path -Parent $memoPath
+  $null = New-Item -ItemType Directory -Force -Path $directory
+  $existing = if (Test-Path -LiteralPath $memoPath) {
+    [System.IO.File]::ReadAllText($memoPath, [System.Text.Encoding]::UTF8)
+  } else {
+    ""
+  }
+  $line = "- username: $Name"
+  if ($existing -match "(?m)^-\s*username:\s*") {
+    $next = [regex]::Replace($existing, "(?m)^-\s*username:\s*.*$", $line, 1)
+  } elseif ($existing -match "(?m)^## User\s*$") {
+    $next = [regex]::Replace($existing, "(?m)^## User\s*$", "## User`r`n$line", 1)
+  } elseif ([string]::IsNullOrWhiteSpace($existing)) {
+    $next = "# Private Workspace Memo`r`n*Note: This file is Gitignored and contains private machine-specific info.*`r`n`r`n## User`r`n$line`r`n"
+  } else {
+    $next = $existing.TrimEnd() + "`r`n`r`n## User`r`n$line`r`n"
+  }
+  [System.IO.File]::WriteAllText($memoPath, $next, [System.Text.UTF8Encoding]::new($false))
+  Write-Ok "Saved username to $memoPath"
+}
+
 # ── Banner ────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  ╔══════════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "  ║   codyx npm Installer for Windows       ║" -ForegroundColor Cyan
 Write-Host "  ╚══════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
+
+while ($true) {
+  $userName = (Read-Host "What would you like codyx to call you?").Trim()
+  if ($userName.Length -ge 2 -and $userName.Length -le 100) {
+    Save-UserMemo $userName
+    break
+  }
+  Write-Warn "Enter a name between 2 and 100 characters."
+}
 
 # ── Resolve package spec ──────────────────────────────────────────────
 $pkgSpec = if ($Version) { "codyx-ai@$Version" } else { "codyx-ai@$Tag" }
