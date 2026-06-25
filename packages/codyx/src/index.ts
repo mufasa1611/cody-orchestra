@@ -103,6 +103,7 @@ function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): 
 
 // Auto-update at startup (skip for help/version/upgrade subcommands)
 if (
+  Installation.isLocal() &&
   process.env.CODY_PRO !== "0" &&
   !rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) &&
   rawArgs[0] !== "upgrade"

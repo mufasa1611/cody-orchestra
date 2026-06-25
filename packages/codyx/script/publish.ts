@@ -14,6 +14,32 @@ const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
 const npmOnly = process.env.CODY_NPM_ONLY === "1"
 const dryRun = process.env.CODY_NPM_DRY_RUN === "1"
 
+type WrapperPackage = {
+  name: string
+  version: string
+  repository: {
+    url: string
+  }
+  bin: Record<string, string>
+  files: string[]
+  optionalDependencies: Record<string, string>
+}
+
+const expectedPlatformPackages = (name: string) => [
+  `${name}-linux-arm64`,
+  `${name}-linux-x64`,
+  `${name}-linux-x64-baseline`,
+  `${name}-linux-arm64-musl`,
+  `${name}-linux-x64-musl`,
+  `${name}-linux-x64-baseline-musl`,
+  `${name}-darwin-arm64`,
+  `${name}-darwin-x64`,
+  `${name}-darwin-x64-baseline`,
+  `${name}-windows-arm64`,
+  `${name}-windows-x64`,
+  `${name}-windows-x64-baseline`,
+]
+
 async function published(name: string, version: string) {
   return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
 }
@@ -34,6 +60,32 @@ async function publish(dir: string, name: string, version: string) {
   await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir)
 }
 
+async function verifyNpmDist(wrapper: WrapperPackage) {
+  if (wrapper.name !== npmPackage) throw new Error(`Expected wrapper package ${npmPackage}, found ${wrapper.name}`)
+  if (wrapper.bin.codyx !== "./bin/codyx") throw new Error("Wrapper package is missing the codyx bin")
+  if (wrapper.bin.cody !== "./bin/cody") throw new Error("Wrapper package is missing the cody bin")
+  if (!wrapper.files.includes("bin/")) throw new Error("Wrapper package does not publish bin/")
+  if (!wrapper.files.includes("postinstall.mjs")) throw new Error("Wrapper package does not publish postinstall.mjs")
+  if (wrapper.repository.url !== `git+https://github.com/${GH_REPO}.git`) {
+    throw new Error(`Wrapper repository must point to ${GH_REPO}`)
+  }
+
+  const missing = expectedPlatformPackages(npmPackage).filter((name) => !wrapper.optionalDependencies[name])
+  if (missing.length > 0) throw new Error(`Missing platform packages: ${missing.join(", ")}`)
+
+  const versionMismatch = Object.entries(wrapper.optionalDependencies).filter((entry) => entry[1] !== wrapper.version)
+  if (versionMismatch.length > 0) {
+    throw new Error(`Platform package version mismatch: ${versionMismatch.map((entry) => entry.join("@")).join(", ")}`)
+  }
+
+  for (const name of expectedPlatformPackages(npmPackage)) {
+    const packageJson = Bun.file(path.join(dir, "dist", name, "package.json"))
+    const binary = Bun.file(path.join(dir, "dist", name, "bin", name.includes("-windows-") ? "codyx.exe" : "codyx"))
+    if (!(await packageJson.exists())) throw new Error(`Missing ${name}/package.json`)
+    if (!(await binary.exists())) throw new Error(`Missing binary for ${name}`)
+  }
+}
+
 const binaries: Record<string, string> = {}
 for (const filepath of new Bun.Glob("**/package.json").scanSync({ cwd: "./dist" })) {
   const pkg = await Bun.file(`./dist/${filepath}`).json()
@@ -43,6 +95,9 @@ for (const filepath of new Bun.Glob("**/package.json").scanSync({ cwd: "./dist" 
 console.log("binaries", binaries)
 const version = Object.values(binaries)[0]
 if (!version) throw new Error("No platform packages found in packages/codyx/dist")
+if (Object.values(binaries).some((item) => item !== version)) {
+  throw new Error("Platform package versions do not match")
+}
 
 const wrapperDir = path.join(dir, "dist", npmPackage)
 await fs.promises.mkdir(wrapperDir, { recursive: true })
@@ -50,36 +105,33 @@ await fs.promises.cp(path.join(dir, "bin"), path.join(wrapperDir, "bin"), { recu
 await fs.promises.copyFile(path.join(dir, "script", "postinstall.mjs"), path.join(wrapperDir, "postinstall.mjs"))
 await Bun.file(`./dist/${npmPackage}/LICENSE`).write(await Bun.file("../../LICENSE").text())
 
-await Bun.file(`./dist/${npmPackage}/package.json`).write(
-  JSON.stringify(
-    {
-      name: npmPackage,
-      description: "Codyx local-first coding agent CLI",
-      bin: {
-        codyx: "./bin/codyx",
-        cody: "./bin/cody",
-      },
-      scripts: {
-        postinstall: "bun ./postinstall.mjs || node ./postinstall.mjs",
-      },
-      version,
-      license: pkg.license,
-      repository: {
-        type: "git",
-        url: `git+https://github.com/${GH_REPO}.git`,
-      },
-      homepage: `https://github.com/${GH_REPO}`,
-      bugs: `https://github.com/${GH_REPO}/issues`,
-      engines: {
-        node: ">=18",
-      },
-      files: ["bin/", "postinstall.mjs", "LICENSE"],
-      optionalDependencies: binaries,
-    },
-    null,
-    2,
-  ),
-)
+const wrapperPackage = {
+  name: npmPackage,
+  description: "Codyx local-first coding agent CLI",
+  bin: {
+    codyx: "./bin/codyx",
+    cody: "./bin/cody",
+  },
+  scripts: {
+    postinstall: "bun ./postinstall.mjs || node ./postinstall.mjs",
+  },
+  version,
+  license: pkg.license,
+  repository: {
+    type: "git",
+    url: `git+https://github.com/${GH_REPO}.git`,
+  },
+  homepage: `https://github.com/${GH_REPO}`,
+  bugs: `https://github.com/${GH_REPO}/issues`,
+  engines: {
+    node: ">=18",
+  },
+  files: ["bin/", "postinstall.mjs", "LICENSE"],
+  optionalDependencies: binaries,
+}
+
+await Bun.file(`./dist/${npmPackage}/package.json`).write(JSON.stringify(wrapperPackage, null, 2))
+await verifyNpmDist(wrapperPackage)
 
 for (const [name] of Object.entries(binaries)) {
   await publish(`./dist/${name}`, name, binaries[name])

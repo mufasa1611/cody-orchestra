@@ -72,7 +72,7 @@ jobs:
           node -e "if (!require('semver').valid(process.argv[1])) process.exit(1)" "${{ steps.resolve.outputs.version }}"
 
       - name: Build platform packages
-        run: bun ./packages/codyx/script/build.ts
+        run: bun ./packages/codyx/script/build.ts --all
         env:
           CODY_VERSION: ${{ steps.resolve.outputs.version }}
           CODY_CHANNEL: ${{ steps.resolve.outputs.tag }}
